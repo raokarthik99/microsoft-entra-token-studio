@@ -23,7 +23,6 @@
 	},
 	"dependencies": {
 		"@azure/msal-node": "^3.8.3",
-		"dotenv": "^17.2.3",
 		"jwt-decode": "^4.0.0"
 	}
 }
