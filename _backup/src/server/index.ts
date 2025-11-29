@@ -10,7 +10,7 @@ const __dirname = path.dirname(__filename);
 
 dotenv.config();
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5173;
 const TENANT_ID = process.env.TENANT_ID;
 const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
