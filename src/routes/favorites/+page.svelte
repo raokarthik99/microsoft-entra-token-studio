@@ -1,0 +1,173 @@
+<script lang="ts">
+  import FavoritesList from '$lib/components/FavoritesList.svelte';
+  import FavoriteFormSheet from '$lib/components/FavoriteFormSheet.svelte';
+  import { favoritesState } from '$lib/states/favorites.svelte';
+  import { appRegistry } from '$lib/states/app-registry.svelte';
+  import type { FavoriteItem } from '$lib/types';
+  import { Button } from "$lib/shadcn/components/ui/button";
+  import { Star, Trash2 } from "@lucide/svelte";
+  import { onMount } from "svelte";
+  import { clientStorage, CLIENT_STORAGE_KEYS } from '$lib/services/client-storage';
+  import { reissueFromFavorite } from '$lib/services/token-reissue';
+  import ConfirmDialog from "$lib/components/confirm-dialog.svelte";
+
+  type FavoriteFormValue = Omit<FavoriteItem, 'id' | 'timestamp' | 'createdAt' | 'useCount'> & {
+    useCount?: number;
+    createdAt?: number;
+    timestamp?: number;
+  };
+
+  const lastUpdated = $derived((() => {
+    const timestamps = favoritesState.items.map((item) =>
+      Math.max(item.lastUsedAt ?? 0, item.createdAt ?? item.timestamp ?? 0)
+    );
+    const latest = timestamps.length ? Math.max(...timestamps) : null;
+    return latest ? new Date(latest).toLocaleString() : null;
+  })());
+
+  const existingTags = $derived(
+    Array.from(new Set(favoritesState.items.flatMap((fav) => fav.tags ?? []))).filter(Boolean)
+  );
+
+  let editOpen = $state(false);
+  let editing: FavoriteItem | null = $state(null);
+
+  // Confirmation state
+  let confirmOpen = $state(false);
+  let confirmTitle = $state("");
+  let confirmDescription = $state("");
+  let confirmAction = $state<() => Promise<void>>(async () => {});
+
+  function openConfirm(title: string, desc: string, action: () => Promise<void>) {
+    confirmTitle = title;
+    confirmDescription = desc;
+    confirmAction = action;
+    confirmOpen = true;
+  }
+
+  onMount(() => {
+    favoritesState.load();
+  });
+
+  async function handleEditSave(payload: FavoriteFormValue) {
+    if (!editing) return;
+    await favoritesState.update(editing.id, payload);
+    editing = null;
+    editOpen = false;
+  }
+
+  function startEdit(item: FavoriteItem) {
+    editing = item;
+    editOpen = true;
+  }
+
+  async function useFavorite(item: FavoriteItem) {
+    await reissueFromFavorite(item);
+  }
+
+  async function loadFavorite(item: FavoriteItem) {
+    if (!item.tokenData) return;
+    // Auto-switch to the app that was used for this favorite
+    if (item.appId && appRegistry.getById(item.appId)) {
+      await appRegistry.setActive(item.appId);
+    }
+    await clientStorage.set(CLIENT_STORAGE_KEYS.pendingTokenLoad, item);
+    await favoritesState.incrementUse(item.id);
+    window.location.href = '/';
+  }
+
+  async function deleteFavorite(item: FavoriteItem) {
+    openConfirm("Delete favorite?", "This action cannot be undone.", async () => {
+      await favoritesState.delete(item);
+    });
+  }
+
+  async function deleteFavorites(items: FavoriteItem[]) {
+    openConfirm(`Delete ${items.length} items?`, "This action cannot be undone.", async () => {
+      await favoritesState.deleteMany(items);
+    });
+  }
+
+  async function handleClearAll() {
+    openConfirm("Delete all favorites?", "This action cannot be undone.", async () => {
+      await favoritesState.clear();
+    });
+  }
+
+  async function handlePin(item: FavoriteItem, pin: boolean) {
+    await favoritesState.setPinned(item.id, pin);
+  }
+</script>
+
+<svelte:head>
+  <title>Favorites | Entra Token Studio</title>
+</svelte:head>
+
+<div class="flex h-[calc(100vh-12rem)] flex-col gap-6">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div class="flex items-center gap-3">
+      <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-500/10 text-amber-500">
+        <Star class="h-4 w-4" />
+      </div>
+      <div>
+        <p class="text-lg font-semibold leading-tight">Favorites</p>
+        <p class="text-sm text-muted-foreground">Save frequent targets for quick access.</p>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-3">
+      {#if lastUpdated}
+        <span class="text-xs text-muted-foreground">Updated {lastUpdated}</span>
+      {/if}
+      <Button
+        variant="destructive"
+        size="sm"
+        class="gap-2"
+        onclick={handleClearAll}
+        disabled={favoritesState.items.length === 0}
+      >
+        <Trash2 class="h-4 w-4" />
+        Delete All
+      </Button>
+    </div>
+  </div>
+
+  <div class="flex-1 min-h-0 rounded-lg border bg-card shadow-sm overflow-hidden flex flex-col">
+    <div class="flex h-full flex-col p-2 md:p-4">
+      <FavoritesList
+        items={favoritesState.items}
+        onUse={useFavorite}
+        onLoad={loadFavorite}
+        onEdit={startEdit}
+        onDelete={deleteFavorite}
+        onDeleteMany={deleteFavorites}
+        onPin={handlePin}
+        enableToolbar={true}
+        enableSelection={true}
+        compact={false}
+        emptyCtaHref="/?tab=user-token&cta=start-generating"
+        emptyCtaLabel="Start generating"
+      />
+    </div>
+  </div>
+
+  <FavoriteFormSheet
+    bind:open={editOpen}
+    mode="edit"
+    title="Edit favorite"
+    favorite={editing ?? undefined}
+    existingTags={existingTags}
+    onSave={handleEditSave}
+    onClose={() => {
+      editOpen = false;
+      editing = null;
+    }}
+  />
+
+  <ConfirmDialog
+    bind:open={confirmOpen}
+    title={confirmTitle}
+    description={confirmDescription}
+    onConfirm={confirmAction}
+  />
+</div>
