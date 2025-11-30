@@ -3,6 +3,33 @@
   import { fade, fly } from 'svelte/transition';
   import type { HistoryItem, TokenData } from '$lib/types';
   import { parseJwt } from '$lib/utils';
+  
+  // Shadcn Components
+  import { Button } from "$lib/shadcn/components/ui/button";
+  import { Input } from "$lib/shadcn/components/ui/input";
+  import { Label } from "$lib/shadcn/components/ui/label";
+  import * as Card from "$lib/shadcn/components/ui/card";
+  import * as Tabs from "$lib/shadcn/components/ui/tabs";
+  import { Badge } from "$lib/shadcn/components/ui/badge";
+  import { Separator } from "$lib/shadcn/components/ui/separator";
+  import { ScrollArea } from "$lib/shadcn/components/ui/scroll-area";
+  
+  // Icons
+  import { 
+    RotateCcw, 
+    LayoutGrid, 
+    User, 
+    History, 
+    ChevronDown, 
+    ChevronUp, 
+    X, 
+    Copy, 
+    Play, 
+    LogIn,
+    Trash2,
+    Loader2,
+    Check
+  } from "@lucide/svelte";
 
   // State
   let activeTab = $state('app-token');
@@ -15,6 +42,7 @@
   let isResultCollapsed = $state(true);
   let isResultMinimized = $state(false);
   let clientId = $state<string | null>(null);
+  let copied = $state(false);
 
   // Derived
   let decodedClaims = $derived(result ? parseJwt(result.accessToken) : null);
@@ -144,11 +172,11 @@
     }
   }
 
-
-
   async function copyToClipboard(text: string) {
     try {
       await navigator.clipboard.writeText(text);
+      copied = true;
+      setTimeout(() => copied = false, 2000);
     } catch (err) {
       console.error('Failed to copy', err);
     }
@@ -170,165 +198,235 @@
   }
 </script>
 
-<div class="app-container">
-  <header class="app-header">
-    <div class="brand">
-      <h1>Entra Token Client</h1>
-      <div style="display:flex; align-items:center; gap:1rem;">
-        <p class="subtitle">Generate & Inspect Tokens</p>
-        {#if clientId}
-          <span class="badge-outline">Client ID: {clientId}</span>
-        {/if}
-      </div>
-    </div>
-    <button class="btn-secondary btn-sm" title="Reset forms and clear results" onclick={resetAll}>
-      <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-      Reset All
-    </button>
-  </header>
-
-  <main class="dashboard-grid">
-    <!-- Left Column: Controls -->
-    <div class="controls-column">
-      <!-- Tabs -->
-      <div class="tab-group">
-        <button class="tab-btn {activeTab === 'app-token' ? 'active' : ''}" onclick={() => switchTab('app-token')}>
-          <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
-          App Token
-        </button>
-        <button class="tab-btn {activeTab === 'user-token' ? 'active' : ''}" onclick={() => switchTab('user-token')}>
-          <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
-          User Token
-        </button>
-      </div>
-
-      <!-- App Token Form -->
-      {#if activeTab === 'app-token'}
-        <section class="card form-panel active">
-          <div class="panel-header">
-            <h2>App Token (S2S)</h2>
-            <span class="badge">Client Credentials</span>
-          </div>
-          <p class="panel-desc">Generate a token for a daemon app or service using client credentials.</p>
-          <form onsubmit={(e) => { e.preventDefault(); handleAppSubmit(); }}>
-            <div class="form-group">
-              <label for="resource">Resource URL</label>
-              <input type="text" id="resource" bind:value={resource} placeholder="https://graph.microsoft.com" required>
-            </div>
-            <button type="submit" class="btn-primary" disabled={loading}>
-              {#if loading}
-                <span class="loader"></span> Processing...
-              {:else}
-                <span>Get App Token</span>
-                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-              {/if}
-            </button>
-          </form>
-        </section>
-      {/if}
-
-      <!-- User Token Form -->
-      {#if activeTab === 'user-token'}
-        <section class="card form-panel active">
-          <div class="panel-header">
-            <h2>User Token (Auth Code)</h2>
-            <span class="badge">Auth Code Flow</span>
-          </div>
-          <p class="panel-desc">Sign in as a user to generate a token with delegated permissions.</p>
-          <form onsubmit={(e) => { e.preventDefault(); handleUserSubmit(); }}>
-            <div class="form-group">
-              <label for="scopes">Scopes</label>
-              <input type="text" id="scopes" bind:value={scopes} placeholder="User.Read Mail.Read" required>
-            </div>
-            <button type="submit" class="btn-primary" disabled={loading}>
-              {#if loading}
-                <span class="loader"></span> Redirecting...
-              {:else}
-                <span>Sign In & Get Token</span>
-                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"></path></svg>
-              {/if}
-            </button>
-          </form>
-        </section>
-      {/if}
-    </div>
-
-    <!-- Right Column: History -->
-    <div class="history-column">
-      <section class="card history-panel">
-        <div class="panel-header">
-          <h3>Recent Requests</h3>
-          <button class="icon-btn-sm" title="Clear History" onclick={clearHistory}>
-            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-          </button>
-        </div>
-        <ul class="history-list">
-          {#if history.length === 0}
-            <li style="color: var(--text-muted); text-align: center; padding: 1rem; font-size: 0.85rem;">No recent history</li>
-          {:else}
-            {#each history as item}
-              <!-- svelte-ignore a11y_click_events_have_key_events -->
-              <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-              <li class="history-item" onclick={() => restoreHistoryItem(item)}>
-                <div class="history-meta">
-                  <span>{item.type}</span>
-                  <span>{new Date(item.timestamp).toLocaleTimeString()}</span>
-                </div>
-                <div class="history-target" title={item.target}>{item.target}</div>
-              </li>
-            {/each}
+<div class="min-h-screen bg-background p-4 md:p-8 font-sans">
+  <div class="mx-auto max-w-6xl space-y-8">
+    <!-- Header -->
+    <header class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div class="space-y-1">
+        <h1 class="text-3xl font-bold tracking-tight">Entra Token Client</h1>
+        <div class="flex items-center gap-3">
+          <p class="text-muted-foreground">Generate & Inspect Tokens</p>
+          {#if clientId}
+            <Badge variant="outline" class="font-mono">Client ID: {clientId}</Badge>
           {/if}
-        </ul>
-      </section>
-    </div>
-  </main>
-
-  <!-- Collapsible Result Section -->
-  <div class="result-container {isResultCollapsed ? 'collapsed' : ''} {isResultMinimized ? 'minimized' : ''}">
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="result-header" onclick={() => isResultMinimized = !isResultMinimized}>
-      <div class="header-left">
-        <button class="icon-btn" title="Toggle Result">
-          <svg class="chevron-icon" width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-        </button>
-        <h3>Token Result</h3>
-      </div>
-      <button class="icon-btn" title="Close" onclick={(e) => { e.stopPropagation(); isResultCollapsed = true; }}>
-        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-      </button>
-    </div>
-    
-    <div class="result-content">
-      {#if error}
-        <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid var(--error); color: var(--error); padding: 1rem; border-radius: 0.5rem;">
-          <strong>Error:</strong> {error}
         </div>
-      {:else if result}
-        <div class="token-display">
-          <div class="token-box">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
-              <h3 style="font-size:0.9rem; color:var(--text-muted);">Access Token</h3>
-              <button class="icon-btn-sm" onclick={() => copyToClipboard(result?.accessToken || '')} title="Copy">
-                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
-              </button>
-            </div>
-            <pre class="token-content">{result.accessToken}</pre>
-          </div>
+      </div>
+      <Button variant="outline" size="sm" onclick={resetAll} class="gap-2">
+        <RotateCcw class="h-4 w-4" />
+        Reset All
+      </Button>
+    </header>
+
+    <div class="grid gap-8 lg:grid-cols-3">
+      <!-- Left Column: Controls -->
+      <div class="lg:col-span-2 space-y-6">
+        <Tabs.Root value={activeTab} onValueChange={(v) => switchTab(v)} class="w-full">
+          <Tabs.List class="grid w-full grid-cols-2">
+            <Tabs.Trigger value="app-token" class="gap-2">
+              <LayoutGrid class="h-4 w-4" />
+              App Token
+            </Tabs.Trigger>
+            <Tabs.Trigger value="user-token" class="gap-2">
+              <User class="h-4 w-4" />
+              User Token
+            </Tabs.Trigger>
+          </Tabs.List>
           
-          {#if decodedClaims}
-            <div class="token-box">
-              <h3 style="font-size:0.9rem; color:var(--text-muted); margin-bottom:0.5rem;">Decoded Claims</h3>
-              <div class="claims-grid" style="max-height:200px; overflow-y:auto;">
-                {#each Object.entries(decodedClaims) as [k, v]}
-                  <div class="claim-key">{k}</div>
-                  <div class="claim-value">{typeof v === 'object' ? JSON.stringify(v) : v}</div>
-                {/each}
+          <div class="mt-4">
+            <Tabs.Content value="app-token">
+              <Card.Root>
+                <Card.Header>
+                  <div class="flex items-center justify-between">
+                    <Card.Title>App Token (S2S)</Card.Title>
+                    <Badge>Client Credentials</Badge>
+                  </div>
+                  <Card.Description>
+                    Generate a token for a daemon app or service using client credentials.
+                  </Card.Description>
+                </Card.Header>
+                <Card.Content>
+                  <form onsubmit={(e) => { e.preventDefault(); handleAppSubmit(); }} class="space-y-4">
+                    <div class="grid w-full items-center gap-1.5">
+                      <Label for="resource">Resource URL</Label>
+                      <Input type="text" id="resource" bind:value={resource} placeholder="https://graph.microsoft.com" required />
+                    </div>
+                    <Button type="submit" class="w-full gap-2" disabled={loading}>
+                      {#if loading}
+                        <Loader2 class="h-4 w-4 animate-spin" />
+                        Processing...
+                      {:else}
+                        <span>Get App Token</span>
+                        <Play class="h-4 w-4" />
+                      {/if}
+                    </Button>
+                  </form>
+                </Card.Content>
+              </Card.Root>
+            </Tabs.Content>
+
+            <Tabs.Content value="user-token">
+              <Card.Root>
+                <Card.Header>
+                  <div class="flex items-center justify-between">
+                    <Card.Title>User Token (Auth Code)</Card.Title>
+                    <Badge>Auth Code Flow</Badge>
+                  </div>
+                  <Card.Description>
+                    Sign in as a user to generate a token with delegated permissions.
+                  </Card.Description>
+                </Card.Header>
+                <Card.Content>
+                  <form onsubmit={(e) => { e.preventDefault(); handleUserSubmit(); }} class="space-y-4">
+                    <div class="grid w-full items-center gap-1.5">
+                      <Label for="scopes">Scopes</Label>
+                      <Input type="text" id="scopes" bind:value={scopes} placeholder="User.Read Mail.Read" required />
+                    </div>
+                    <Button type="submit" class="w-full gap-2" disabled={loading}>
+                      {#if loading}
+                        <Loader2 class="h-4 w-4 animate-spin" />
+                        Redirecting...
+                      {:else}
+                        <span>Sign In & Get Token</span>
+                        <LogIn class="h-4 w-4" />
+                      {/if}
+                    </Button>
+                  </form>
+                </Card.Content>
+              </Card.Root>
+            </Tabs.Content>
+          </div>
+        </Tabs.Root>
+      </div>
+
+      <!-- Right Column: History -->
+      <div class="lg:col-span-1">
+        <Card.Root class="h-full max-h-[500px] flex flex-col">
+          <Card.Header class="pb-3">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <History class="h-5 w-5 text-muted-foreground" />
+                <Card.Title>Recent Requests</Card.Title>
               </div>
+              <Button variant="ghost" size="icon" title="Clear History" onclick={clearHistory}>
+                <Trash2 class="h-4 w-4" />
+              </Button>
             </div>
-          {/if}
-        </div>
-      {/if}
+          </Card.Header>
+          <Separator />
+          <Card.Content class="p-0 flex-1 min-h-0">
+            <ScrollArea class="h-[400px]">
+              <div class="p-4">
+                {#if history.length === 0}
+                  <div class="text-center text-sm text-muted-foreground py-8">
+                    No recent history
+                  </div>
+                {:else}
+                  <ul class="space-y-2">
+                    {#each history as item}
+                      <!-- svelte-ignore a11y_click_events_have_key_events -->
+                      <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+                      <li 
+                        class="group flex flex-col gap-1 rounded-lg border p-3 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors"
+                        onclick={() => restoreHistoryItem(item)}
+                      >
+                        <div class="flex items-center justify-between text-xs text-muted-foreground">
+                          <span class="font-medium text-foreground">{item.type}</span>
+                          <span>{new Date(item.timestamp).toLocaleTimeString()}</span>
+                        </div>
+                        <div class="truncate font-mono text-xs" title={item.target}>
+                          {item.target}
+                        </div>
+                      </li>
+                    {/each}
+                  </ul>
+                {/if}
+              </div>
+            </ScrollArea>
+          </Card.Content>
+        </Card.Root>
+      </div>
     </div>
   </div>
+
+  <!-- Collapsible Result Section -->
+  {#if result || error}
+    <div 
+      class="fixed bottom-0 left-0 right-0 z-50 border-t bg-background shadow-2xl transition-all duration-300 ease-in-out"
+      class:translate-y-[calc(100%-3.5rem)]={isResultCollapsed && !isResultMinimized}
+      class:translate-y-[calc(100%-0rem)]={isResultMinimized}
+    >
+      <!-- Header -->
+      <!-- svelte-ignore a11y_click_events_have_key_events -->
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div 
+        class="flex h-14 items-center justify-between border-b px-4 hover:bg-accent/50 cursor-pointer"
+        onclick={() => isResultCollapsed = !isResultCollapsed}
+      >
+        <div class="flex items-center gap-2">
+          <Button variant="ghost" size="icon" class="h-8 w-8" onclick={(e) => { e.stopPropagation(); isResultCollapsed = !isResultCollapsed; }}>
+            {#if isResultCollapsed}
+              <ChevronUp class="h-4 w-4" />
+            {:else}
+              <ChevronDown class="h-4 w-4" />
+            {/if}
+          </Button>
+          <h3 class="font-semibold">Token Result</h3>
+        </div>
+        <div class="flex items-center gap-2">
+          <Button variant="ghost" size="icon" class="h-8 w-8" onclick={(e) => { e.stopPropagation(); isResultCollapsed = true; result = null; error = null; }}>
+            <X class="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+      
+      <!-- Content -->
+      <div class="h-[500px] overflow-auto p-4 md:p-8 bg-muted/30">
+        <div class="mx-auto max-w-5xl">
+          {#if error}
+            <div class="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-destructive">
+              <strong class="font-semibold">Error:</strong> {error}
+            </div>
+          {:else if result}
+            <div class="space-y-6">
+              <Card.Root>
+                <Card.Header class="pb-2">
+                  <div class="flex items-center justify-between">
+                    <Card.Title class="text-sm font-medium text-muted-foreground">Access Token</Card.Title>
+                    <Button variant="ghost" size="icon" class="h-8 w-8" onclick={() => copyToClipboard(result?.accessToken || '')} title="Copy">
+                      {#if copied}
+                        <Check class="h-4 w-4 text-green-500" />
+                      {:else}
+                        <Copy class="h-4 w-4" />
+                      {/if}
+                    </Button>
+                  </div>
+                </Card.Header>
+                <Card.Content>
+                  <pre class="overflow-x-auto rounded-lg bg-muted p-4 font-mono text-xs break-all whitespace-pre-wrap">{result.accessToken}</pre>
+                </Card.Content>
+              </Card.Root>
+              
+              {#if decodedClaims}
+                <Card.Root>
+                  <Card.Header class="pb-2">
+                    <Card.Title class="text-sm font-medium text-muted-foreground">Decoded Claims</Card.Title>
+                  </Card.Header>
+                  <Card.Content>
+                    <ScrollArea class="h-[200px] rounded-lg border bg-muted/50 p-4">
+                      <div class="grid grid-cols-[1fr_2fr] gap-x-4 gap-y-2 text-xs font-mono">
+                        {#each Object.entries(decodedClaims) as [k, v]}
+                          <div class="font-semibold text-foreground/70 truncate" title={k}>{k}</div>
+                          <div class="text-muted-foreground break-all">{typeof v === 'object' ? JSON.stringify(v) : v}</div>
+                        {/each}
+                      </div>
+                    </ScrollArea>
+                  </Card.Content>
+                </Card.Root>
+              {/if}
+            </div>
+          {/if}
+        </div>
+      </div>
+    </div>
+  {/if}
 </div>
