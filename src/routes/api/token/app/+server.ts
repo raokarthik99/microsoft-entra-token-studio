@@ -1,5 +1,5 @@
 import { json } from '@sveltejs/kit';
-import { clientApp, asResourceScope } from '$lib/server/msal';
+import { clientApp, asResourceScope, missingEnvKeys } from '$lib/server/msal';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ url }) => {
@@ -7,6 +7,19 @@ export const GET: RequestHandler = async ({ url }) => {
   
   if (!resource) {
     return json({ error: 'Provide a resource, e.g. https://graph.microsoft.com' }, { status: 400 });
+  }
+
+  const missing = missingEnvKeys();
+  if (missing.length || !clientApp) {
+    return json(
+      {
+        error: 'Configuration incomplete',
+        code: 'missing_env',
+        missing,
+        hint: 'Set TENANT_ID, CLIENT_ID, CLIENT_SECRET and restart the dev server.',
+      },
+      { status: 500 },
+    );
   }
 
   const scope = asResourceScope(resource);
@@ -24,6 +37,14 @@ export const GET: RequestHandler = async ({ url }) => {
   } catch (err: any) {
     console.error('Failed to acquire app token', err);
     const message = err.errorMessage || err.message || 'Unknown error';
-    return json({ error: 'Failed to acquire app token', details: message }, { status: 500 });
+    const code = err.errorCode || 'token_acquisition_failed';
+    return json(
+      {
+        error: 'Failed to acquire app token',
+        details: message,
+        code,
+      },
+      { status: 500 },
+    );
   }
 };

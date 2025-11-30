@@ -1,7 +1,7 @@
 <script lang="ts">
   import * as Sidebar from "$lib/shadcn/components/ui/sidebar";
   import { Badge } from "$lib/shadcn/components/ui/badge";
-  import { History, Settings, Home, Zap, ShieldHalf } from "@lucide/svelte";
+  import { History, Settings, Home, Zap, ShieldHalf, ListChecks } from "@lucide/svelte";
   import { page } from '$app/stores';
   import entraIconUrl from "$lib/assets/microsoft-entra-color-icon.svg";
 
@@ -30,10 +30,6 @@
             </div>
             <div class="flex min-w-0 flex-col">
               <span class="block truncate text-sm font-semibold leading-tight">Entra Token Studio</span>
-              <span class="flex items-center gap-2 text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                <span class="inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500 ring-2 ring-emerald-500/20"></span>
-                Ready for calls
-              </span>
             </div>
           </div>
           <Badge variant="secondary" class="text-[11px]">v1</Badge>

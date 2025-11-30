@@ -26,12 +26,32 @@
     Check,
     ShieldCheck,
     Clock3,
+    ListChecks,
+    AlertTriangle,
+    Info,
+    Sparkles,
+    CheckCircle2,
     Wand2,
     Link2,
     ShieldHalf,
     Zap,
     ArrowRight
   } from "@lucide/svelte";
+
+  type HealthStatus = {
+    status: 'ok' | 'incomplete';
+    tenant: string | null;
+    clientId: string | null;
+    authority: string | null;
+    redirectUri: string;
+    checks: {
+      tenantId: boolean;
+      clientId: boolean;
+      clientSecret: boolean;
+      redirectUri: boolean;
+    };
+    missing: string[];
+  };
 
   let activeTab = $state('app-token');
   let resource = $state('https://graph.microsoft.com');
@@ -41,9 +61,11 @@
   let error = $state<string | null>(null);
   let loading = $state(false);
   let clientId = $state<string | null>(null);
+  let health = $state<HealthStatus | null>(null);
+  let healthLoading = $state(false);
   let copied = $state(false);
   let historyFilter = $state<'all' | 'app' | 'user'>('all');
-  let outputCollapsed = $state(false);
+
 
   let decodedClaims = $derived(result ? parseJwt(result.accessToken) : null);
   const expiresOnDate = $derived(result?.expiresOn ? new Date(result.expiresOn) : null);
@@ -72,6 +94,7 @@
     { label: 'Profile (User.Read)', value: 'User.Read' },
     { label: 'Mail + offline access', value: 'User.Read Mail.Read offline_access' },
     { label: 'Admin: Directory.Read.All', value: 'Directory.Read.All' },
+    { label: 'Custom API scope', value: 'api://your-api/user.read' },
   ];
   const scopesPreview = $derived(scopes.split(/[ ,]+/).filter(Boolean));
   const filteredHistory = $derived((() => {
@@ -85,12 +108,67 @@
   const lastRun = $derived(history[0] ?? null);
   const activeFlowLabel = $derived(activeTab === 'app-token' ? 'App token' : 'User token');
   const showResultScopes = $derived(resultKind !== 'App Token' && resultScopes.length > 0);
+  const resolvedRedirectUri = $derived(
+    health?.redirectUri ||
+      (typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : '/auth/callback')
+  );
+  const setupChecklist = $derived([
+    {
+      key: 'tenant',
+      label: 'Tenant ID',
+      ok: Boolean(health?.checks?.tenantId),
+      helper: health?.tenant || 'Set TENANT_ID to your directory ID.',
+    },
+    {
+      key: 'clientId',
+      label: 'Client ID',
+      ok: Boolean(health?.checks?.clientId),
+      helper: health?.clientId || 'Set CLIENT_ID from your Entra app registration.',
+    },
+    {
+      key: 'clientSecret',
+      label: 'Client secret',
+      ok: Boolean(health?.checks?.clientSecret),
+      helper: health?.checks?.clientSecret ? 'Secret loaded on server' : 'Set CLIENT_SECRET and restart the dev server.',
+    },
+    {
+      key: 'redirect',
+      label: 'Redirect URI',
+      ok: Boolean(health?.checks?.redirectUri || health?.redirectUri),
+      helper: resolvedRedirectUri,
+    },
+  ]);
+  const appListLink = 'https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade';
+  const appRedirectLink = $derived(
+    clientId
+      ? `https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/Authentication/appId/${clientId}`
+      : appListLink
+  );
+  const setupStatusLabel = $derived(
+    health ? (health.status === 'ok' ? 'Ready' : 'Check config') : 'Checking'
+  );
+  const setupStatusTone: 'secondary' | 'outline' | 'destructive' = $derived(
+    health?.status === 'ok' ? 'secondary' : 'outline'
+  );
+  const missingCount = $derived(health?.missing?.length ?? 0);
+  const setupSummary = $derived(
+    healthLoading
+      ? 'Checking configuration...'
+      : missingCount > 0
+        ? `${missingCount} ${missingCount === 1 ? 'item needs attention' : 'items need attention'}`
+        : health?.status === 'ok'
+          ? 'Ready to issue tokens.'
+          : 'Waiting for configuration.'
+  );
+  const showTroubleshooting = $derived(
+    Boolean(missingCount)
+  );
 
   onMount(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.has('tab')) {
-      const tab = urlParams.get('tab');
-      if (tab) activeTab = tab;
+    const tab = urlParams.get('tab');
+    if (tab) {
+      activeTab = tab;
       
       if (tab === 'app-token' && urlParams.has('resource')) {
         const r = urlParams.get('resource');
@@ -99,8 +177,6 @@
         const s = urlParams.get('scopes');
         if (s) scopes = s;
       }
-      
-      window.history.replaceState({}, document.title, window.location.pathname);
     } else {
       const lastResource = localStorage.getItem('last_resource');
       if (lastResource) resource = lastResource;
@@ -112,9 +188,13 @@
       if (savedTab) activeTab = savedTab;
     }
 
+    if (tab) {
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
     loadHistory();
     checkUrlForToken();
-    fetchConfig();
+    refreshHealth();
   });
 
   function loadHistory() {
@@ -140,13 +220,17 @@
     }
   }
 
-  async function fetchConfig() {
+  async function refreshHealth() {
+    healthLoading = true;
     try {
       const res = await fetch('/api/health');
-      const data = await res.json();
-      if (data.clientId) clientId = data.clientId;
+      const data: HealthStatus = await res.json();
+      health = data;
+      clientId = data.clientId;
     } catch (err) {
       console.error('Failed to fetch config', err);
+    } finally {
+      healthLoading = false;
     }
   }
 
@@ -191,7 +275,7 @@
         result = data;
         addToHistory({ type: 'App Token', target: resource, timestamp: Date.now() });
       } else {
-        error = data.error || 'Failed to fetch token';
+        error = data.details ? `${data.error}: ${data.details}` : data.error || 'Failed to fetch token';
       }
     } catch (err: any) {
       error = err.message;
@@ -269,89 +353,135 @@
 </svelte:head>
 
 <div class="space-y-8">
-  <section class="rounded-2xl border bg-card/70 p-6 shadow-sm space-y-5">
-    <div class="grid gap-6 lg:grid-cols-[1.6fr_0.8fr] lg:items-start">
-      <div class="space-y-3">
-        <div class="flex flex-col gap-1">
-          <h2 class="text-3xl font-semibold tracking-tight">Token Studio</h2>
-          <p class="max-w-3xl text-sm text-muted-foreground">
-            Human-friendly flows for issuing and inspecting Entra tokens with instant feedback and guardrails.
-          </p>
-        </div>
-      </div>
-
-      {#if lastRun}
-        <div class="flex flex-wrap items-center justify-start gap-2 lg:justify-end">
-          <Badge variant="outline" class="gap-2">
-            <Clock3 class="h-4 w-4" />
-            Last run: {formatTimestamp(lastRun.timestamp)}
-          </Badge>
-        </div>
-      {/if}
-    </div>
-
-    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      <div class="rounded-xl border bg-muted/40 p-4">
-        <div class="flex items-center justify-between text-xs uppercase tracking-[0.16em] text-muted-foreground">
-          <span>Client credentials</span>
-          <ShieldHalf class="h-4 w-4 text-primary" />
-        </div>
-        <p class="mt-2 text-sm font-semibold">Issue app tokens with /.default scopes</p>
-        <p class="text-xs text-muted-foreground">Use this for daemons, schedulers, and API-to-API calls.</p>
-      </div>
-      <div class="rounded-xl border bg-muted/40 p-4">
-        <div class="flex items-center justify-between text-xs uppercase tracking-[0.16em] text-muted-foreground">
-          <span>Delegated</span>
-          <User class="h-4 w-4 text-primary" />
-        </div>
-        <p class="mt-2 text-sm font-semibold">Sign in as a user with consent prompts</p>
-        <p class="text-xs text-muted-foreground">Scope strings are remembered so you can re-run fast.</p>
-      </div>
-      <div class="rounded-xl border bg-muted/40 p-4">
-        <div class="flex items-center justify-between text-xs uppercase tracking-[0.16em] text-muted-foreground">
-          <span>Local-first</span>
-          <Copy class="h-4 w-4 text-primary" />
-        </div>
-        <p class="mt-2 text-sm font-semibold">Tokens stay in your browser</p>
-        <p class="text-xs text-muted-foreground">History is saved locally only—clear it anytime from settings.</p>
-      </div>
-    </div>
-
-    <div class="rounded-xl border bg-muted/30 p-4">
-      <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div class="space-y-2">
-          <p class="text-sm font-semibold text-foreground">Client configuration</p>
-          <p class="text-xs text-muted-foreground max-w-2xl">
-            App tokens use your confidential client (CLIENT_ID + secret) via client credentials. User tokens still rely on the confidential app for the auth code exchange after the browser redirect. Never expose CLIENT_SECRET in the browser; rotate it regularly and prefer a non-production tenant for testing.
-          </p>
-          <div class="flex flex-wrap gap-2">
-            {#if clientId}
-              <Badge variant="secondary" class="gap-2">
-                <ShieldCheck class="h-4 w-4" />
-                Confidential client ready
-              </Badge>
-            {:else}
-              <Badge variant="destructive" class="text-[11px]">CLIENT_ID missing</Badge>
-            {/if}
+  <section id="setup" class="rounded-2xl border bg-card shadow-sm overflow-hidden">
+    <div class="border-b bg-muted/30 px-5 py-4">
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <div class="flex items-center gap-2">
+            <Sparkles class="h-4 w-4 text-primary" />
+            <h3 class="font-semibold text-foreground">Setup</h3>
+          </div>
+          <Separator orientation="vertical" class="h-4" />
+          <div class="flex items-center gap-2">
+            <Badge variant={setupStatusTone} class="gap-1.5 font-normal">
+              <ListChecks class="h-3.5 w-3.5" />
+              {setupStatusLabel}
+            </Badge>
+            <span class="hidden text-sm text-muted-foreground sm:inline-block">
+              {setupSummary}
+            </span>
           </div>
         </div>
-        <div class="flex flex-wrap items-center gap-2">
-          {#if clientId}
-            <code class="rounded-md bg-background px-3 py-2 font-mono text-xs border">{clientId}</code>
-            <Button variant="outline" size="sm" onclick={() => copyToClipboard(clientId || '')} class="gap-2">
-              <Copy class="h-4 w-4" />
-              Copy ID
-            </Button>
+        <Button variant="ghost" size="sm" class="h-8 gap-2 text-muted-foreground hover:text-foreground" onclick={() => refreshHealth()} disabled={healthLoading}>
+          {#if healthLoading}
+            <Loader2 class="h-3.5 w-3.5 animate-spin" />
           {:else}
-            <p class="text-sm text-muted-foreground">Set CLIENT_ID in your environment to enable app tokens.</p>
+            <RotateCcw class="h-3.5 w-3.5" />
+          {/if}
+          <span class="text-xs">Re-run checks</span>
+        </Button>
+      </div>
+    </div>
+
+    <div class="p-5">
+      <div class="grid gap-8 lg:grid-cols-2">
+        <!-- Left Column: Configuration -->
+        <div class="space-y-5">
+          <div class="flex items-center justify-between">
+            <h4 class="text-sm font-medium text-foreground">Client Configuration</h4>
+            <a href={appRedirectLink} target="_blank" class="flex items-center gap-1 text-xs text-primary hover:underline" rel="noreferrer">
+              Open in Entra portal <ArrowRight class="h-3 w-3" />
+            </a>
+          </div>
+
+          <div class="rounded-xl border bg-muted/30 p-4 space-y-4">
+            <div class="space-y-2">
+              <div class="flex items-center justify-between gap-2">
+                <Label class="text-xs text-muted-foreground">Client ID</Label>
+                {#if !clientId}
+                  <span class="text-[10px] text-destructive">* Required</span>
+                {/if}
+              </div>
+              <div class="flex gap-2">
+                <code class="flex-1 rounded-md border bg-background px-3 py-2 font-mono text-xs text-foreground/90">
+                  {clientId || 'Not set (check .env)'}
+                </code>
+                <Button variant="outline" size="icon" class="h-9 w-9 shrink-0" onclick={() => copyToClipboard(clientId || '')} disabled={!clientId} title="Copy Client ID">
+                  <Copy class="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            <div class="space-y-2">
+              <div class="flex items-center justify-between gap-2">
+                <Label class="text-xs text-muted-foreground">Redirect URI</Label>
+                <span class="text-[10px] text-muted-foreground">Must match Entra registration</span>
+              </div>
+              <div class="flex gap-2">
+                <code class="flex-1 rounded-md border bg-background px-3 py-2 font-mono text-xs text-foreground/90 break-all">
+                  {resolvedRedirectUri}
+                </code>
+                <Button variant="outline" size="icon" class="h-9 w-9 shrink-0" onclick={() => copyToClipboard(resolvedRedirectUri)} title="Copy Redirect URI">
+                  <Copy class="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column: Status & Checklist -->
+        <div class="space-y-5">
+          <h4 class="text-sm font-medium text-foreground">Health Check</h4>
+          
+          <div class="space-y-2">
+            {#each setupChecklist as item}
+              <div class={`flex items-start gap-3 rounded-lg border p-2.5 transition-colors ${item.ok ? 'bg-background/50 border-border/50' : 'bg-amber-500/5 border-amber-500/20'}`}>
+                {#if item.ok}
+                  <CheckCircle2 class="mt-0.5 h-4 w-4 text-emerald-500 shrink-0" />
+                {:else}
+                  <AlertTriangle class="mt-0.5 h-4 w-4 text-amber-500 shrink-0" />
+                {/if}
+                <div class="space-y-0.5">
+                  <div class="text-sm font-medium leading-none text-foreground">{item.label}</div>
+                  <p class="text-xs text-muted-foreground">{item.helper}</p>
+                </div>
+              </div>
+            {/each}
+          </div>
+
+          {#if showTroubleshooting}
+            <div class="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 animate-in fade-in slide-in-from-top-2">
+              <div class="mb-2 flex items-center gap-2 text-xs font-semibold text-amber-600">
+                <Sparkles class="h-3.5 w-3.5" />
+                <span>Suggested Fixes</span>
+              </div>
+              <div class="space-y-2">
+                {#each health?.missing || [] as missingItem}
+                  <div class="flex items-start gap-2 text-xs text-muted-foreground">
+                    <span class="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-amber-500"></span>
+                    <span>Set {missingItem} in your .env/.env.local and restart the dev server.</span>
+                  </div>
+                {/each}
+              </div>
+            </div>
           {/if}
         </div>
       </div>
     </div>
   </section>
 
-  <div class="grid gap-6 lg:grid-cols-[1.35fr_0.9fr] items-start">
-    <div class="space-y-5">
+  <div class="space-y-3">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <h3 class="text-lg font-semibold text-foreground">Issue tokens</h3>
+      {#if lastRun}
+        <Badge variant="outline" class="gap-2">
+          <Clock3 class="h-4 w-4" />
+          Last run: {formatTimestamp(lastRun.timestamp)}
+        </Badge>
+      {/if}
+    </div>
+    <div class="grid gap-6 lg:grid-cols-[1.35fr_0.9fr] items-start">
+      <div class="space-y-5">
       <Tabs.Root id="flows" value={activeTab} onValueChange={(v) => switchTab(v)} class="w-full">
         <Tabs.List class="grid w-full grid-cols-2 rounded-full bg-muted/60 p-1">
           <Tabs.Trigger value="app-token" class="gap-2 rounded-full">
@@ -463,26 +593,6 @@
         </div>
       </Tabs.Root>
 
-      <Card.Root class="border bg-card/60">
-        <Card.Header class="pb-3">
-          <Card.Title>Runbook</Card.Title>
-          <Card.Description>Keep your flow sharp and predictable.</Card.Description>
-        </Card.Header>
-        <Card.Content class="grid gap-3 sm:grid-cols-3">
-          <div class="rounded-lg border bg-muted/30 px-3 py-3 text-xs leading-relaxed text-muted-foreground">
-            <div class="mb-1 text-sm font-semibold text-foreground">1. Pick the audience</div>
-            Use Graph or your API URL with /.default for daemons. Keep tenants aligned with your environment.
-          </div>
-          <div class="rounded-lg border bg-muted/30 px-3 py-3 text-xs leading-relaxed text-muted-foreground">
-            <div class="mb-1 text-sm font-semibold text-foreground">2. Scope with intent</div>
-            Ask for only what you need; admin-only scopes will prompt accordingly.
-          </div>
-          <div class="rounded-lg border bg-muted/30 px-3 py-3 text-xs leading-relaxed text-muted-foreground">
-            <div class="mb-1 text-sm font-semibold text-foreground">3. Inspect &amp; clear</div>
-            Decode claims, copy what you need, then clear history if sensitive.
-          </div>
-        </Card.Content>
-      </Card.Root>
       <Card.Root class="border bg-card/70">
         <Card.Header class="pb-3">
           <div class="flex flex-wrap items-center justify-between gap-3">
@@ -556,7 +666,7 @@
         <Card.Header class="space-y-2">
           <div class="flex flex-wrap items-center justify-between gap-3">
             <div class="flex items-center gap-2">
-              <Badge variant="secondary" class="text-xs">Live output</Badge>
+              <Badge variant="secondary" class="text-xs">Output</Badge>
               <Badge variant={statusTone}>
                 {statusLabel}
               </Badge>
@@ -570,29 +680,28 @@
                   <Copy class="h-4 w-4" />
                 {/if}
               </Button>
-              <Button variant="ghost" size="icon" onclick={() => outputCollapsed = !outputCollapsed} title={outputCollapsed ? 'Expand output' : 'Collapse output'}>
-                {#if outputCollapsed}
-                  <ChevronRight class="h-4 w-4" />
-                {:else}
-                  <ChevronDown class="h-4 w-4" />
-                {/if}
-              </Button>
+
             </div>
           </div>
           <Card.Description>Latest response from either flow, decoded instantly.</Card.Description>
         </Card.Header>
         <Card.Content class="space-y-4">
-          {#if outputCollapsed}
-            <div class="rounded-lg border border-dashed bg-muted/30 p-4 text-sm text-muted-foreground">
-              Output hidden. Expand to see access token and claims. You can still issue tokens on the left.
-            </div>
-          {:else if error}
+          {#if error}
             <div class="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-destructive">
               <div class="flex items-center justify-between gap-3">
                 <div class="font-semibold">Token request failed</div>
-                <Button size="sm" variant="secondary" onclick={resetAll}>Reset inputs</Button>
+                <div class="flex items-center gap-2">
+                  <Button size="sm" variant="ghost" class="h-8 w-8 p-0 hover:bg-destructive/20 text-destructive" onclick={() => copyToClipboard(error || '')} title="Copy error message">
+                    {#if copied}
+                      <Check class="h-4 w-4" />
+                    {:else}
+                      <Copy class="h-4 w-4" />
+                    {/if}
+                  </Button>
+                  <Button size="sm" variant="secondary" onclick={resetAll}>Reset inputs</Button>
+                </div>
               </div>
-              <p class="text-sm mt-1">{error}</p>
+              <p class="text-sm mt-1 break-all">{error}</p>
             </div>
           {:else if hasResult && result}
           <div class="grid gap-3 md:grid-cols-3">
@@ -681,4 +790,5 @@
       </Card.Root>
     </div>
   </div>
+</div>
 </div>

@@ -1,14 +1,6 @@
 import * as msal from '@azure/msal-node';
 import { env } from '$env/dynamic/private';
 
-function requireEnv(key: string): string {
-  const value = env[key];
-  if (!value) {
-    throw new Error(`Missing required environment variable: ${key}`);
-  }
-  return value;
-}
-
 // Auth State Management
 interface AuthState {
   scopes: string[];
@@ -28,29 +20,48 @@ setInterval(() => {
   }
 }, STATE_TTL_MS);
 
-// MSAL Configuration
-const config = {
-  auth: {
-    clientId: requireEnv('CLIENT_ID'),
-    authority: `https://login.microsoftonline.com/${env.TENANT_ID || 'organizations'}`,
-    clientSecret: requireEnv('CLIENT_SECRET'),
-  },
-
-  system: {
-    loggerOptions: {
-      loggerCallback(_loglevel: msal.LogLevel, message: string) {
-        const quiet = ['acquireTokenByCode', 'acquireTokenByClientCredential'];
-        if (!quiet.some((q) => message.includes(q))) {
-          console.log(message);
-        }
-      },
-      piiLoggingEnabled: false,
-      logLevel: msal.LogLevel.Info,
-    },
-  },
+// Config + status helpers
+export const configChecks = {
+  tenantId: Boolean(env.TENANT_ID),
+  clientId: Boolean(env.CLIENT_ID),
+  clientSecret: Boolean(env.CLIENT_SECRET),
+  redirectUri: Boolean(env.REDIRECT_URI),
 };
 
-export const clientApp = new msal.ConfidentialClientApplication(config);
+export const missingEnvKeys = (): string[] => {
+  const missing: string[] = [];
+  if (!env.TENANT_ID) missing.push('TENANT_ID');
+  if (!env.CLIENT_ID) missing.push('CLIENT_ID');
+  if (!env.CLIENT_SECRET) missing.push('CLIENT_SECRET');
+  return missing;
+};
+
+// MSAL Configuration
+const config =
+  configChecks.clientId && configChecks.clientSecret
+    ? {
+        auth: {
+          clientId: env.CLIENT_ID as string,
+          authority: `https://login.microsoftonline.com/${env.TENANT_ID || 'organizations'}`,
+          clientSecret: env.CLIENT_SECRET as string,
+        },
+
+        system: {
+          loggerOptions: {
+            loggerCallback(_loglevel: msal.LogLevel, message: string) {
+              const quiet = ['acquireTokenByCode', 'acquireTokenByClientCredential'];
+              if (!quiet.some((q) => message.includes(q))) {
+                console.log(message);
+              }
+            },
+            piiLoggingEnabled: false,
+            logLevel: msal.LogLevel.Info,
+          },
+        },
+      }
+    : null;
+
+export const clientApp = config ? new msal.ConfidentialClientApplication(config) : null;
 
 // Helpers
 export const parseScopes = (input: any): string[] =>

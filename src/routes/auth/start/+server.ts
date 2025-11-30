@@ -1,5 +1,5 @@
 import { redirect } from '@sveltejs/kit';
-import { clientApp, authStates, parseScopes, getRedirectUri } from '$lib/server/msal';
+import { clientApp, authStates, parseScopes, getRedirectUri, missingEnvKeys } from '$lib/server/msal';
 import type { RequestHandler } from './$types';
 import crypto from 'crypto';
 
@@ -8,6 +8,15 @@ export const GET: RequestHandler = async ({ url }) => {
   
   if (!scopes.length) {
     return new Response('Provide scopes via ?scopes=User.Read', { status: 400 });
+  }
+
+  const missing = missingEnvKeys();
+  if (missing.length || !clientApp) {
+    const search = new URLSearchParams({
+      error: 'missing_config',
+      error_description: `Missing ${missing.join(', ') || 'required config'}`,
+    });
+    throw redirect(302, `/?${search.toString()}`);
   }
 
   const state = crypto.randomUUID();

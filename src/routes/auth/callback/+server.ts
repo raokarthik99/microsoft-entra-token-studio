@@ -1,5 +1,5 @@
 import { redirect } from '@sveltejs/kit';
-import { clientApp, authStates, getRedirectUri } from '$lib/server/msal';
+import { clientApp, authStates, getRedirectUri, missingEnvKeys } from '$lib/server/msal';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ url }) => {
@@ -13,6 +13,15 @@ export const GET: RequestHandler = async ({ url }) => {
   }
   if (!code) {
     throw redirect(302, '/?error=missing_code');
+  }
+
+  const missing = missingEnvKeys();
+  if (missing.length || !clientApp) {
+    const search = new URLSearchParams({
+      error: 'missing_config',
+      error_description: `Missing ${missing.join(', ') || 'required config'}`,
+    });
+    throw redirect(302, `/?${search.toString()}`);
   }
   
   const entry = state ? authStates.get(state) : undefined;
