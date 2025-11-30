@@ -1,10 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { fade, fly } from 'svelte/transition';
   import type { HistoryItem, TokenData } from '$lib/types';
   import { parseJwt } from '$lib/utils';
   
-  // Shadcn Components
   import { Button } from "$lib/shadcn/components/ui/button";
   import { Input } from "$lib/shadcn/components/ui/input";
   import { Label } from "$lib/shadcn/components/ui/label";
@@ -14,24 +12,27 @@
   import { Separator } from "$lib/shadcn/components/ui/separator";
   import { ScrollArea } from "$lib/shadcn/components/ui/scroll-area";
   
-  // Icons
   import { 
     RotateCcw, 
-    LayoutGrid, 
     User, 
     History, 
-    ChevronDown, 
-    ChevronUp, 
-    X, 
+    ChevronDown,
+    ChevronRight,
     Copy, 
     Play, 
     LogIn,
     Trash2,
     Loader2,
-    Check
+    Check,
+    ShieldCheck,
+    Clock3,
+    Wand2,
+    Link2,
+    ShieldHalf,
+    Zap,
+    ArrowRight
   } from "@lucide/svelte";
 
-  // State
   let activeTab = $state('app-token');
   let resource = $state('https://graph.microsoft.com');
   let scopes = $state('User.Read');
@@ -39,24 +40,77 @@
   let result = $state<TokenData | null>(null);
   let error = $state<string | null>(null);
   let loading = $state(false);
-  let isResultCollapsed = $state(true);
-  let isResultMinimized = $state(false);
   let clientId = $state<string | null>(null);
   let copied = $state(false);
+  let historyFilter = $state<'all' | 'app' | 'user'>('all');
+  let outputCollapsed = $state(false);
 
-  // Derived
   let decodedClaims = $derived(result ? parseJwt(result.accessToken) : null);
+  const expiresOnDate = $derived(result?.expiresOn ? new Date(result.expiresOn) : null);
+  const expiresInMinutes = $derived(expiresOnDate ? Math.max(0, Math.round((expiresOnDate.getTime() - Date.now()) / 60000)) : null);
+  const historyCount = $derived(history.length);
+  const resultKind = $derived(result ? (result.scopes?.length ? 'User Token' : 'App Token') : '');
+  const toResourceScope = (value: string) => {
+    const cleaned = value.replace(/\/+$/, '');
+    return cleaned.toLowerCase().endsWith('/.default') ? cleaned : `${cleaned}/.default`;
+  };
+  const computedResourceScope = $derived(toResourceScope(resource));
+  const resultScopes = $derived((() => {
+    if (!result) return [];
+    if (result.scopes?.length) return result.scopes;
+    if (result.scope) return result.scope.split(' ').filter(Boolean);
+    return [];
+  })());
+
+  const resourcePresets = [
+    { label: 'Microsoft Graph', value: 'https://graph.microsoft.com' },
+    { label: 'Azure Resource Manager', value: 'https://management.azure.com' },
+    { label: 'Custom API (.default)', value: 'api://your-api/.default' },
+  ];
+
+  const scopePresets = [
+    { label: 'Profile (User.Read)', value: 'User.Read' },
+    { label: 'Mail + offline access', value: 'User.Read Mail.Read offline_access' },
+    { label: 'Admin: Directory.Read.All', value: 'Directory.Read.All' },
+  ];
+  const scopesPreview = $derived(scopes.split(/[ ,]+/).filter(Boolean));
+  const filteredHistory = $derived((() => {
+    if (historyFilter === 'all') return history;
+    return history.filter((item) => historyFilter === 'app' ? item.type === 'App Token' : item.type === 'User Token');
+  })());
+  const historyPeek = $derived(filteredHistory.slice(0, 8));
+  const hasResult = $derived(Boolean(result));
+  const statusLabel = $derived(error ? 'Error' : hasResult ? 'Issued' : 'Waiting');
+  const statusTone: 'secondary' | 'outline' | 'destructive' = $derived(error ? 'destructive' : hasResult ? 'secondary' : 'outline');
+  const lastRun = $derived(history[0] ?? null);
+  const activeFlowLabel = $derived(activeTab === 'app-token' ? 'App token' : 'User token');
+  const showResultScopes = $derived(resultKind !== 'App Token' && resultScopes.length > 0);
 
   onMount(() => {
-    // Load saved values
-    const lastResource = localStorage.getItem('last_resource');
-    if (lastResource) resource = lastResource;
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('tab')) {
+      const tab = urlParams.get('tab');
+      if (tab) activeTab = tab;
+      
+      if (tab === 'app-token' && urlParams.has('resource')) {
+        const r = urlParams.get('resource');
+        if (r) resource = r;
+      } else if (tab === 'user-token' && urlParams.has('scopes')) {
+        const s = urlParams.get('scopes');
+        if (s) scopes = s;
+      }
+      
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else {
+      const lastResource = localStorage.getItem('last_resource');
+      if (lastResource) resource = lastResource;
 
-    const lastScopes = localStorage.getItem('last_scopes');
-    if (lastScopes) scopes = lastScopes;
+      const lastScopes = localStorage.getItem('last_scopes');
+      if (lastScopes) scopes = lastScopes;
 
-    const savedTab = localStorage.getItem('active_tab');
-    if (savedTab) activeTab = savedTab;
+      const savedTab = localStorage.getItem('active_tab');
+      if (savedTab) activeTab = savedTab;
+    }
 
     loadHistory();
     checkUrlForToken();
@@ -108,21 +162,18 @@
         localStorage.setItem('active_tab', 'user-token');
         
         result = tokenData;
-        isResultCollapsed = false;
         addToHistory({ type: 'User Token', target: (tokenData.scopes || []).join(' '), timestamp: Date.now() });
         
         window.history.replaceState({}, document.title, window.location.pathname);
       } catch (e) {
         console.error('Failed to parse token', e);
         error = 'Failed to parse token from URL';
-        isResultCollapsed = false;
       }
     }
     
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.has('error')) {
       error = `${urlParams.get('error')}: ${urlParams.get('error_description') || ''}`;
-      isResultCollapsed = false;
     }
   }
 
@@ -138,15 +189,12 @@
       
       if (res.ok) {
         result = data;
-        isResultCollapsed = false;
         addToHistory({ type: 'App Token', target: resource, timestamp: Date.now() });
       } else {
         error = data.error || 'Failed to fetch token';
-        isResultCollapsed = false;
       }
     } catch (err: any) {
       error = err.message;
-      isResultCollapsed = false;
     } finally {
       loading = false;
     }
@@ -166,7 +214,6 @@
       scopes = 'User.Read';
       result = null;
       error = null;
-      isResultCollapsed = true;
       localStorage.removeItem('last_resource');
       localStorage.removeItem('last_scopes');
     }
@@ -196,237 +243,442 @@
       scopes = item.target;
     }
   }
+
+  function applyResourcePreset(value: string) {
+    resource = value;
+  }
+
+  function applyScopePreset(value: string) {
+    scopes = value;
+  }
+
+  function readableExpiry() {
+    if (expiresInMinutes === null) return null;
+    if (expiresInMinutes <= 1) return 'expires now';
+    if (expiresInMinutes < 60) return `${expiresInMinutes} min left`;
+    return `${Math.round(expiresInMinutes / 60)} hr remaining`;
+  }
+
+  function formatTimestamp(ts: number) {
+    return new Date(ts).toLocaleString();
+  }
 </script>
 
-<div class="min-h-screen bg-background p-4 md:p-8 font-sans">
-  <div class="mx-auto max-w-6xl space-y-8">
-    <!-- Header -->
-    <header class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-      <div class="space-y-1">
-        <h1 class="text-3xl font-bold tracking-tight">Entra Token Client</h1>
-        <div class="flex items-center gap-3">
-          <p class="text-muted-foreground">Generate & Inspect Tokens</p>
+<svelte:head>
+  <title>Token Studio | Entra Token Client</title>
+</svelte:head>
+
+<div class="space-y-8">
+  <section class="rounded-2xl border bg-card/70 p-6 shadow-sm space-y-5">
+    <div class="grid gap-6 lg:grid-cols-[1.6fr_0.8fr] lg:items-start">
+      <div class="space-y-3">
+        <div class="flex flex-col gap-1">
+          <h2 class="text-3xl font-semibold tracking-tight">Token Studio</h2>
+          <p class="max-w-3xl text-sm text-muted-foreground">
+            Human-friendly flows for issuing and inspecting Entra tokens with instant feedback and guardrails.
+          </p>
+        </div>
+      </div>
+
+      {#if lastRun}
+        <div class="flex flex-wrap items-center justify-start gap-2 lg:justify-end">
+          <Badge variant="outline" class="gap-2">
+            <Clock3 class="h-4 w-4" />
+            Last run: {formatTimestamp(lastRun.timestamp)}
+          </Badge>
+        </div>
+      {/if}
+    </div>
+
+    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div class="rounded-xl border bg-muted/40 p-4">
+        <div class="flex items-center justify-between text-xs uppercase tracking-[0.16em] text-muted-foreground">
+          <span>Client credentials</span>
+          <ShieldHalf class="h-4 w-4 text-primary" />
+        </div>
+        <p class="mt-2 text-sm font-semibold">Issue app tokens with /.default scopes</p>
+        <p class="text-xs text-muted-foreground">Use this for daemons, schedulers, and API-to-API calls.</p>
+      </div>
+      <div class="rounded-xl border bg-muted/40 p-4">
+        <div class="flex items-center justify-between text-xs uppercase tracking-[0.16em] text-muted-foreground">
+          <span>Delegated</span>
+          <User class="h-4 w-4 text-primary" />
+        </div>
+        <p class="mt-2 text-sm font-semibold">Sign in as a user with consent prompts</p>
+        <p class="text-xs text-muted-foreground">Scope strings are remembered so you can re-run fast.</p>
+      </div>
+      <div class="rounded-xl border bg-muted/40 p-4">
+        <div class="flex items-center justify-between text-xs uppercase tracking-[0.16em] text-muted-foreground">
+          <span>Local-first</span>
+          <Copy class="h-4 w-4 text-primary" />
+        </div>
+        <p class="mt-2 text-sm font-semibold">Tokens stay in your browser</p>
+        <p class="text-xs text-muted-foreground">History is saved locally only—clear it anytime from settings.</p>
+      </div>
+    </div>
+
+    <div class="rounded-xl border bg-muted/30 p-4">
+      <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div class="space-y-2">
+          <p class="text-sm font-semibold text-foreground">Client configuration</p>
+          <p class="text-xs text-muted-foreground max-w-2xl">
+            App tokens use your confidential client (CLIENT_ID + secret) via client credentials. User tokens still rely on the confidential app for the auth code exchange after the browser redirect. Never expose CLIENT_SECRET in the browser; rotate it regularly and prefer a non-production tenant for testing.
+          </p>
+          <div class="flex flex-wrap gap-2">
+            {#if clientId}
+              <Badge variant="secondary" class="gap-2">
+                <ShieldCheck class="h-4 w-4" />
+                Confidential client ready
+              </Badge>
+            {:else}
+              <Badge variant="destructive" class="text-[11px]">CLIENT_ID missing</Badge>
+            {/if}
+          </div>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
           {#if clientId}
-            <Badge variant="outline" class="font-mono">Client ID: {clientId}</Badge>
+            <code class="rounded-md bg-background px-3 py-2 font-mono text-xs border">{clientId}</code>
+            <Button variant="outline" size="sm" onclick={() => copyToClipboard(clientId || '')} class="gap-2">
+              <Copy class="h-4 w-4" />
+              Copy ID
+            </Button>
+          {:else}
+            <p class="text-sm text-muted-foreground">Set CLIENT_ID in your environment to enable app tokens.</p>
           {/if}
         </div>
       </div>
-      <Button variant="outline" size="sm" onclick={resetAll} class="gap-2">
-        <RotateCcw class="h-4 w-4" />
-        Reset All
-      </Button>
-    </header>
+    </div>
+  </section>
 
-    <div class="grid gap-8 lg:grid-cols-3">
-      <!-- Left Column: Controls -->
-      <div class="lg:col-span-2 space-y-6">
-        <Tabs.Root value={activeTab} onValueChange={(v) => switchTab(v)} class="w-full">
-          <Tabs.List class="grid w-full grid-cols-2">
-            <Tabs.Trigger value="app-token" class="gap-2">
-              <LayoutGrid class="h-4 w-4" />
-              App Token
-            </Tabs.Trigger>
-            <Tabs.Trigger value="user-token" class="gap-2">
-              <User class="h-4 w-4" />
-              User Token
-            </Tabs.Trigger>
-          </Tabs.List>
-          
-          <div class="mt-4">
-            <Tabs.Content value="app-token">
-              <Card.Root>
-                <Card.Header>
-                  <div class="flex items-center justify-between">
-                    <Card.Title>App Token (S2S)</Card.Title>
-                    <Badge>Client Credentials</Badge>
+  <div class="grid gap-6 lg:grid-cols-[1.35fr_0.9fr] items-start">
+    <div class="space-y-5">
+      <Tabs.Root id="flows" value={activeTab} onValueChange={(v) => switchTab(v)} class="w-full">
+        <Tabs.List class="grid w-full grid-cols-2 rounded-full bg-muted/60 p-1">
+          <Tabs.Trigger value="app-token" class="gap-2 rounded-full">
+            <ShieldHalf class="h-4 w-4" />
+            App token
+          </Tabs.Trigger>
+          <Tabs.Trigger value="user-token" class="gap-2 rounded-full">
+            <User class="h-4 w-4" />
+            User token
+          </Tabs.Trigger>
+        </Tabs.List>
+
+        <div class="mt-4 space-y-4">
+          <Tabs.Content value="app-token">
+            <Card.Root class="border bg-card/80 shadow-sm">
+              <Card.Header class="space-y-2">
+                <div class="flex items-center justify-between gap-3">
+                  <div>
+                    <Card.Title>App token</Card.Title>
+                    <Card.Description>Daemon/service-to-API calls using your confidential client.</Card.Description>
                   </div>
-                  <Card.Description>
-                    Generate a token for a daemon app or service using client credentials.
-                  </Card.Description>
-                </Card.Header>
-                <Card.Content>
-                  <form onsubmit={(e) => { e.preventDefault(); handleAppSubmit(); }} class="space-y-4">
-                    <div class="grid w-full items-center gap-1.5">
+                  <Badge variant="secondary" class="gap-2">
+                    <ShieldHalf class="h-4 w-4" />
+                    Client credentials
+                  </Badge>
+                </div>
+              </Card.Header>
+              <Card.Content class="space-y-4">
+                <form onsubmit={(e) => { e.preventDefault(); handleAppSubmit(); }} class="space-y-4">
+                  <div class="space-y-2">
+                    <div class="flex items-center justify-between gap-2">
                       <Label for="resource">Resource URL</Label>
-                      <Input type="text" id="resource" bind:value={resource} placeholder="https://graph.microsoft.com" required />
+                      <span class="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">/.default will be applied</span>
                     </div>
-                    <Button type="submit" class="w-full gap-2" disabled={loading}>
-                      {#if loading}
-                        <Loader2 class="h-4 w-4 animate-spin" />
-                        Processing...
-                      {:else}
-                        <span>Get App Token</span>
-                        <Play class="h-4 w-4" />
-                      {/if}
-                    </Button>
-                  </form>
-                </Card.Content>
-              </Card.Root>
-            </Tabs.Content>
-
-            <Tabs.Content value="user-token">
-              <Card.Root>
-                <Card.Header>
-                  <div class="flex items-center justify-between">
-                    <Card.Title>User Token (Auth Code)</Card.Title>
-                    <Badge>Auth Code Flow</Badge>
+                    <Input type="text" id="resource" bind:value={resource} placeholder="https://graph.microsoft.com" required />
+                  <div class="flex flex-wrap gap-2">
+                    {#each resourcePresets as preset}
+                      <Button type="button" size="sm" variant="secondary" class="gap-2" onclick={() => applyResourcePreset(preset.value)}>
+                        <ShieldCheck class="h-3.5 w-3.5" />
+                        {preset.label}
+                      </Button>
+                    {/each}
                   </div>
-                  <Card.Description>
-                    Sign in as a user to generate a token with delegated permissions.
-                  </Card.Description>
-                </Card.Header>
-                <Card.Content>
-                  <form onsubmit={(e) => { e.preventDefault(); handleUserSubmit(); }} class="space-y-4">
-                    <div class="grid w-full items-center gap-1.5">
-                      <Label for="scopes">Scopes</Label>
-                      <Input type="text" id="scopes" bind:value={scopes} placeholder="User.Read Mail.Read" required />
-                    </div>
-                    <Button type="submit" class="w-full gap-2" disabled={loading}>
-                      {#if loading}
-                        <Loader2 class="h-4 w-4 animate-spin" />
-                        Redirecting...
-                      {:else}
-                        <span>Sign In & Get Token</span>
-                        <LogIn class="h-4 w-4" />
-                      {/if}
-                    </Button>
-                  </form>
-                </Card.Content>
-              </Card.Root>
-            </Tabs.Content>
-          </div>
-        </Tabs.Root>
-      </div>
+                  <div class="rounded-lg border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                    Tokens are issued via your confidential client credentials and stay in the browser unless you copy them.
+                  </div>
+                </div>
+                <Button type="submit" class="w-full gap-2" disabled={loading}>
+                  {#if loading}
+                    <Loader2 class="h-4 w-4 animate-spin" />
+                    Processing...
+                    {:else}
+                      <span>Issue app token</span>
+                      <Play class="h-4 w-4" />
+                    {/if}
+                  </Button>
+                </form>
+              </Card.Content>
+            </Card.Root>
+          </Tabs.Content>
 
-      <!-- Right Column: History -->
-      <div class="lg:col-span-1">
-        <Card.Root class="h-full max-h-[500px] flex flex-col">
-          <Card.Header class="pb-3">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <History class="h-5 w-5 text-muted-foreground" />
-                <Card.Title>Recent Requests</Card.Title>
+          <Tabs.Content value="user-token">
+            <Card.Root class="border bg-card/80 shadow-sm">
+              <Card.Header class="space-y-2">
+                <div class="flex items-center justify-between gap-3">
+                  <div>
+                    <Card.Title>User token</Card.Title>
+                    <Card.Description>Interactive sign-in for delegated scopes with consent prompts.</Card.Description>
+                  </div>
+                  <Badge variant="secondary" class="gap-2">
+                    <User class="h-4 w-4" />
+                    Auth code flow
+                  </Badge>
+                </div>
+              </Card.Header>
+              <Card.Content class="space-y-4">
+                <form onsubmit={(e) => { e.preventDefault(); handleUserSubmit(); }} class="space-y-4">
+                  <div class="space-y-2">
+                    <div class="flex items-center justify-between gap-2">
+                      <Label for="scopes">Scopes</Label>
+                      <span class="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">space separated</span>
+                    </div>
+                    <Input type="text" id="scopes" bind:value={scopes} placeholder="User.Read Mail.Read" required />
+                    <div class="flex flex-wrap gap-2">
+                      {#each scopePresets as preset}
+                        <Button type="button" size="sm" variant="secondary" class="gap-2" onclick={() => applyScopePreset(preset.value)}>
+                          <Zap class="h-3.5 w-3.5" />
+                          {preset.label}
+                        </Button>
+                      {/each}
+                    </div>
+                  </div>
+                  <div class="rounded-lg border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                    Consent happens in the Microsoft identity platform. We'll bring you back here with the token decoded below.
+                  </div>
+                  <Button type="submit" class="w-full gap-2" disabled={loading}>
+                    {#if loading}
+                      <Loader2 class="h-4 w-4 animate-spin" />
+                      Redirecting...
+                    {:else}
+                      <span>Get user token</span>
+                      <LogIn class="h-4 w-4" />
+                    {/if}
+                  </Button>
+                </form>
+              </Card.Content>
+            </Card.Root>
+          </Tabs.Content>
+        </div>
+      </Tabs.Root>
+
+      <Card.Root class="border bg-card/60">
+        <Card.Header class="pb-3">
+          <Card.Title>Runbook</Card.Title>
+          <Card.Description>Keep your flow sharp and predictable.</Card.Description>
+        </Card.Header>
+        <Card.Content class="grid gap-3 sm:grid-cols-3">
+          <div class="rounded-lg border bg-muted/30 px-3 py-3 text-xs leading-relaxed text-muted-foreground">
+            <div class="mb-1 text-sm font-semibold text-foreground">1. Pick the audience</div>
+            Use Graph or your API URL with /.default for daemons. Keep tenants aligned with your environment.
+          </div>
+          <div class="rounded-lg border bg-muted/30 px-3 py-3 text-xs leading-relaxed text-muted-foreground">
+            <div class="mb-1 text-sm font-semibold text-foreground">2. Scope with intent</div>
+            Ask for only what you need; admin-only scopes will prompt accordingly.
+          </div>
+          <div class="rounded-lg border bg-muted/30 px-3 py-3 text-xs leading-relaxed text-muted-foreground">
+            <div class="mb-1 text-sm font-semibold text-foreground">3. Inspect &amp; clear</div>
+            Decode claims, copy what you need, then clear history if sensitive.
+          </div>
+        </Card.Content>
+      </Card.Root>
+      <Card.Root class="border bg-card/70">
+        <Card.Header class="pb-3">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-2">
+              <History class="h-5 w-5 text-muted-foreground" />
+            <Card.Title>Recent activity</Card.Title>
+          </div>
+          <div class="flex items-center gap-2">
+            <Button variant="ghost" size="sm" href="/history" class="gap-2">
+              View all
+              <ArrowRight class="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" title="Clear history" onclick={clearHistory} disabled={history.length === 0}>
+              <Trash2 class="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <Button size="sm" variant={historyFilter === 'all' ? 'secondary' : 'ghost'} onclick={() => historyFilter = 'all'}>All</Button>
+          <Button size="sm" variant={historyFilter === 'app' ? 'secondary' : 'ghost'} onclick={() => historyFilter = 'app'}>App tokens</Button>
+          <Button size="sm" variant={historyFilter === 'user' ? 'secondary' : 'ghost'} onclick={() => historyFilter = 'user'}>User tokens</Button>
+        </div>
+      </Card.Header>
+      <Card.Content>
+        {#if history.length === 0}
+          <div class="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+            <History class="h-6 w-6" />
+            <p>No saved requests yet. Run a flow and they will appear here.</p>
+            <Button href="/" size="sm" class="gap-2">
+              <Play class="h-4 w-4" />
+              Start from dashboard
+            </Button>
+          </div>
+        {:else if filteredHistory.length === 0}
+          <div class="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
+            Nothing in this filter. Switch filters or run a new request.
+          </div>
+        {:else}
+          <div class="relative space-y-3 border-l pl-4">
+            {#each historyPeek as item}
+              <div class="relative rounded-xl border bg-muted/20 p-3 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/40 hover:bg-muted/40">
+                <span class="absolute -left-[9px] top-4 h-3 w-3 rounded-full border-2 border-background bg-primary"></span>
+                <div class="flex items-start justify-between gap-2">
+                  <div class="space-y-1">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <Badge variant={item.type === 'App Token' ? 'secondary' : 'outline'}>{item.type}</Badge>
+                      <span class="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+                        {formatTimestamp(item.timestamp)}
+                      </span>
+                    </div>
+                    <p class="font-mono text-xs text-foreground/90 line-clamp-2" title={item.target}>
+                      {item.target}
+                    </p>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <Button variant="ghost" size="icon" onclick={() => restoreHistoryItem(item)} title="Use again">
+                      <Play class="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
               </div>
-              <Button variant="ghost" size="icon" title="Clear History" onclick={clearHistory}>
-                <Trash2 class="h-4 w-4" />
+            {/each}
+          </div>
+        {/if}
+      </Card.Content>
+    </Card.Root>
+    </div>
+
+    <div class="space-y-3 lg:sticky lg:top-6" id="output">
+      <Card.Root class={`border bg-card/80 ${hasResult ? 'border-primary/40 shadow-lg shadow-primary/10' : ''}`}>
+        <Card.Header class="space-y-2">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-2">
+              <Badge variant="secondary" class="text-xs">Live output</Badge>
+              <Badge variant={statusTone}>
+                {statusLabel}
+              </Badge>
+            </div>
+            <div class="flex items-center gap-2">
+              <Badge variant="outline" class="text-[11px]">{resultKind || 'No token yet'}</Badge>
+              <Button variant="ghost" size="icon" disabled={!hasResult} onclick={() => copyToClipboard(result?.accessToken || '')} title="Copy access token">
+                {#if copied}
+                  <Check class="h-4 w-4 text-emerald-500" />
+                {:else}
+                  <Copy class="h-4 w-4" />
+                {/if}
+              </Button>
+              <Button variant="ghost" size="icon" onclick={() => outputCollapsed = !outputCollapsed} title={outputCollapsed ? 'Expand output' : 'Collapse output'}>
+                {#if outputCollapsed}
+                  <ChevronRight class="h-4 w-4" />
+                {:else}
+                  <ChevronDown class="h-4 w-4" />
+                {/if}
               </Button>
             </div>
-          </Card.Header>
-          <Separator />
-          <Card.Content class="p-0 flex-1 min-h-0">
-            <ScrollArea class="h-[400px]">
-              <div class="p-4">
-                {#if history.length === 0}
-                  <div class="text-center text-sm text-muted-foreground py-8">
-                    No recent history
-                  </div>
-                {:else}
-                  <ul class="space-y-2">
-                    {#each history as item}
-                      <!-- svelte-ignore a11y_click_events_have_key_events -->
-                      <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-                      <li 
-                        class="group flex flex-col gap-1 rounded-lg border p-3 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors"
-                        onclick={() => restoreHistoryItem(item)}
-                      >
-                        <div class="flex items-center justify-between text-xs text-muted-foreground">
-                          <span class="font-medium text-foreground">{item.type}</span>
-                          <span>{new Date(item.timestamp).toLocaleTimeString()}</span>
-                        </div>
-                        <div class="truncate font-mono text-xs" title={item.target}>
-                          {item.target}
-                        </div>
-                      </li>
-                    {/each}
-                  </ul>
-                {/if}
-              </div>
-            </ScrollArea>
-          </Card.Content>
-        </Card.Root>
-      </div>
-    </div>
-  </div>
-
-  <!-- Collapsible Result Section -->
-  {#if result || error}
-    <div 
-      class="fixed bottom-0 left-0 right-0 z-50 border-t bg-background shadow-2xl transition-all duration-300 ease-in-out"
-      class:translate-y-[calc(100%-3.5rem)]={isResultCollapsed && !isResultMinimized}
-      class:translate-y-[calc(100%-0rem)]={isResultMinimized}
-    >
-      <!-- Header -->
-      <!-- svelte-ignore a11y_click_events_have_key_events -->
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div 
-        class="flex h-14 items-center justify-between border-b px-4 hover:bg-accent/50 cursor-pointer"
-        onclick={() => isResultCollapsed = !isResultCollapsed}
-      >
-        <div class="flex items-center gap-2">
-          <Button variant="ghost" size="icon" class="h-8 w-8" onclick={(e) => { e.stopPropagation(); isResultCollapsed = !isResultCollapsed; }}>
-            {#if isResultCollapsed}
-              <ChevronUp class="h-4 w-4" />
-            {:else}
-              <ChevronDown class="h-4 w-4" />
-            {/if}
-          </Button>
-          <h3 class="font-semibold">Token Result</h3>
-        </div>
-        <div class="flex items-center gap-2">
-          <Button variant="ghost" size="icon" class="h-8 w-8" onclick={(e) => { e.stopPropagation(); isResultCollapsed = true; result = null; error = null; }}>
-            <X class="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-      
-      <!-- Content -->
-      <div class="h-[500px] overflow-auto p-4 md:p-8 bg-muted/30">
-        <div class="mx-auto max-w-5xl">
-          {#if error}
-            <div class="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-destructive">
-              <strong class="font-semibold">Error:</strong> {error}
+          </div>
+          <Card.Description>Latest response from either flow, decoded instantly.</Card.Description>
+        </Card.Header>
+        <Card.Content class="space-y-4">
+          {#if outputCollapsed}
+            <div class="rounded-lg border border-dashed bg-muted/30 p-4 text-sm text-muted-foreground">
+              Output hidden. Expand to see access token and claims. You can still issue tokens on the left.
             </div>
-          {:else if result}
-            <div class="space-y-6">
-              <Card.Root>
-                <Card.Header class="pb-2">
-                  <div class="flex items-center justify-between">
-                    <Card.Title class="text-sm font-medium text-muted-foreground">Access Token</Card.Title>
-                    <Button variant="ghost" size="icon" class="h-8 w-8" onclick={() => copyToClipboard(result?.accessToken || '')} title="Copy">
-                      {#if copied}
-                        <Check class="h-4 w-4 text-green-500" />
-                      {:else}
-                        <Copy class="h-4 w-4" />
-                      {/if}
-                    </Button>
-                  </div>
-                </Card.Header>
-                <Card.Content>
-                  <pre class="overflow-x-auto rounded-lg bg-muted p-4 font-mono text-xs break-all whitespace-pre-wrap">{result.accessToken}</pre>
-                </Card.Content>
-              </Card.Root>
-              
-              {#if decodedClaims}
-                <Card.Root>
-                  <Card.Header class="pb-2">
-                    <Card.Title class="text-sm font-medium text-muted-foreground">Decoded Claims</Card.Title>
-                  </Card.Header>
-                  <Card.Content>
-                    <ScrollArea class="h-[200px] rounded-lg border bg-muted/50 p-4">
-                      <div class="grid grid-cols-[1fr_2fr] gap-x-4 gap-y-2 text-xs font-mono">
-                        {#each Object.entries(decodedClaims) as [k, v]}
-                          <div class="font-semibold text-foreground/70 truncate" title={k}>{k}</div>
-                          <div class="text-muted-foreground break-all">{typeof v === 'object' ? JSON.stringify(v) : v}</div>
-                        {/each}
-                      </div>
-                    </ScrollArea>
-                  </Card.Content>
-                </Card.Root>
+          {:else if error}
+            <div class="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-destructive">
+              <div class="flex items-center justify-between gap-3">
+                <div class="font-semibold">Token request failed</div>
+                <Button size="sm" variant="secondary" onclick={resetAll}>Reset inputs</Button>
+              </div>
+              <p class="text-sm mt-1">{error}</p>
+            </div>
+          {:else if hasResult && result}
+          <div class="grid gap-3 md:grid-cols-3">
+            <div class="rounded-lg border bg-muted/30 p-3">
+              <div class="text-xs uppercase tracking-[0.16em] text-muted-foreground">Type</div>
+              <div class="text-sm font-semibold text-foreground">{resultKind || 'Token'}</div>
+              <p class="text-xs text-muted-foreground">{result?.tokenType || 'JWT bearer'}</p>
+            </div>
+              <div class="rounded-lg border bg-muted/30 p-3">
+                <div class="text-xs uppercase tracking-[0.16em] text-muted-foreground">Expiry</div>
+                <div class="text-sm font-semibold text-foreground">
+                  {#if expiresOnDate}
+                    {expiresOnDate.toLocaleString()}
+                  {:else}
+                    Unknown
+                  {/if}
+                </div>
+                <p class="text-xs text-muted-foreground">{readableExpiry() || 'Lifetime not provided'}</p>
+              </div>
+              {#if showResultScopes}
+                <div class="rounded-lg border bg-muted/30 p-3">
+                  <div class="text-xs uppercase tracking-[0.16em] text-muted-foreground">Scopes</div>
+                  <ScrollArea class="max-h-24 pt-1">
+                    <div class="flex flex-wrap gap-1 pr-1">
+                      {#each resultScopes as scope}
+                        <Badge variant="outline" class="font-mono text-[11px] max-w-[200px] truncate" title={scope}>{scope}</Badge>
+                      {/each}
+                    </div>
+                  </ScrollArea>
+                </div>
               {/if}
             </div>
+
+            <Card.Root>
+              <Card.Header class="pb-2">
+                <div class="flex items-center justify-between">
+                  <Card.Title class="text-sm font-medium text-muted-foreground">Access token</Card.Title>
+                  <Button variant="ghost" size="icon" class="h-8 w-8" onclick={() => copyToClipboard(result?.accessToken || '')} title="Copy">
+                    {#if copied}
+                      <Check class="h-4 w-4 text-emerald-500" />
+                    {:else}
+                      <Copy class="h-4 w-4" />
+                    {/if}
+                  </Button>
+                </div>
+              </Card.Header>
+              <Card.Content>
+                <ScrollArea class="h-[220px] rounded-lg border bg-muted/40 p-4">
+                  <pre class="whitespace-pre-wrap break-all font-mono text-xs">{result.accessToken}</pre>
+                </ScrollArea>
+              </Card.Content>
+            </Card.Root>
+            
+            {#if decodedClaims}
+              <Card.Root>
+                <Card.Header class="pb-2">
+                  <Card.Title class="text-sm font-medium text-muted-foreground">Decoded claims</Card.Title>
+                </Card.Header>
+                <Card.Content>
+                  <ScrollArea class="h-[220px] rounded-lg border bg-muted/50 p-4">
+                    <div class="grid grid-cols-[1fr_2fr] gap-x-4 gap-y-2 text-xs font-mono">
+                      {#each Object.entries(decodedClaims) as [k, v]}
+                        <div class="truncate font-semibold text-foreground/70" title={k}>{k}</div>
+                        <div class="break-all text-muted-foreground">{typeof v === 'object' ? JSON.stringify(v) : v}</div>
+                      {/each}
+                    </div>
+                  </ScrollArea>
+                </Card.Content>
+              </Card.Root>
+            {/if}
+          {:else}
+            <div class="rounded-xl border border-dashed bg-primary/5 p-6 text-sm text-foreground">
+              <div class="flex items-center gap-2">
+                <History class="h-4 w-4" />
+                <span>Awaiting your first token</span>
+              </div>
+              <p class="mt-2 text-muted-foreground">
+                Issue an app token or sign in for a user token on the left. The access token and decoded claims will show here with copy controls.
+              </p>
+              <div class="mt-3">
+                <Button size="sm" variant="secondary" href="#flows">Start a request</Button>
+              </div>
+            </div>
           {/if}
-        </div>
-      </div>
+        </Card.Content>
+      </Card.Root>
     </div>
-  {/if}
+  </div>
 </div>
