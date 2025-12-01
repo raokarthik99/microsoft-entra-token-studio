@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import type { HistoryItem } from '$lib/types';
+  import { historyService } from '$lib/services/history';
+  import HistoryList from '$lib/components/HistoryList.svelte';
 
   import { Button } from "$lib/shadcn/components/ui/button";
   import { Trash2, Play, Copy } from "@lucide/svelte";
@@ -15,21 +17,14 @@
     loadHistory();
   });
 
-  function loadHistory() {
-    const saved = localStorage.getItem('token_history');
-    if (saved) {
-      try {
-        history = JSON.parse(saved);
-      } catch (e) {
-        console.error('Failed to parse history', e);
-      }
-    }
+  async function loadHistory() {
+    history = await historyService.getHistory();
   }
 
-  function clearHistory() {
+  async function clearHistory() {
     if (confirm('Clear all history?')) {
       history = [];
-      localStorage.removeItem('token_history');
+      await historyService.clearHistory();
     }
   }
 
@@ -42,6 +37,7 @@
       params.set('tab', 'user-token');
       params.set('scopes', item.target);
     }
+    params.set('autorun', 'true');
     window.location.href = `/?${params.toString()}`;
   }
 
@@ -88,36 +84,10 @@
       </div>
     {:else}
       <ScrollArea class="flex-1 min-h-0">
-        <ul class="divide-y">
-          {#each history as item}
-            <li class="flex flex-col gap-2 p-4 transition hover:bg-muted/40 group">
-              <div class="flex items-start justify-between gap-3">
-                <div class="space-y-1.5 min-w-0">
-                  <div class="flex items-center gap-2">
-                    <Badge variant={item.type === 'App Token' ? 'secondary' : 'outline'} class="text-xs font-normal">
-                      {item.type}
-                    </Badge>
-                    <span class="text-xs text-muted-foreground">
-                      {new Date(item.timestamp).toLocaleString()}
-                    </span>
-                  </div>
-                  <p class="font-mono text-sm text-foreground break-all line-clamp-2" title={item.target}>
-                    {item.target}
-                  </p>
-                </div>
-                <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button variant="ghost" size="icon" class="h-8 w-8" onclick={() => copyTarget(item.target)} title="Copy value">
-                    <Copy class="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="sm" class="h-8 gap-2" onclick={() => restoreHistoryItem(item)}>
-                    <Play class="h-4 w-4" />
-                    <span class="hidden sm:inline">Use again</span>
-                  </Button>
-                </div>
-              </div>
-            </li>
-          {/each}
-        </ul>
+        <HistoryList 
+          items={history} 
+          onRestore={restoreHistoryItem} 
+        />
       </ScrollArea>
     {/if}
   </div>

@@ -11,7 +11,7 @@ Token studio for generating and inspecting Microsoft Entra access tokens. Built 
 - App tokens via confidential client credentials at `/api/token/app`; resources are normalized to `/.default`.
 - User tokens through the authorization code + PKCE flow (`/auth/start` → `/auth/callback`).
 - Immediate JWT decoding with claims, scopes, expiry helpers, and a floating copy panel.
-- Local-only history, presets, and quick replay; data lives in `localStorage` and can be cleared from Settings.
+- Local-only history, presets, and quick replay; data lives in `IndexedDB` and can be cleared from Settings.
 - Built-in readiness check powered by `/api/health`, surfaced on the home page Setup card.
 - Server-only secret handling with `@azure/msal-node`; tokens stay in the browser unless you copy them.
 
@@ -99,7 +99,9 @@ Never commit `.env` or real secrets.
 4. The token is returned directly to the client and displayed for decoding.
 
 ### History and settings
-- Recent targets are stored in `localStorage` (`token_history`, `last_resource`, `last_scopes`, `active_tab`) and surface on the dashboard and `/history`.
+### History and settings
+- Recent targets are stored in `IndexedDB` (via `idb-keyval`) and surface on the dashboard and `/history`.
+- **Use again**: One-click replay from history automatically populates and submits the request.
 - Clear data, switch theme, or view your **Profile** details from `/settings`.
 
 ### Setup and health

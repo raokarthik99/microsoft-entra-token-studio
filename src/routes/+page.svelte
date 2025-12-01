@@ -1,7 +1,9 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import type { HistoryItem, TokenData } from '$lib/types';
   import { parseJwt } from '$lib/utils';
+  import { historyService } from '$lib/services/history';
+  import HistoryList from '$lib/components/HistoryList.svelte';
 
   
   import { Button } from "$lib/shadcn/components/ui/button";
@@ -237,28 +239,29 @@
     loadHistory();
     checkUrlForToken();
     refreshHealth();
-  });
 
-  function loadHistory() {
-    const saved = localStorage.getItem('token_history');
-    if (saved) {
-      try {
-        history = JSON.parse(saved);
-      } catch (e) {
-        console.error('Failed to parse history', e);
+    const autorun = urlParams.get('autorun');
+    if (autorun === 'true') {
+      if (activeTab === 'app-token') {
+        handleAppSubmit();
+      } else {
+        handleUserSubmit();
       }
     }
+  });
+
+  async function loadHistory() {
+    history = await historyService.getHistory();
   }
 
-  function addToHistory(item: HistoryItem) {
-    history = [item, ...history].slice(0, 20);
-    localStorage.setItem('token_history', JSON.stringify(history));
+  async function addToHistory(item: HistoryItem) {
+    history = await historyService.addHistoryItem(item);
   }
 
-  function clearHistory() {
+  async function clearHistory() {
     if (confirm('Clear history?')) {
       history = [];
-      localStorage.removeItem('token_history');
+      await historyService.clearHistory();
     }
   }
 
@@ -276,7 +279,7 @@
     }
   }
 
-  function checkUrlForToken() {
+  async function checkUrlForToken() {
     const hash = window.location.hash;
     if (hash && hash.includes('token=')) {
       try {
@@ -288,7 +291,7 @@
         localStorage.setItem('active_tab', 'user-token');
         
         result = tokenData;
-        addToHistory({ type: 'User Token', target: (tokenData.scopes || []).join(' '), timestamp: Date.now() });
+        await addToHistory({ type: 'User Token', target: (tokenData.scopes || []).join(' '), timestamp: Date.now() });
         
         window.history.replaceState({}, document.title, window.location.pathname);
       } catch (e) {
@@ -315,7 +318,7 @@
       
       if (res.ok) {
         result = data;
-        addToHistory({ type: 'App Token', target: resource, timestamp: Date.now() });
+        await addToHistory({ type: 'App Token', target: resource, timestamp: Date.now() });
       } else {
         error = data.details ? `${data.error}: ${data.details}` : data.error || 'Failed to fetch token';
       }
@@ -352,7 +355,7 @@
         scopes: tokenResponse.scopes,
       };
       
-      addToHistory({ type: 'User Token', target: scopes, timestamp: Date.now() });
+      await addToHistory({ type: 'User Token', target: scopes, timestamp: Date.now() });
     } catch (err: any) {
       console.error('Token acquisition failed', err);
       error = err.message || 'Failed to acquire token';
@@ -387,13 +390,17 @@
     localStorage.setItem('active_tab', tab);
   }
 
-  function restoreHistoryItem(item: HistoryItem) {
+  async function restoreHistoryItem(item: HistoryItem) {
     if (item.type === 'App Token') {
       switchTab('app-token');
       resource = item.target;
+      await tick();
+      handleAppSubmit();
     } else {
       switchTab('user-token');
       scopes = item.target;
+      await tick();
+      handleUserSubmit();
     }
   }
 
@@ -743,8 +750,8 @@
                 <Separator orientation="vertical" class="h-4" />
                 <Badge variant="outline" class="px-2 py-0.5 text-xs font-normal text-muted-foreground">{resultKind || activeFlowLabel}</Badge>
                 <Badge variant="outline" class="px-2 py-0.5 text-xs font-normal text-muted-foreground">{result?.tokenType || 'Bearer'}</Badge>
-                {#if scopeCount}
-                  <Badge variant="outline" class="px-2 py-0.5 text-xs font-normal text-muted-foreground">{scopeCount} scopes</Badge>
+                {#if showResultScopes}
+                  <Badge variant="outline" class="px-2 py-0.5 text-xs font-normal text-muted-foreground">{scopeCount} {scopeCount === 1 ? 'scope' : 'scopes'}</Badge>
                 {/if}
                 {#if audienceClaim}
                   <Badge variant="outline" class="max-w-[200px] truncate px-2 py-0.5 text-xs font-normal text-muted-foreground" title={audienceClaim}>Aud: {audienceClaim}</Badge>
@@ -980,47 +987,12 @@
             <Button size="sm" variant={historyFilter === 'user' ? 'secondary' : 'ghost'} onclick={() => historyFilter = 'user'}>User tokens</Button>
           </div>
         </Card.Header>
-        <Card.Content>
-          {#if history.length === 0}
-            <div class="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed bg-muted/30 p-6 text-center text-sm text-muted-foreground">
-              <History class="h-6 w-6" />
-              <p>No saved requests yet. Run a flow and they will appear here.</p>
-              <Button href="/" size="sm" class="gap-2">
-                <Play class="h-4 w-4" />
-                Start from dashboard
-              </Button>
-            </div>
-          {:else if filteredHistory.length === 0}
-            <div class="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
-              Nothing in this filter. Switch filters or run a new request.
-            </div>
-          {:else}
-            <div class="relative space-y-3 border-l pl-4">
-              {#each historyPeek as item}
-                <div class="relative rounded-xl border bg-muted/20 p-3 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/40 hover:bg-muted/40">
-                  <span class="absolute -left-[9px] top-4 h-3 w-3 rounded-full border-2 border-background bg-primary"></span>
-                  <div class="flex items-start justify-between gap-2">
-                    <div class="space-y-1">
-                      <div class="flex flex-wrap items-center gap-2">
-                        <Badge variant={item.type === 'App Token' ? 'secondary' : 'outline'}>{item.type}</Badge>
-                        <span class="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
-                          {formatTimestamp(item.timestamp)}
-                        </span>
-                      </div>
-                      <p class="font-mono text-xs text-foreground/90 line-clamp-2" title={item.target}>
-                        {item.target}
-                      </p>
-                    </div>
-                    <div class="flex items-center gap-2">
-                      <Button variant="ghost" size="icon" onclick={() => restoreHistoryItem(item)} title="Use again">
-                        <Play class="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              {/each}
-            </div>
-          {/if}
+        <Card.Content class="p-0">
+          <HistoryList 
+            items={filteredHistory} 
+            limit={10} 
+            onRestore={restoreHistoryItem} 
+          />
         </Card.Content>
       </Card.Root>
     </div>
@@ -1081,8 +1053,8 @@
               {readableExpiry() || 'Expiry unknown'}
             </Badge>
           {/if}
-          {#if hasResult && scopeCount}
-            <Badge variant="outline" class="px-2 py-1 font-normal">{scopeCount} scopes</Badge>
+          {#if showResultScopes}
+            <Badge variant="outline" class="px-2 py-1 font-normal">{scopeCount} {scopeCount === 1 ? 'scope' : 'scopes'}</Badge>
           {/if}
         </div>
 
