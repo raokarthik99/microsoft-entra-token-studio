@@ -1,5 +1,6 @@
 <script lang="ts">
   import * as Card from "$lib/shadcn/components/ui/card";
+  import PageHeader from "$lib/components/page-header.svelte";
   import { Button } from "$lib/shadcn/components/ui/button";
   import { Label } from "$lib/shadcn/components/ui/label";
   import { Trash2 } from "@lucide/svelte";
@@ -22,25 +23,10 @@
 </svelte:head>
 
 <div class="space-y-10">
-  <Card.Root class="border bg-card/70 p-7 shadow-sm">
-    <div class="space-y-3">
-      <div class="inline-flex w-fit items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-primary">
-        Controls
-      </div>
-      <div class="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-        <div class="space-y-2">
-          <h2 class="text-3xl font-semibold tracking-tight">Settings</h2>
-          <p class="max-w-3xl text-sm text-muted-foreground">
-            Adjust how the workspace feels and clear cached values when you need a clean slate. All data is stored locally.
-          </p>
-        </div>
-        <div class="flex flex-wrap gap-2">
-          <Badge variant="secondary">Local-only storage</Badge>
-          <Badge variant="outline">{storedKeys.length} keys tracked</Badge>
-        </div>
-      </div>
-    </div>
-  </Card.Root>
+  <PageHeader 
+    title="Settings" 
+    description="Adjust how the workspace feels and clear cached values when you need a clean slate. All data is stored locally."
+  />
 
   <div class="grid gap-6 lg:grid-cols-2">
     <Card.Root class="border bg-card/70">

@@ -1,64 +1,61 @@
 # Entra Token Client
 
-Developer-focused SvelteKit utility for requesting and inspecting Microsoft Entra ID access tokens. It supports both service-to-service and delegated user flows, decodes JWT claims instantly, and keeps a local history for quick retesting.
+Token studio for generating and inspecting Microsoft Entra access tokens. Built with SvelteKit 2, Svelte 5 runes, and TypeScript.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![SvelteKit](https://img.shields.io/badge/SvelteKit-2.0-orange.svg)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue.svg)
+![SvelteKit](https://img.shields.io/badge/SvelteKit-2.48-orange.svg)
+![Svelte](https://img.shields.io/badge/Svelte-5.43-ff3e00.svg)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue.svg)
 
-## What This App Does
-- Requests **App Tokens** (client credentials) for APIs such as Microsoft Graph or custom scopes.
-- Requests **User Tokens** (authorization code) via interactive login and PKCE.
-- Decodes JWTs on the client for quick inspection of claims, scopes, and expiration.
-- Saves recent requests and tokens to local storage for reuse and one-click replay.
-- Keeps client secrets server-side by delegating token exchange to `@azure/msal-node`.
+## Features
+- App tokens via confidential client credentials at `/api/token/app`; resources are normalized to `/.default`.
+- User tokens through the authorization code + PKCE flow (`/auth/start` → `/auth/callback`).
+- Immediate JWT decoding with claims, scopes, expiry helpers, and a floating copy panel.
+- Local-only history, presets, and quick replay; data lives in `localStorage` and can be cleared from Settings.
+- Built-in readiness check powered by `/api/health`, surfaced on the home page Setup card.
+- Server-only secret handling with `@azure/msal-node`; tokens stay in the browser unless you copy them.
 
 ## Quick Start
-1. **Install prerequisites**
+1. **Prerequisites**
    - Node.js 18+ (LTS recommended).
-   - pnpm (`npm i -g pnpm` if you do not have it).
-   - A Microsoft Entra tenant with permission to register apps.
+   - pnpm (`npm i -g pnpm` if needed).
+   - An Entra tenant where you can register apps.
 
-2. **Clone and install**
+2. **Install**
    ```bash
    git clone <repository-url>
    cd entra-token-client
    pnpm install
    ```
 
-3. **Configure environment**
+3. **Configure**
    ```bash
    cp .env.example .env
    ```
-   Fill in tenant and app details (see “Configuration” below).
+   Fill in the values below, then restart the dev server after edits.
 
 4. **Run**
    ```bash
    pnpm dev
    ```
-   Open http://localhost:5173 and follow the on-page forms for App Token or User Token.
+   Open http://localhost:5173 (or your configured port) and use the App token / User token tabs.
 
 ## Microsoft Entra App Registration
-You need a web app registration for both flows.
-
-1. In Azure Portal, go to **Microsoft Entra ID** → **App registrations** → **New registration**.
-2. Name it (e.g., `Entra Token Client`) and choose **Single tenant**.
-3. Add a redirect URI: **Web** → `http://localhost:5173/auth/callback`.
-4. After creating:
+1. Go to **Microsoft Entra ID** → **App registrations** → **New registration**.
+2. Name it (e.g., `Entra Token Client`), choose **Single tenant**, and add a redirect URI: **Web** → `http://localhost:5173/auth/callback`.
+3. After creation:
    - Copy **Directory (tenant) ID** → `TENANT_ID`.
    - Copy **Application (client) ID** → `CLIENT_ID`.
-5. Create a client secret: **Certificates & secrets** → **New client secret**. Copy the value → `CLIENT_SECRET`.
-6. API permissions:
-   - For App Token tests: add application permissions for your target API (e.g., `Graph` → `Application` permissions).
-   - For User Token tests: add delegated permissions (e.g., `User.Read`). Grant admin consent if required.
-7. Ensure the redirect URI matches exactly, including scheme/host/port/path.
+4. Create a secret under **Certificates & secrets** → **New client secret** → value → `CLIENT_SECRET`.
+5. Permissions:
+   - App token flow: add application permissions for the API you want (e.g., Graph `Application` perms).
+   - User token flow: add delegated scopes (e.g., `User.Read`) and grant admin consent if required.
+6. The redirect URI must match exactly (scheme/host/port/path).
 
-Useful references:  
-- Azure Portal: https://portal.azure.com  
-- Entra app registrations: https://learn.microsoft.com/azure/active-directory/develop/quickstart-register-app
+References: Azure portal https://portal.azure.com and registration guide https://learn.microsoft.com/azure/active-directory/develop/quickstart-register-app
 
 ## Configuration (.env)
-Copy `.env.example` and set the following:
+Copy `.env.example` and set:
 
 ```
 TENANT_ID=your-tenant-guid
@@ -68,65 +65,66 @@ PORT=5173
 REDIRECT_URI=http://localhost:5173/auth/callback
 ```
 
-- `TENANT_ID`: Directory ID of the Entra tenant.
+- `TENANT_ID`: Directory ID for your tenant.
 - `CLIENT_ID`: App registration client ID.
-- `CLIENT_SECRET`: Client secret for the app (used server-side only).
-- `PORT`: Port for `pnpm dev` (default 5173).
-- `REDIRECT_URI`: Must match the portal redirect URI and the `/auth/callback` route.
+- `CLIENT_SECRET`: Confidential client secret (used server-side only).
+- `PORT`: Port for `pnpm dev` (defaults to 5173).
+- `REDIRECT_URI`: Must match the Entra redirect and `/auth/callback`; falls back to `${origin}/auth/callback` if unset.
 
-> Never commit `.env` or real secrets. Secrets stay server-side; the UI only receives issued tokens.
+Never commit `.env` or real secrets.
 
-## Running and Building
-- `pnpm dev` – Start SvelteKit with HMR on the configured port.
-- `pnpm check` – Run `svelte-kit sync` and type-check via `svelte-check`. Fix all issues before committing.
-- `pnpm build` – Production build; ensures SSR and adapter output succeed.
-- `pnpm preview` – Serve the production build locally for sanity checks.
+## Scripts
+- `pnpm dev` — start the dev server with HMR.
+- `pnpm check` — run `svelte-kit sync` and `svelte-check` with the repo tsconfig.
+- `pnpm build` — production build to verify SSR/adapter output.
+- `pnpm preview` — serve the production build locally.
 
-## How to Use the App
-### App Token (Client Credentials)
-1. Open the **App Token** tab on the home page.
-2. Enter a **Resource / Scope** (default `https://graph.microsoft.com/.default`).
-3. Click **Get App Token**. The server exchanges credentials via MSAL and returns an access token.
-4. Inspect claims, expiration, and audiences in the decoded view. Copy the token if needed.
+## Using the App
+### App token (client credentials)
+1. Choose **App token** on the home page.
+2. Enter a resource (e.g., `https://graph.microsoft.com`); `/.default` is applied automatically.
+3. Submit to call `/api/token/app`, which exchanges your confidential client for an access token.
+4. Review the decoded claims, expiry, and audiences; copy the raw token if needed.
 
-### User Token (Authorization Code + PKCE)
-1. Open the **User Token** tab.
-2. Enter scopes (default `User.Read`). Use space-delimited scopes.
-3. Click **Sign in** to start the auth code flow. Complete the Microsoft login and consent screens.
-4. On return to `/auth/callback`, the server redeems the code for an access token; the UI displays and decodes it.
+### User token (authorization code + PKCE)
+1. Choose **User token** and enter scopes (space-separated, e.g., `User.Read Mail.Read`).
+2. Click **Get user token** to start the sign-in; consent happens on Microsoft Identity.
+3. On return to `/auth/callback`, the server redeems the code and redirects back with the token embedded for decoding.
 
-### History and Reuse
-- Recent requests and tokens are stored in local storage for quick replay. Clear history from the UI if needed.
-- Forms auto-fill from the latest history entry to speed up repeated tests.
+### History and settings
+- Recent targets are stored in `localStorage` (`token_history`, `last_resource`, `last_scopes`, `active_tab`) and surface on the dashboard and `/history`.
+- Clear data or switch light/dark/system mode from `/settings`.
 
-### Health Check
-With a populated `.env`, hitting the home page performs a lightweight readiness check for tenant/client/redirect configuration. Ensure this passes before testing flows.
+### Setup and health
+- The home page Setup card reads `/api/health` to confirm `TENANT_ID`, `CLIENT_ID`, `CLIENT_SECRET`, and `REDIRECT_URI`.
+- The same endpoint can be polled directly for JSON readiness data.
 
 ## Project Structure
-- `src/routes` – SvelteKit routes (pages, layouts, API endpoints). Key areas: `api/`, `auth/`, `history/`, `settings/`.
-- `src/lib` – Shared logic and UI. Components in `components/` and `shadcn/`; helpers in `utils.ts`, types in `types.ts`.
-- `src/lib/server/msal.ts` – Server-only MSAL helpers; keep secrets and token exchange logic here.
-- `src/app.css`, `src/app.html` – Global styles and HTML shell.
-- `static/` – Public assets.
+- `src/routes/+page.svelte` — Token Studio dashboard (flows, setup check, output, history peek).
+- `src/routes/api/token/app/+server.ts` — client-credential token issuer.
+- `src/routes/auth/start|callback/+server.ts` — authorization code + PKCE entry and redemption.
+- `src/routes/api/health/+server.ts` — readiness details exposed to the UI.
+- `src/routes/history/+page.svelte` and `src/routes/settings/+page.svelte` — local history and preferences.
+- `src/lib` — shared UI (shadcn components, layout chrome), helpers (`utils.ts`, `types.ts`), server-only MSAL config (`server/msal.ts`).
+- `static/` and `src/app.css`/`src/app.html` — assets and global styles.
 
 ## Manual Validation Checklist
-- App Token flow returns a token for the requested resource and decodes claims.
-- User Token flow completes login, returns delegated token, and claims display correctly.
-- History entries appear, can be replayed, and can be cleared.
-- Health check on page load passes with valid `.env`.
-- No secrets logged in browser DevTools or server logs.
+- App token flow issues a token for the provided resource and decodes claims.
+- User token flow signs in, returns delegated scopes, and decoded claims render without errors.
+- Setup card shows ready with a valid `.env`; `/api/health` matches the expected redirect URI.
+- History entries appear, can be replayed, and can be cleared (from dashboard or `/settings`).
+- No secrets or tokens leak into server logs or browser console beyond intentional copy actions.
 
 ## Troubleshooting
-- **Redirect URI mismatch**: Ensure `REDIRECT_URI` in `.env` exactly matches the portal entry and the `/auth/callback` route.
-- **Invalid scope/resource**: For client credentials, use `.default` on the resource (e.g., `https://graph.microsoft.com/.default`).
-- **Consent required**: Admin consent may be needed for application permissions; grant in the portal.
-- **Clock skew/expired token**: Verify system clock; re-request token.
-- **CORS or HTTP errors**: Run through `pnpm dev` to ensure SvelteKit serves both UI and API routes together.
+- **Redirect URI mismatch**: Match `REDIRECT_URI` with the Entra entry and `/auth/callback`.
+- **Missing config**: The Setup card and `/api/health` list missing keys; set them and restart.
+- **Invalid scopes/resources**: For app tokens, use `/.default` on the resource; for user tokens, ensure delegated scopes are granted.
+- **Consent/admin approval**: Grant required delegated or application permissions in the portal.
+- **Token errors after login**: Check for `invalid_state` or `redemption_failed` in the URL; restart the flow after clearing history.
 
 ## Security Notes
-- Keep `CLIENT_SECRET` server-side only; never expose it in the browser or commits.
-- Use least-privilege scopes when testing.
-- Clear local history if using shared machines; tokens are sensitive.
+- `CLIENT_SECRET` stays server-side via `@azure/msal-node`; do not log or commit it.
+- Tokens are stored only in the browser; clear history on shared machines and use least-privilege scopes.
 
 ## License
 MIT License. See `LICENSE` if present, or the badge above.

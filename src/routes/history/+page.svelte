@@ -1,9 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import type { HistoryItem } from '$lib/types';
-  import * as Card from "$lib/shadcn/components/ui/card";
+  import PageHeader from "$lib/components/page-header.svelte";
+
   import { Button } from "$lib/shadcn/components/ui/button";
-  import { Trash2, Play, Clock3, Copy } from "@lucide/svelte";
+  import { Trash2, Play, Copy } from "@lucide/svelte";
   import { Badge } from "$lib/shadcn/components/ui/badge";
   import { ScrollArea } from "$lib/shadcn/components/ui/scroll-area";
 
@@ -58,84 +59,72 @@
   <title>History | Entra Token Client</title>
 </svelte:head>
 
-<div class="space-y-8">
-  <Card.Root class="border bg-card/70 p-6 shadow-sm">
-    <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-      <div class="space-y-2">
-        <div class="inline-flex w-fit items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-primary">
-          Audit trail
-        </div>
-        <h2 class="text-3xl font-semibold tracking-tight">History</h2>
-        <p class="max-w-2xl text-sm text-muted-foreground">Everything here lives only in your browser. Reuse inputs quickly or clear them when you are done.</p>
-        <div class="flex flex-wrap gap-2">
-          <Badge variant="secondary" class="gap-1">
-            <Clock3 class="h-4 w-4" />
-            {historyCount} saved
-          </Badge>
-          {#if lastUpdated}
-            <Badge variant="outline">Updated {lastUpdated}</Badge>
-          {/if}
-        </div>
-      </div>
+<div class="flex h-[calc(100vh-12rem)] flex-col gap-6">
+  <PageHeader 
+    title="History" 
+    description="Everything here lives only in your browser. Reuse inputs quickly or clear them when you are done."
+  >
+    <div class="flex items-center gap-4">
+      {#if lastUpdated}
+        <span class="text-xs text-muted-foreground">Updated {lastUpdated}</span>
+      {/if}
       <Button variant="outline" size="sm" onclick={clearHistory} disabled={history.length === 0} class="gap-2">
         <Trash2 class="h-4 w-4" />
         Clear
       </Button>
     </div>
-  </Card.Root>
+  </PageHeader>
 
-  <Card.Root class="border bg-card/70">
-    <Card.Content class="p-0">
-      {#if history.length === 0}
-        <div class="flex flex-col items-center justify-center gap-4 py-14 text-center">
-          <div class="rounded-full bg-muted p-4">
-            <Trash2 class="h-8 w-8 text-muted-foreground" />
-          </div>
-          <div class="space-y-2">
-            <h3 class="text-lg font-semibold">No history yet</h3>
-            <p class="text-muted-foreground max-w-md">
-              Your recent token requests will appear here. Start by generating a token on the dashboard.
-            </p>
-          </div>
-          <Button href="/" variant="default" class="gap-2">
-            <Play class="h-4 w-4" />
-            Start generating
-          </Button>
+  <div class="flex-1 min-h-0 rounded-lg border bg-card shadow-sm overflow-hidden flex flex-col">
+    {#if history.length === 0}
+      <div class="flex h-full flex-col items-center justify-center gap-4 text-center p-8">
+        <div class="rounded-full bg-muted p-4">
+          <Trash2 class="h-8 w-8 text-muted-foreground" />
         </div>
-      {:else}
-        <ScrollArea class="max-h-[620px]">
-          <ul class="divide-y">
-            {#each history as item}
-              <li class="flex flex-col gap-2 p-4 transition hover:bg-muted/40">
-                <div class="flex items-start justify-between gap-3">
-                  <div class="space-y-1">
-                    <div class="flex flex-wrap items-center gap-2">
-                      <Badge variant={item.type === 'App Token' ? 'secondary' : 'outline'}>
-                        {item.type}
-                      </Badge>
-                      <span class="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                        {new Date(item.timestamp).toLocaleString()}
-                      </span>
-                    </div>
-                    <p class="font-mono text-xs text-foreground break-all" title={item.target}>
-                      {item.target}
-                    </p>
-                  </div>
+        <div class="space-y-2">
+          <h3 class="text-lg font-semibold">No history yet</h3>
+          <p class="text-muted-foreground max-w-md">
+            Your recent token requests will appear here. Start by generating a token on the dashboard.
+          </p>
+        </div>
+        <Button href="/" variant="default" class="gap-2">
+          <Play class="h-4 w-4" />
+          Start generating
+        </Button>
+      </div>
+    {:else}
+      <ScrollArea class="flex-1 min-h-0">
+        <ul class="divide-y">
+          {#each history as item}
+            <li class="flex flex-col gap-2 p-4 transition hover:bg-muted/40 group">
+              <div class="flex items-start justify-between gap-3">
+                <div class="space-y-1.5 min-w-0">
                   <div class="flex items-center gap-2">
-                    <Button variant="ghost" size="icon" onclick={() => copyTarget(item.target)} title="Copy value">
-                      <Copy class="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="sm" onclick={() => restoreHistoryItem(item)} class="gap-2">
-                      <Play class="h-4 w-4" />
-                      <span class="hidden sm:inline">Use again</span>
-                    </Button>
+                    <Badge variant={item.type === 'App Token' ? 'secondary' : 'outline'} class="text-xs font-normal">
+                      {item.type}
+                    </Badge>
+                    <span class="text-xs text-muted-foreground">
+                      {new Date(item.timestamp).toLocaleString()}
+                    </span>
                   </div>
+                  <p class="font-mono text-sm text-foreground break-all line-clamp-2" title={item.target}>
+                    {item.target}
+                  </p>
                 </div>
-              </li>
-            {/each}
-          </ul>
-        </ScrollArea>
-      {/if}
-    </Card.Content>
-  </Card.Root>
+                <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button variant="ghost" size="icon" class="h-8 w-8" onclick={() => copyTarget(item.target)} title="Copy value">
+                    <Copy class="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="sm" class="h-8 gap-2" onclick={() => restoreHistoryItem(item)}>
+                    <Play class="h-4 w-4" />
+                    <span class="hidden sm:inline">Use again</span>
+                  </Button>
+                </div>
+              </div>
+            </li>
+          {/each}
+        </ul>
+      </ScrollArea>
+    {/if}
+  </div>
 </div>
