@@ -31,6 +31,7 @@
 		"vite": "^7.2.2"
 	},
 	"dependencies": {
+		"@azure/msal-browser": "^4.26.2",
 		"@azure/msal-node": "^3.8.3",
 		"jwt-decode": "^4.0.0",
 		"mode-watcher": "^1.1.0"

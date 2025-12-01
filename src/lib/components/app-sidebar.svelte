@@ -8,9 +8,8 @@
   let { ...restProps } = $props();
 
   const nav = [
-    { href: '/', label: 'Microsoft Entra Token Studio', description: 'Generate and inspect tokens', icon: Home },
+    { href: '/', label: 'Playground', description: 'Generate and inspect tokens', icon: Home },
     { href: '/history', label: 'History', description: 'Recall past inputs', icon: History },
-    { href: '/settings', label: 'Settings', description: 'Theme and cache controls', icon: Settings },
   ];
 
   const quickLinks = [
@@ -44,7 +43,7 @@
 
   <Sidebar.Content>
     <Sidebar.Group>
-      <Sidebar.GroupLabel>Workflows</Sidebar.GroupLabel>
+      <Sidebar.GroupLabel>Menu</Sidebar.GroupLabel>
       <Sidebar.GroupContent>
         <Sidebar.Menu class="space-y-2">
           {#each nav as item}

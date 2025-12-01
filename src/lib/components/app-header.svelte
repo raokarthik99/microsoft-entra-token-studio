@@ -2,10 +2,11 @@
   import * as Breadcrumb from "$lib/shadcn/components/ui/breadcrumb";
   import { SidebarTrigger } from "$lib/shadcn/components/ui/sidebar";
   import { Separator } from "$lib/shadcn/components/ui/separator";
-  import { Button } from "$lib/shadcn/components/ui/button";
   import { page } from "$app/stores";
-  import { Sparkles, Sun, MoonStar } from "@lucide/svelte";
-  import { setMode, userPrefersMode } from "mode-watcher";
+  import UserMenu from "$lib/components/UserMenu.svelte";
+  import type { AccountInfo } from "@azure/msal-browser";
+
+  let { user, onLogout, photoUrl } = $props<{ user?: AccountInfo | null, onLogout?: () => void, photoUrl?: string | null }>();
 
   const titles: Record<string, string> = {
     '/': 'Token Studio',
@@ -21,11 +22,6 @@
 
   const pageTitle = $derived(titles[$page.url.pathname] ?? 'Entra Client');
   const pageSubtitle = $derived(subtitles[$page.url.pathname] ?? 'Secure tooling');
-
-  const toggleTheme = () => {
-    const next = userPrefersMode.current === 'dark' ? 'light' : 'dark';
-    setMode(next);
-  };
 </script>
 
 <header class="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -44,12 +40,8 @@
   </div>
 
   <div class="flex items-center gap-2">
-    <Button variant="outline" size="icon" class="rounded-full" onclick={toggleTheme} title="Toggle theme">
-      {#if userPrefersMode.current === 'dark'}
-        <Sun class="h-4 w-4" />
-      {:else}
-        <MoonStar class="h-4 w-4" />
-      {/if}
-    </Button>
+    {#if user && onLogout}
+      <UserMenu {user} {onLogout} {photoUrl} />
+    {/if}
   </div>
 </header>

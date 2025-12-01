@@ -2,14 +2,17 @@
 
 ## Context
 - SvelteKit 2 app using Svelte 5 runes and TypeScript. UI is built from shadcn components plus a small set of custom layout pieces.
-- Two token flows: app tokens via `/api/token/app` (client credentials) and user tokens via `/auth/start` → `/auth/callback` (auth code + PKCE).
+- **App tokens**: Server-side client credentials flow via `/api/token/app`.
+- **User tokens**: Client-side Authorization Code + PKCE flow via MSAL.js (`@azure/msal-browser`). Supports silent acquisition and popup fallback.
+- **Authentication**: Embedded user authentication (Single-Page Application model). Users sign in to the app to access the dashboard.
 - Readiness is surfaced through `/api/health` and mirrored on the home page Setup card.
 - Tokens and history live only in `localStorage`; secrets stay server-side. Avoid logging tokens or secrets in client or server code.
 
 ## Project Structure & Module Organization
 - `src/routes/+page.svelte` is the Token Studio dashboard (setup checks, flows, decoded output, floating panel, history preview).
-- Server routes: `src/routes/api/token/app/+server.ts` (confidential client tokens), `src/routes/api/health/+server.ts` (config check), `src/routes/auth/start|callback/+server.ts` (auth code + PKCE).
-- Supporting pages: `src/routes/history/+page.svelte` (local history) and `src/routes/settings/+page.svelte` (theme + data clearing).
+- **Client-side Auth**: `src/lib/services/auth.ts` (MSAL wrapper), `src/lib/stores/auth.ts` (auth state), `src/routes/auth/callback/+page.svelte` (redirect handler).
+- **Server routes**: `src/routes/api/token/app/+server.ts` (confidential client tokens), `src/routes/api/health/+server.ts` (config check).
+- Supporting pages: `src/routes/history/+page.svelte` (local history) and `src/routes/settings/+page.svelte` (theme, profile, data clearing).
 - Shared logic/UI in `src/lib` (`components/`, `shadcn/`, `utils.ts`, `types.ts`, server-only MSAL helpers in `server/msal.ts`). Keep server imports out of client modules.
 - Global shell and styles: `src/app.html`, `src/app.css`; static assets live in `static/`.
 - Type configuration extends SvelteKit defaults via `tsconfig.json`; use the `$lib` alias.
@@ -42,5 +45,7 @@
 ## Security & Configuration Tips
 - Copy `.env.example` to `.env` and fill `TENANT_ID`, `CLIENT_ID`, `CLIENT_SECRET`, `REDIRECT_URI`; do not commit `.env` or real secrets.
 - `REDIRECT_URI` should match the Entra registration; if omitted, the app falls back to `${origin}/auth/callback`.
-- Treat access tokens as sensitive: avoid logging them and ensure any new server routes keep token exchange logic server-side (see `src/lib/server/msal.ts`).
+- Treat access tokens as sensitive: avoid logging them.
+- **App Tokens**: Keep token exchange logic server-side (see `src/lib/server/msal.ts`).
+- **User Tokens**: MSAL.js handles storage (localStorage/sessionStorage). Ensure no XSS vulnerabilities as tokens are accessible to client-side scripts.
 - Local history/preferences stay in the browser; remind users to clear data on shared machines when changing those flows.

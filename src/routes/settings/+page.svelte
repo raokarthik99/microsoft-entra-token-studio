@@ -7,6 +7,12 @@
   import { setMode, userPrefersMode } from "mode-watcher";
   import { Badge } from "$lib/shadcn/components/ui/badge";
 
+  import { auth } from '$lib/stores/auth';
+  import { Avatar, AvatarFallback, AvatarImage } from "$lib/shadcn/components/ui/avatar";
+
+  function getInitials(name: string) {
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  }
 
   function clearAllData() {
     if (confirm('This will clear all history and saved preferences. Are you sure?')) {
@@ -23,6 +29,29 @@
 <div class="space-y-10">
 
   <div class="grid gap-6 lg:grid-cols-2">
+    <Card.Root class="border bg-card/70 lg:col-span-2">
+      <Card.Header class="pb-2">
+        <Card.Title>Profile</Card.Title>
+        <Card.Description>Your authenticated session details.</Card.Description>
+      </Card.Header>
+      <Card.Content class="space-y-5">
+        <div class="flex items-center gap-4 rounded-xl border bg-muted/30 p-4">
+          <Avatar class="h-16 w-16 border border-border/50">
+            <AvatarImage src={$auth.photoUrl || ""} alt={$auth.user?.name} />
+            <AvatarFallback class="bg-primary/10 text-xl text-primary font-medium">
+              {getInitials($auth.user?.name || 'User')}
+            </AvatarFallback>
+          </Avatar>
+          <div class="space-y-1">
+            <h3 class="text-lg font-semibold">{$auth.user?.name}</h3>
+            <p class="text-sm text-muted-foreground">{$auth.user?.username}</p>
+            <div class="flex items-center gap-2 text-xs text-muted-foreground">
+              <span class="font-mono">Tenant ID: {$auth.user?.tenantId}</span>
+            </div>
+          </div>
+        </div>
+      </Card.Content>
+    </Card.Root>
     <Card.Root class="border bg-card/70">
       <Card.Header class="pb-2">
         <Card.Title>Appearance</Card.Title>

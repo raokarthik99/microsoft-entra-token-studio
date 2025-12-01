@@ -326,12 +326,39 @@
     }
   }
 
-  function handleUserSubmit() {
+  import { authServiceStore } from '$lib/stores/auth';
+
+  // ... (existing imports)
+
+  async function handleUserSubmit() {
     if (!scopes) return;
     localStorage.setItem('last_scopes', scopes);
     localStorage.setItem('active_tab', 'user-token');
     loading = true;
-    window.location.href = `/auth/start?scopes=${encodeURIComponent(scopes)}`;
+    error = null;
+    result = null;
+
+    try {
+      const service = $authServiceStore;
+      if (!service) throw new Error('Auth service not initialized');
+      
+      const scopeArray = scopes.split(/[ ,]+/).filter(Boolean);
+      const tokenResponse = await service.getToken(scopeArray);
+      
+      result = {
+        accessToken: tokenResponse.accessToken,
+        tokenType: tokenResponse.tokenType,
+        expiresOn: tokenResponse.expiresOn?.toISOString(),
+        scopes: tokenResponse.scopes,
+      };
+      
+      addToHistory({ type: 'User Token', target: scopes, timestamp: Date.now() });
+    } catch (err: any) {
+      console.error('Token acquisition failed', err);
+      error = err.message || 'Failed to acquire token';
+    } finally {
+      loading = false;
+    }
   }
 
   function resetAll() {
@@ -493,7 +520,7 @@
                 </Button>
               </div>
               <p class="text-[10px] text-muted-foreground">
-                Must exactly match the value in Entra (case-sensitive).
+                Must exactly match the value in Entra (case-sensitive). <strong>Ensure this is added as a "Single-page application" platform.</strong>
               </p>
             </div>
 
@@ -663,12 +690,12 @@
                     </div>
                   </div>
                   <div class="rounded-lg border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-                    Consent is handled by Microsoft Identity. You'll be redirected back here.
+                    Consent is handled by Microsoft Identity. A popup may appear if permission is needed.
                   </div>
                   <Button type="submit" class="w-full gap-2" disabled={loading}>
                     {#if loading}
                       <Loader2 class="h-4 w-4 animate-spin" />
-                      Redirecting...
+                      Acquiring token...
                     {:else}
                       <span>Get user token</span>
                       <LogIn class="h-4 w-4" />

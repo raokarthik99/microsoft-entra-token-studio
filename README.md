@@ -42,15 +42,19 @@ Token studio for generating and inspecting Microsoft Entra access tokens. Built 
 
 ## Microsoft Entra App Registration
 1. Go to **Microsoft Entra ID** → **App registrations** → **New registration**.
-2. Name it (e.g., `Entra Token Client`), choose **Single tenant**, and add a redirect URI: **Web** → `http://localhost:5173/auth/callback`.
-3. After creation:
+2. Name it (e.g., `Entra Token Client`), choose **Single tenant**.
+3. **Platform Configuration**:
+   - Click **Add a platform** → **Single-page application**.
+   - Add Redirect URI: `http://localhost:5173/auth/callback`.
+   - **Important**: Do NOT use the "Web" platform for the redirect URI, as this will cause CORS errors with the client-side flow.
+4. After creation:
    - Copy **Directory (tenant) ID** → `TENANT_ID`.
    - Copy **Application (client) ID** → `CLIENT_ID`.
-4. Create a secret under **Certificates & secrets** → **New client secret** → value → `CLIENT_SECRET`.
-5. Permissions:
+5. Create a secret under **Certificates & secrets** → **New client secret** → value → `CLIENT_SECRET`.
+6. Permissions:
    - App token flow: add application permissions for the API you want (e.g., Graph `Application` perms).
-   - User token flow: add delegated scopes (e.g., `User.Read`) and grant admin consent if required.
-6. The redirect URI must match exactly (scheme/host/port/path).
+   - User token flow: add delegated scopes (e.g., `User.Read`, `openid`, `profile`, `offline_access`) and grant admin consent if required.
+7. The redirect URI must match exactly (scheme/host/port/path).
 
 References: Azure portal https://portal.azure.com and registration guide https://learn.microsoft.com/azure/active-directory/develop/quickstart-register-app
 
@@ -67,7 +71,7 @@ REDIRECT_URI=http://localhost:5173/auth/callback
 
 - `TENANT_ID`: Directory ID for your tenant.
 - `CLIENT_ID`: App registration client ID.
-- `CLIENT_SECRET`: Confidential client secret (used server-side only).
+- `CLIENT_SECRET`: Confidential client secret (used server-side only for App tokens).
 - `PORT`: Port for `pnpm dev` (defaults to 5173).
 - `REDIRECT_URI`: Must match the Entra redirect and `/auth/callback`; falls back to `${origin}/auth/callback` if unset.
 
@@ -86,14 +90,17 @@ Never commit `.env` or real secrets.
 3. Submit to call `/api/token/app`, which exchanges your confidential client for an access token.
 4. Review the decoded claims, expiry, and audiences; copy the raw token if needed.
 
-### User token (authorization code + PKCE)
-1. Choose **User token** and enter scopes (space-separated, e.g., `User.Read Mail.Read`).
-2. Click **Get user token** to start the sign-in; consent happens on Microsoft Identity.
-3. On return to `/auth/callback`, the server redeems the code and redirects back with the token embedded for decoding.
+### User token (Authorization Code + PKCE)
+1. **Sign In**: The app now requires you to sign in with your Microsoft account to access the dashboard.
+2. Choose **User token** and enter scopes (space-separated, e.g., `User.Read Mail.Read`).
+3. Click **Get user token**.
+   - The app attempts to acquire the token **silently** using your active session.
+   - If consent is required (e.g., new scopes), a **popup** will appear for you to approve.
+4. The token is returned directly to the client and displayed for decoding.
 
 ### History and settings
 - Recent targets are stored in `localStorage` (`token_history`, `last_resource`, `last_scopes`, `active_tab`) and surface on the dashboard and `/history`.
-- Clear data or switch light/dark/system mode from `/settings`.
+- Clear data, switch theme, or view your **Profile** details from `/settings`.
 
 ### Setup and health
 - The home page Setup card reads `/api/health` to confirm `TENANT_ID`, `CLIENT_ID`, `CLIENT_SECRET`, and `REDIRECT_URI`.
@@ -101,8 +108,10 @@ Never commit `.env` or real secrets.
 
 ## Project Structure
 - `src/routes/+page.svelte` — Token Studio dashboard (flows, setup check, output, history peek).
-- `src/routes/api/token/app/+server.ts` — client-credential token issuer.
-- `src/routes/auth/start|callback/+server.ts` — authorization code + PKCE entry and redemption.
+- `src/routes/api/token/app/+server.ts` — client-credential token issuer (server-side).
+- `src/routes/auth/callback/+page.svelte` — Client-side redirect handler for MSAL.js.
+- `src/lib/services/auth.ts` — Client-side authentication service (MSAL.js wrapper).
+- `src/lib/stores/auth.ts` — Svelte stores for authentication state.
 - `src/routes/api/health/+server.ts` — readiness details exposed to the UI.
 - `src/routes/history/+page.svelte` and `src/routes/settings/+page.svelte` — local history and preferences.
 - `src/lib` — shared UI (shadcn components, layout chrome), helpers (`utils.ts`, `types.ts`), server-only MSAL config (`server/msal.ts`).
