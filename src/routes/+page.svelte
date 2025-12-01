@@ -74,7 +74,7 @@
   let health = $state<HealthStatus | null>(null);
   let healthLoading = $state(false);
   let copied = $state(false);
-  let historyFilter = $state<'all' | 'app' | 'user'>('all');
+
   let tokenVisible = $state(true);
   let hasAutoScrolled = $state(false);
   let floatingExpanded = $state(true);
@@ -123,11 +123,7 @@
     { label: 'Custom API scope', value: 'api://your-api/user.read' },
   ];
   const scopesPreview = $derived(scopes.split(/[ ,]+/).filter(Boolean));
-  const filteredHistory = $derived((() => {
-    if (historyFilter === 'all') return historyState.items;
-    return historyState.items.filter((item) => historyFilter === 'app' ? item.type === 'App Token' : item.type === 'User Token');
-  })());
-  const historyPeek = $derived(filteredHistory.slice(0, 8));
+
   const hasResult = $derived(Boolean(result));
   const statusLabel = $derived(error ? 'Error' : hasResult ? 'Issued' : 'Waiting');
   const statusTone: 'secondary' | 'outline' | 'destructive' = $derived(error ? 'destructive' : hasResult ? 'secondary' : 'outline');
@@ -477,6 +473,14 @@
       flowsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }
+
+  function refreshCurrent() {
+    if (activeTab === 'app-token') {
+      handleAppSubmit();
+    } else {
+      handleUserSubmit();
+    }
+  }
 </script>
 
 <svelte:head>
@@ -771,16 +775,20 @@
               </div>
               
               <div class="flex flex-wrap items-center gap-2">
-                <Button size="sm" variant="ghost" class="h-8 gap-2" onclick={() => lastRun && restoreHistoryItem(lastRun)} disabled={!lastRun}>
+                <Button 
+                  size="sm" 
+                  variant={expiryStatus === 'expired' || expiryStatus === 'expiring' ? 'default' : 'ghost'} 
+                  class={`h-8 gap-2 ${expiryStatus === 'expired' || expiryStatus === 'expiring' ? 'shadow-[0_0_15px_-3px_oklch(var(--primary)/0.6)] hover:shadow-[0_0_20px_-3px_oklch(var(--primary)/0.7)] transition-all' : ''}`}
+                  onclick={refreshCurrent} 
+                  disabled={loading || !hasResult}
+                  title="Refresh this token"
+                >
                   <RotateCcw class="h-3.5 w-3.5" />
                   Refresh
                 </Button>
-                  <Button size="sm" variant="ghost" class="h-8 gap-2" onclick={resetAll}>
-                    <Trash2 class="h-3.5 w-3.5" />
-                    Clear
-                  </Button>
+
                   <Separator orientation="vertical" class="h-4" />
-                  <Button size="sm" variant="outline" class="h-8 gap-2" onclick={() => isFullScreen = true}>
+                  <Button size="sm" variant="outline" class="h-8 gap-2" onclick={() => isFullScreen = true} title="Open in full screen view">
                     <Maximize2 class="h-3.5 w-3.5" />
                     Expanded View
                   </Button>
@@ -823,11 +831,11 @@
                     Token request failed
                   </div>
                   <div class="flex items-center gap-2">
-                    <Button size="sm" variant="ghost" class="h-9 px-3 hover:bg-destructive/20" onclick={() => copyToClipboard(error || '')}>
+                    <Button size="sm" variant="ghost" class="h-9 px-3 hover:bg-destructive/20" onclick={() => copyToClipboard(error || '')} title="Copy error message">
                       <Copy class="h-4 w-4" />
                       Copy error
                     </Button>
-                    <Button size="sm" variant="secondary" onclick={resetAll}>Clear inputs</Button>
+                    <Button size="sm" variant="secondary" onclick={resetAll} title="Clear inputs and try again">Clear inputs</Button>
                   </div>
                 </div>
                 <p class="text-sm leading-relaxed break-all">{error}</p>
@@ -901,7 +909,7 @@
                       <p class="text-xs text-muted-foreground">Raw token is kept client-side for inspection and copy.</p>
                     </div>
                     <div class="flex items-center gap-2">
-                      <Button variant="ghost" size="sm" class="gap-2" onclick={() => tokenVisible = !tokenVisible}>
+                      <Button variant="ghost" size="sm" class="gap-2" onclick={() => tokenVisible = !tokenVisible} title={tokenVisible ? 'Hide token' : 'Show token'}>
                         {#if tokenVisible}
                           <EyeOff class="h-4 w-4" />
                           Hide
@@ -910,7 +918,7 @@
                           Show
                         {/if}
                       </Button>
-                      <Button variant="secondary" size="sm" class="gap-2" onclick={() => copyToClipboard(result?.accessToken || '')}>
+                      <Button variant="secondary" size="sm" class="gap-2" onclick={() => copyToClipboard(result?.accessToken || '')} title="Copy access token">
                         <Copy class="h-4 w-4" />
                         {copied ? 'Copied' : 'Copy'}
                       </Button>
@@ -953,31 +961,20 @@
       <Card.Root class="border bg-card/70">
         <Card.Header class="pb-3">
           <div class="flex flex-wrap items-center justify-between gap-3">
-
             <div class="flex items-center gap-2">
               <History class="h-5 w-5 text-muted-foreground" />
               <Card.Title>Recent activity</Card.Title>
             </div>
-            <div class="flex items-center gap-2">
-              <Button variant="ghost" size="sm" href="/history" class="gap-2">
-                View all
-                <ArrowRight class="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="icon" title="Clear history" onclick={() => historyState.clear()} disabled={historyState.items.length === 0}>
-                <Trash2 class="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-          <div class="flex flex-wrap gap-2">
-            <Button size="sm" variant={historyFilter === 'all' ? 'secondary' : 'ghost'} onclick={() => historyFilter = 'all'}>All</Button>
-            <Button size="sm" variant={historyFilter === 'app' ? 'secondary' : 'ghost'} onclick={() => historyFilter = 'app'}>App tokens</Button>
-            <Button size="sm" variant={historyFilter === 'user' ? 'secondary' : 'ghost'} onclick={() => historyFilter = 'user'}>User tokens</Button>
+            <Button variant="ghost" size="sm" href="/history" class="gap-2">
+              View all
+              <ArrowRight class="h-4 w-4" />
+            </Button>
           </div>
         </Card.Header>
         <Card.Content class="p-0">
           <HistoryList 
-            items={filteredHistory} 
-            limit={10} 
+            items={historyState.items} 
+            limit={5} 
             onRestore={restoreHistoryItem} 
             onLoad={loadHistoryItem}
             onDelete={deleteHistoryItem}
@@ -1022,6 +1019,7 @@
           onclick={() => floatingExpanded = !floatingExpanded}
           aria-expanded={floatingExpanded}
           aria-label={floatingExpanded ? 'Collapse floating token output' : 'Expand floating token output'}
+          title={floatingExpanded ? 'Collapse' : 'Expand'}
         >
           <ChevronDown class={`h-4 w-4 transition-transform ${floatingExpanded ? 'rotate-180' : ''}`} />
         </Button>
@@ -1058,7 +1056,7 @@
           {:else if hasResult && !tokenVisible}
             <div class="flex items-center justify-between gap-2 text-sm text-muted-foreground">
               <span>Token hidden.</span>
-              <Button size="sm" variant="ghost" class="gap-1 px-2" onclick={() => tokenVisible = true}>
+              <Button size="sm" variant="ghost" class="gap-1 px-2" onclick={() => tokenVisible = true} title="Show token">
                 <Eye class="h-4 w-4" />
                 Show
               </Button>
@@ -1086,11 +1084,21 @@
 
         {#if hasResult}
           <div class="flex flex-wrap items-center gap-2">
-            <Button size="sm" variant="secondary" class="gap-2" onclick={() => copyToClipboard(result?.accessToken || '')} disabled={!hasToken}>
+            <Button size="sm" variant="secondary" class="gap-2" onclick={() => copyToClipboard(result?.accessToken || '')} disabled={!hasToken} title="Copy access token">
               <Copy class="h-4 w-4" />
               {copied ? 'Copied' : 'Copy token'}
             </Button>
-            <Button size="sm" variant="ghost" class="gap-2" onclick={() => tokenVisible = !tokenVisible}>
+            <Button 
+              size="sm" 
+              variant={expiryStatus === 'expired' || expiryStatus === 'expiring' ? 'default' : 'ghost'} 
+              class={`gap-2 ${expiryStatus === 'expired' || expiryStatus === 'expiring' ? 'shadow-[0_0_15px_-3px_oklch(var(--primary)/0.6)] hover:shadow-[0_0_20px_-3px_oklch(var(--primary)/0.7)] transition-all' : ''}`}
+              onclick={refreshCurrent}
+              title="Refresh this token"
+            >
+              <RotateCcw class="h-4 w-4" />
+              Refresh
+            </Button>
+            <Button size="sm" variant="ghost" class="gap-2" onclick={() => tokenVisible = !tokenVisible} title={tokenVisible ? 'Hide token' : 'Show token'}>
               {#if tokenVisible}
                 <EyeOff class="h-4 w-4" />
                 Hide

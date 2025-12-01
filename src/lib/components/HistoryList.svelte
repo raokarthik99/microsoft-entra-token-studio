@@ -45,55 +45,66 @@
     <ul class="divide-y rounded-lg border bg-card">
       {#each displayItems as item}
         {@const status = getExpiryStatus(item)}
-        <li class="flex flex-col gap-2 p-4 transition hover:bg-muted/40 group first:rounded-t-lg last:rounded-b-lg">
-          <div class="flex items-start justify-between gap-3">
-            <div class="space-y-1.5 min-w-0">
-              <div class="flex flex-wrap items-center gap-2">
-                <Badge variant={item.type === 'App Token' ? 'secondary' : 'outline'} class="text-xs font-normal">
-                  {item.type}
+        <li class="flex flex-col gap-3 p-4 transition hover:bg-muted/40 group first:rounded-t-lg last:rounded-b-lg sm:flex-row sm:items-start sm:justify-between">
+          <div class="space-y-1.5 min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-2">
+              <Badge variant={item.type === 'App Token' ? 'secondary' : 'outline'} class="text-xs font-normal">
+                {item.type}
+              </Badge>
+              <span class="text-xs text-muted-foreground">
+                {new Date(item.timestamp).toLocaleString()}
+              </span>
+              {#if status}
+                <Badge variant={status.variant} class="text-[10px] h-5 px-1.5 font-normal">
+                  {status.label}
                 </Badge>
-                <span class="text-xs text-muted-foreground">
-                  {new Date(item.timestamp).toLocaleString()}
-                </span>
-                {#if status}
-                  <Badge variant={status.variant} class="text-[10px] h-5 px-1.5 font-normal">
-                    {status.label}
-                  </Badge>
-                {/if}
-              </div>
-              <p class="font-mono text-sm text-foreground break-all line-clamp-2" title={item.target}>
-                {item.target}
-              </p>
-            </div>
-            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              <Button variant="ghost" size="icon" class="h-8 w-8" onclick={() => copyTarget(item.target)} title="Copy value">
-                <Copy class="h-4 w-4" />
-              </Button>
-              
-              {#if item.tokenData && onLoad}
-                <Button variant="ghost" size="sm" class="h-8 gap-2" onclick={() => onLoad(item)} title="Load token details">
-                  <Eye class="h-4 w-4" />
-                  <span class="hidden sm:inline">Load</span>
-                </Button>
               {/if}
-
-              <Button 
-                variant={status?.label === 'Expired' || status?.label === 'Expiring' ? 'secondary' : 'ghost'} 
-                size="sm" 
-                class="h-8 gap-2" 
-                onclick={() => onRestore(item)}
-                title="Refresh token"
-              >
-                <RotateCcw class="h-4 w-4" />
-                <span class="hidden sm:inline">Refresh</span>
+            </div>
+            <p class="font-mono text-sm text-foreground break-all line-clamp-2" title={item.target}>
+              {item.target}
+            </p>
+          </div>
+          
+          <div class="flex flex-wrap items-center gap-1 sm:flex-nowrap sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+            <div class="flex items-center gap-1">
+              <Button variant="ghost" size="sm" class="h-8 gap-2 text-muted-foreground" onclick={() => copyTarget(item.target)} title="Copy resource/scope">
+                <Copy class="h-3.5 w-3.5" />
+                <span class="sr-only sm:not-sr-only sm:hidden lg:inline">Target</span>
               </Button>
 
-              {#if onDelete}
-                <Button variant="ghost" size="icon" class="h-8 w-8 text-muted-foreground hover:text-destructive" onclick={() => { onDelete(item); toast.success("Item removed from history"); }} title="Remove from history">
-                  <Trash2 class="h-4 w-4" />
+              {#if item.tokenData?.accessToken}
+                <Button variant="ghost" size="sm" class="h-8 gap-2 text-muted-foreground" onclick={() => copyTarget(item.tokenData!.accessToken)} title="Copy token">
+                  <Copy class="h-3.5 w-3.5" />
+                  <span class="sr-only sm:not-sr-only sm:hidden lg:inline">Token</span>
                 </Button>
               {/if}
             </div>
+
+            <div class="mx-1 hidden h-4 w-px bg-border sm:block"></div>
+
+            {#if item.tokenData && onLoad}
+              <Button variant="ghost" size="sm" class="h-8 gap-2" onclick={() => onLoad(item)} title="Load token details">
+                <Eye class="h-4 w-4" />
+                <span class="hidden lg:inline">Load</span>
+              </Button>
+            {/if}
+
+            <Button 
+              variant={status?.label === 'Expired' || status?.label === 'Expiring' ? 'default' : 'ghost'} 
+              size="sm" 
+              class={`h-8 gap-2 ${status?.label === 'Expired' || status?.label === 'Expiring' ? 'shadow-[0_0_15px_-3px_oklch(var(--primary)/0.6)] hover:shadow-[0_0_20px_-3px_oklch(var(--primary)/0.7)] transition-all' : ''}`}
+              onclick={() => onRestore(item)}
+              title="Refresh token"
+            >
+              <RotateCcw class="h-4 w-4" />
+              <span class="hidden lg:inline">Refresh</span>
+            </Button>
+
+            {#if onDelete}
+              <Button variant="ghost" size="icon" class="h-8 w-8 text-muted-foreground hover:text-destructive" onclick={() => { onDelete(item); toast.success("Item removed from history"); }} title="Remove from history">
+                <Trash2 class="h-4 w-4" />
+              </Button>
+            {/if}
           </div>
         </li>
       {/each}
