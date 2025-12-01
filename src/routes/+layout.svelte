@@ -21,7 +21,7 @@
 <ModeWatcher />
 <SidebarProvider>
   <AppSidebar />
-  <SidebarInset class="min-h-screen bg-background/80 backdrop-blur">
+  <SidebarInset class="min-h-screen bg-background/80">
     <AppHeader />
     <div class="flex flex-1 flex-col gap-6 p-6 pt-2">
       <div class="mx-auto w-full max-w-6xl space-y-6">

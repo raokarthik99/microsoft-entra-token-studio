@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import type { HistoryItem, TokenData } from '$lib/types';
   import { parseJwt } from '$lib/utils';
+
   
   import { Button } from "$lib/shadcn/components/ui/button";
   import { Input } from "$lib/shadcn/components/ui/input";
@@ -69,6 +70,7 @@
   let historyFilter = $state<'all' | 'app' | 'user'>('all');
   let tokenVisible = $state(true);
   let hasAutoScrolled = $state(false);
+  let floatingExpanded = $state(true);
 
 
   let decodedClaims = $derived(result ? parseJwt(result.accessToken) : null);
@@ -131,6 +133,7 @@
     return rel ? `${expiresOnDate.toLocaleString()} · ${rel}` : expiresOnDate.toLocaleString();
   });
   const claimEntries = $derived(decodedClaims ? Object.entries(decodedClaims) : []);
+  const hasToken = $derived(Boolean(result?.accessToken));
   const resolvedRedirectUri = $derived(
     health?.redirectUri ||
       (typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : '/auth/callback')
@@ -383,6 +386,20 @@
 
   function formatTimestamp(ts: number) {
     return new Date(ts).toLocaleString();
+  }
+
+  function scrollToOutput() {
+    const outputEl = document.getElementById('output');
+    if (outputEl) {
+      outputEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
+
+  function scrollToFlows() {
+    const flowsEl = document.getElementById('flows');
+    if (flowsEl) {
+      flowsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   }
 </script>
 
@@ -955,5 +972,124 @@
         </Card.Content>
       </Card.Root>
     </div>
+  </div>
+</div>
+
+
+
+<div class="pointer-events-none fixed inset-x-3 bottom-3 z-50 md:inset-auto md:bottom-6 md:right-6 md:w-[420px]">
+  <div class="pointer-events-auto overflow-hidden rounded-2xl border bg-background/95 shadow-2xl backdrop-blur supports-[backdrop-filter]:bg-background/90">
+    <div class="flex items-center justify-between gap-3 border-b bg-muted/40 px-4 py-3">
+
+      <div class="flex items-center gap-2">
+        <Badge variant="secondary" class="gap-1 text-[11px]">Token output</Badge>
+        <span class="text-xs text-muted-foreground truncate">
+          {#if hasResult}
+            {resultKind || activeFlowLabel}
+          {:else if error}
+            Error
+          {:else if loading}
+            Issuing...
+          {:else}
+            Not issued yet
+          {/if}
+        </span>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <Button variant="ghost" size="icon" class="h-8 w-8" onclick={scrollToOutput} title="Jump to full output">
+          <Link2 class="h-4 w-4 -rotate-45" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          class="h-8 w-8"
+          onclick={() => floatingExpanded = !floatingExpanded}
+          aria-expanded={floatingExpanded}
+          aria-label={floatingExpanded ? 'Collapse floating token output' : 'Expand floating token output'}
+        >
+          <ChevronDown class={`h-4 w-4 transition-transform ${floatingExpanded ? 'rotate-180' : ''}`} />
+        </Button>
+      </div>
+    </div>
+
+    {#if floatingExpanded}
+      <div class="space-y-3 px-4 py-3">
+        <div class="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+          <Badge variant="outline" class="px-2 py-1 font-normal">
+            {#if hasResult}
+              {resultKind || 'Token'}
+            {:else if error}
+              Error
+            {:else}
+              Awaiting token
+            {/if}
+          </Badge>
+          {#if hasResult && expiresOnDate}
+            <Badge variant={isExpiringSoon ? 'destructive' : 'outline'} class="px-2 py-1 font-normal">
+              {readableExpiry() || 'Expiry unknown'}
+            </Badge>
+          {/if}
+          {#if hasResult && scopeCount}
+            <Badge variant="outline" class="px-2 py-1 font-normal">{scopeCount} scopes</Badge>
+          {/if}
+        </div>
+
+        <div class="rounded-lg border bg-muted/20 p-3">
+          {#if hasResult && tokenVisible}
+            <div class="line-clamp-4 whitespace-pre-wrap break-all font-mono text-[11px] leading-relaxed text-foreground/90">
+              {result?.accessToken}
+            </div>
+          {:else if hasResult && !tokenVisible}
+            <div class="flex items-center justify-between gap-2 text-sm text-muted-foreground">
+              <span>Token hidden.</span>
+              <Button size="sm" variant="ghost" class="gap-1 px-2" onclick={() => tokenVisible = true}>
+                <Eye class="h-4 w-4" />
+                Show
+              </Button>
+            </div>
+          {:else if error}
+            <div class="flex items-start gap-2 text-xs text-destructive">
+              <AlertTriangle class="h-4 w-4 shrink-0" />
+              <span class="line-clamp-3 break-all leading-relaxed">{error}</span>
+            </div>
+          {:else if loading}
+            <div class="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 class="h-4 w-4 animate-spin" />
+              <span>Issuing token...</span>
+            </div>
+          {:else}
+            <div class="space-y-2 text-sm text-muted-foreground">
+              <p class="leading-relaxed">Issue an app or user token and it will stay docked here for quick copy.</p>
+              <Button size="sm" variant="secondary" class="gap-2" onclick={scrollToFlows}>
+                <Play class="h-4 w-4" />
+                Issue a token
+              </Button>
+            </div>
+          {/if}
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <Button size="sm" variant="secondary" class="gap-2" onclick={() => copyToClipboard(result?.accessToken || '')} disabled={!hasToken}>
+            <Copy class="h-4 w-4" />
+            {copied ? 'Copied' : 'Copy token'}
+          </Button>
+          {#if hasResult}
+            <Button size="sm" variant="ghost" class="gap-2" onclick={() => tokenVisible = !tokenVisible}>
+              {#if tokenVisible}
+                <EyeOff class="h-4 w-4" />
+                Hide
+              {:else}
+                <Eye class="h-4 w-4" />
+                Show
+              {/if}
+            </Button>
+          {/if}
+          <Button size="sm" variant="ghost" class="gap-2" onclick={scrollToOutput}>
+            <Link2 class="h-4 w-4 -rotate-45" />
+            Open full view
+          </Button>
+        </div>
+      </div>
+    {/if}
   </div>
 </div>
