@@ -6,6 +6,7 @@
   import HistoryList from '$lib/components/HistoryList.svelte';
   import DecodedClaims from '$lib/components/DecodedClaims.svelte';
   import TokenFullScreenView from '$lib/components/TokenFullScreenView.svelte';
+  import { toast } from "svelte-sonner";
 
   
   import { Button } from "$lib/shadcn/components/ui/button";
@@ -82,7 +83,8 @@
 
   let decodedClaims = $derived(result ? parseJwt(result.accessToken) : null);
   const expiresOnDate = $derived(result?.expiresOn ? new Date(result.expiresOn) : null);
-  const expiresInMinutes = $derived(expiresOnDate ? Math.max(0, Math.round((expiresOnDate.getTime() - Date.now()) / 60000)) : null);
+  const expiresInMinutes = $derived(expiresOnDate ? Math.round((expiresOnDate.getTime() - Date.now()) / 60000) : null);
+  const expiryStatus = $derived(expiresInMinutes === null ? 'unknown' : expiresInMinutes < 0 ? 'expired' : expiresInMinutes <= 5 ? 'expiring' : 'valid');
   const historyCount = $derived(historyState.items.length);
   const resultKind = $derived(result ? (result.scopes?.length ? 'User Token' : 'App Token') : '');
   const issuedAtDate = $derived(decodedClaims?.iat ? new Date(Number((decodedClaims as any).iat) * 1000) : null);
@@ -316,8 +318,11 @@
       if (res.ok) {
         result = data;
         await addToHistory({ type: 'App Token', target: resource, timestamp: Date.now() });
+        toast.success("App token acquired successfully");
       } else {
-        error = data.details ? `${data.error}: ${data.details}` : data.error || 'Failed to fetch token';
+        const errorMsg = data.details ? `${data.error}: ${data.details}` : data.error || 'Failed to fetch token';
+        error = errorMsg;
+        toast.error(errorMsg);
       }
     } catch (err: any) {
       error = err.message;
@@ -353,9 +358,11 @@
       };
       
       await addToHistory({ type: 'User Token', target: scopes, timestamp: Date.now() });
+      toast.success("User token acquired successfully");
     } catch (err: any) {
       console.error('Token acquisition failed', err);
       error = err.message || 'Failed to acquire token';
+      toast.error(error);
     } finally {
       loading = false;
     }
@@ -376,9 +383,11 @@
     try {
       await navigator.clipboard.writeText(text);
       copied = true;
+      toast.success("Copied to clipboard");
       setTimeout(() => copied = false, 2000);
     } catch (err) {
       console.error('Failed to copy', err);
+      toast.error("Failed to copy to clipboard");
     }
   }
 
@@ -415,6 +424,7 @@
 
   function readableExpiry() {
     if (expiresInMinutes === null) return null;
+    if (expiresInMinutes < 0) return `${Math.abs(expiresInMinutes)} min ago`;
     if (expiresInMinutes <= 1) return 'expires now';
     if (expiresInMinutes < 60) return `${expiresInMinutes} min left`;
     return `${Math.round(expiresInMinutes / 60)} hr remaining`;
@@ -766,8 +776,8 @@
                   <Badge variant="outline" class="max-w-[200px] truncate px-2 py-0.5 text-xs font-normal text-muted-foreground" title={audienceClaim}>Aud: {audienceClaim}</Badge>
                 {/if}
                 {#if expiresOnDate}
-                  <Badge variant={isExpiringSoon ? 'destructive' : 'outline'} class="px-2 py-0.5 text-xs font-normal">
-                    {isExpiringSoon ? 'Expiring' : 'Expires'} {readableExpiry() || 'soon'}
+                  <Badge variant={expiryStatus === 'expired' ? 'destructive' : expiryStatus === 'expiring' ? 'secondary' : 'outline'} class="px-2 py-0.5 text-xs font-normal">
+                    {expiryStatus === 'expired' ? 'Expired' : expiryStatus === 'expiring' ? 'Expiring' : 'Expires'} {readableExpiry()}
                   </Badge>
                 {/if}
               {/if}
@@ -999,6 +1009,9 @@
         <Button variant="ghost" size="icon" class="h-8 w-8" onclick={scrollToOutput} title="Jump to full output">
           <Link2 class="h-4 w-4 -rotate-45" />
         </Button>
+        <Button variant="ghost" size="icon" class="h-8 w-8" onclick={() => isFullScreen = true} title="Maximize view">
+          <Maximize2 class="h-4 w-4" />
+        </Button>
         <Button
           variant="ghost"
           size="icon"
@@ -1025,8 +1038,8 @@
             {/if}
           </Badge>
           {#if hasResult && expiresOnDate}
-            <Badge variant={isExpiringSoon ? 'destructive' : 'outline'} class="px-2 py-1 font-normal">
-              {readableExpiry() || 'Expiry unknown'}
+            <Badge variant={expiryStatus === 'expired' ? 'destructive' : expiryStatus === 'expiring' ? 'secondary' : 'outline'} class="px-2 py-1 font-normal">
+              {expiryStatus === 'expired' ? 'Expired' : ''} {readableExpiry() || 'Expiry unknown'}
             </Badge>
           {/if}
           {#if showResultScopes}
@@ -1084,10 +1097,7 @@
               {/if}
             </Button>
           {/if}
-          <Button size="sm" variant="ghost" class="gap-2" onclick={scrollToOutput}>
-            <Link2 class="h-4 w-4 -rotate-45" />
-            Open full view
-          </Button>
+
         </div>
       </div>
     {/if}

@@ -8,6 +8,7 @@
   import * as Card from "$lib/shadcn/components/ui/card";
   import DecodedClaims from "./DecodedClaims.svelte";
   import { fade, fly } from "svelte/transition";
+  import { toast } from "svelte-sonner";
 
   let { 
     result = null, 
@@ -27,9 +28,11 @@
     try {
       await navigator.clipboard.writeText(result.accessToken);
       copiedToken = true;
+      toast.success("Token copied to clipboard");
       setTimeout(() => copiedToken = false, 2000);
     } catch (err) {
       console.error('Failed to copy', err);
+      toast.error("Failed to copy token");
     }
   }
 
@@ -40,11 +43,18 @@
   
   function readableExpiry() {
     if (!expiresOnDate) return null;
-    const minutes = Math.max(0, Math.round((expiresOnDate.getTime() - Date.now()) / 60000));
+    const minutes = Math.round((expiresOnDate.getTime() - Date.now()) / 60000);
+    if (minutes < 0) return `${Math.abs(minutes)} min ago`;
     if (minutes <= 1) return 'expires now';
     if (minutes < 60) return `${minutes} min left`;
     return `${Math.round(minutes / 60)} hr remaining`;
   }
+
+  const expiryStatus = $derived(() => {
+    if (!expiresOnDate) return 'unknown';
+    const minutes = Math.round((expiresOnDate.getTime() - Date.now()) / 60000);
+    return minutes < 0 ? 'expired' : minutes <= 5 ? 'expiring' : 'valid';
+  });
 </script>
 
 <div class="fixed inset-0 z-50 flex flex-col bg-background/95 backdrop-blur-sm supports-[backdrop-filter]:bg-background/90" transition:fade={{ duration: 200 }}>
@@ -70,9 +80,9 @@
           {result?.tokenType || 'Bearer'}
         </Badge>
         {#if expiresOnDate}
-          <Badge variant="outline" class="h-6 gap-1.5 px-2.5 font-normal text-muted-foreground">
+          <Badge variant={expiryStatus() === 'expired' ? 'destructive' : expiryStatus() === 'expiring' ? 'secondary' : 'outline'} class="h-6 gap-1.5 px-2.5 font-normal text-muted-foreground">
             <Clock class="h-3.5 w-3.5" />
-            {readableExpiry()}
+            {expiryStatus() === 'expired' ? 'Expired' : ''} {readableExpiry()}
           </Badge>
         {/if}
       </div>

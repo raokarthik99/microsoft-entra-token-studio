@@ -7,7 +7,9 @@ export const historyService = {
   async getHistory(): Promise<HistoryItem[]> {
     try {
       // Check if we need to migrate from localStorage
-      if (typeof window !== 'undefined' && localStorage.getItem(HISTORY_KEY)) {
+      if (typeof window === 'undefined') return [];
+      
+      if (localStorage.getItem(HISTORY_KEY)) {
         await this.migrateFromLocalStorage();
       }
       return (await get<HistoryItem[]>(HISTORY_KEY)) || [];
@@ -18,6 +20,7 @@ export const historyService = {
   },
 
   async addHistoryItem(item: HistoryItem): Promise<HistoryItem[]> {
+    if (typeof window === 'undefined') return [];
     try {
       const currentHistory = (await get<HistoryItem[]>(HISTORY_KEY)) || [];
       const newHistory = [item, ...currentHistory].slice(0, 50); // Increased limit since IDB can handle it
@@ -30,6 +33,7 @@ export const historyService = {
   },
 
   async clearHistory(): Promise<void> {
+    if (typeof window === 'undefined') return;
     try {
       await del(HISTORY_KEY);
     } catch (error) {
@@ -38,6 +42,7 @@ export const historyService = {
   },
 
   async deleteHistoryItem(timestamp: number): Promise<HistoryItem[]> {
+    if (typeof window === 'undefined') return [];
     try {
       const currentHistory = (await get<HistoryItem[]>(HISTORY_KEY)) || [];
       const newHistory = currentHistory.filter(item => item.timestamp !== timestamp);

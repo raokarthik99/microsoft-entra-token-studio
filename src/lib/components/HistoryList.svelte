@@ -3,6 +3,7 @@
   import { Button } from "$lib/shadcn/components/ui/button";
   import { Badge } from "$lib/shadcn/components/ui/badge";
   import { Play, Copy, Trash2 } from "@lucide/svelte";
+  import { toast } from "svelte-sonner";
 
   let { items, limit, onRestore, onDelete } = $props<{ 
     items: HistoryItem[], 
@@ -16,8 +17,10 @@
   async function copyTarget(value: string) {
     try {
       await navigator.clipboard.writeText(value);
+      toast.success("Copied to clipboard");
     } catch (err) {
       console.error('Failed to copy value', err);
+      toast.error("Failed to copy");
     }
   }
 </script>
@@ -54,7 +57,7 @@
                 <span class="hidden sm:inline">Use again</span>
               </Button>
               {#if onDelete}
-                <Button variant="ghost" size="icon" class="h-8 w-8 text-muted-foreground hover:text-destructive" onclick={() => onDelete(item)} title="Remove from history">
+                <Button variant="ghost" size="icon" class="h-8 w-8 text-muted-foreground hover:text-destructive" onclick={() => { onDelete(item); toast.success("Item removed from history"); }} title="Remove from history">
                   <Trash2 class="h-4 w-4" />
                 </Button>
               {/if}

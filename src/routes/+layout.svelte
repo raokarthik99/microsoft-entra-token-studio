@@ -3,6 +3,7 @@
   import favicon from '$lib/assets/favicon.svg';
   import { SidebarProvider, SidebarInset } from "$lib/shadcn/components/ui/sidebar";
   import { ModeWatcher } from "mode-watcher";
+  import { Toaster } from "$lib/shadcn/components/ui/sonner";
   import AppSidebar from "$lib/components/app-sidebar.svelte";
   import AppHeader from "$lib/components/app-header.svelte";
   import AppFooter from "$lib/components/app-footer.svelte";
@@ -53,6 +54,7 @@
 </svelte:head>
 
 <ModeWatcher />
+<Toaster position="top-center" richColors />
 
 {#if $auth.loading}
   <div class="flex h-screen w-full items-center justify-center bg-background">

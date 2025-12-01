@@ -6,6 +6,7 @@
   import { ScrollArea } from "$lib/shadcn/components/ui/scroll-area";
   import { Search, Copy, Check, Eye, EyeOff, Filter, X } from "@lucide/svelte";
   import { fade, slide } from "svelte/transition";
+  import { toast } from "svelte-sonner";
 
   let { claims = {} } = $props<{ claims: Record<string, any> | null }>();
 
@@ -37,9 +38,11 @@
     try {
       await navigator.clipboard.writeText(text);
       copiedKey = key;
+      toast.success(`Copied ${key} to clipboard`);
       setTimeout(() => copiedKey = null, 2000);
     } catch (err) {
       console.error('Failed to copy', err);
+      toast.error("Failed to copy");
     }
   }
 
