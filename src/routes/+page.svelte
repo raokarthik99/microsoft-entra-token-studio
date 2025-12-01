@@ -5,6 +5,7 @@
   import { historyState } from '$lib/states/history.svelte';
   import HistoryList from '$lib/components/HistoryList.svelte';
   import DecodedClaims from '$lib/components/DecodedClaims.svelte';
+  import TokenFullScreenView from '$lib/components/TokenFullScreenView.svelte';
 
   
   import { Button } from "$lib/shadcn/components/ui/button";
@@ -42,7 +43,8 @@
     ArrowRight,
     Eye,
     EyeOff,
-    ExternalLink
+    ExternalLink,
+    Maximize2
   } from "@lucide/svelte";
 
   type HealthStatus = {
@@ -75,6 +77,7 @@
   let tokenVisible = $state(true);
   let hasAutoScrolled = $state(false);
   let floatingExpanded = $state(true);
+  let isFullScreen = $state(false);
 
 
   let decodedClaims = $derived(result ? parseJwt(result.accessToken) : null);
@@ -732,11 +735,16 @@
                   <RotateCcw class="h-3.5 w-3.5" />
                   Replay
                 </Button>
-                <Button size="sm" variant="ghost" class="h-8 gap-2" onclick={resetAll}>
-                  <Trash2 class="h-3.5 w-3.5" />
-                  Clear
-                </Button>
-              </div>
+                  <Button size="sm" variant="ghost" class="h-8 gap-2" onclick={resetAll}>
+                    <Trash2 class="h-3.5 w-3.5" />
+                    Clear
+                  </Button>
+                  <Separator orientation="vertical" class="h-4" />
+                  <Button size="sm" variant="outline" class="h-8 gap-2" onclick={() => isFullScreen = true}>
+                    <Maximize2 class="h-3.5 w-3.5" />
+                    Expanded View
+                  </Button>
+                </div>
             </div>
 
             <div class="flex flex-wrap items-center gap-2 pt-2">
@@ -1085,3 +1093,11 @@
     {/if}
   </div>
 </div>
+
+{#if isFullScreen && hasResult}
+  <TokenFullScreenView 
+    {result} 
+    {decodedClaims} 
+    onClose={() => isFullScreen = false} 
+  />
+{/if}
