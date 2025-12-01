@@ -254,6 +254,17 @@
         handleUserSubmit();
       }
     }
+
+    const pendingLoad = localStorage.getItem('pending_token_load');
+    if (pendingLoad) {
+      try {
+        const item = JSON.parse(pendingLoad);
+        loadHistoryItem(item);
+        localStorage.removeItem('pending_token_load');
+      } catch (e) {
+        console.error('Failed to load pending token', e);
+      }
+    }
   });
 
   // Removed loadHistory function
@@ -290,7 +301,7 @@
         localStorage.setItem('active_tab', 'user-token');
         
         result = tokenData;
-        await addToHistory({ type: 'User Token', target: (tokenData.scopes || []).join(' '), timestamp: Date.now() });
+        await addToHistory({ type: 'User Token', target: (tokenData.scopes || []).join(' '), timestamp: Date.now(), tokenData: JSON.parse(JSON.stringify(result!)) });
         
         window.history.replaceState({}, document.title, window.location.pathname);
       } catch (e) {
@@ -317,7 +328,7 @@
       
       if (res.ok) {
         result = data;
-        await addToHistory({ type: 'App Token', target: resource, timestamp: Date.now() });
+        await addToHistory({ type: 'App Token', target: resource, timestamp: Date.now(), tokenData: JSON.parse(JSON.stringify(result!)) });
         toast.success("App token acquired successfully");
       } else {
         const errorMsg = data.details ? `${data.error}: ${data.details}` : data.error || 'Failed to fetch token';
@@ -357,7 +368,7 @@
         scopes: tokenResponse.scopes,
       };
       
-      await addToHistory({ type: 'User Token', target: scopes, timestamp: Date.now() });
+      await addToHistory({ type: 'User Token', target: scopes, timestamp: Date.now(), tokenData: JSON.parse(JSON.stringify(result!)) });
       toast.success("User token acquired successfully");
     } catch (err: any) {
       console.error('Token acquisition failed', err);
@@ -407,6 +418,25 @@
       scopes = item.target;
       await tick();
       handleUserSubmit();
+    }
+  }
+
+  async function loadHistoryItem(item: HistoryItem) {
+    if (item.tokenData) {
+      result = item.tokenData;
+      if (item.type === 'App Token') {
+        activeTab = 'app-token';
+        resource = item.target;
+      } else {
+        activeTab = 'user-token';
+        scopes = item.target;
+      }
+      // Scroll to output
+      await tick();
+      const outputEl = document.getElementById('output');
+      if (outputEl) {
+        outputEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
     }
   }
 
@@ -743,7 +773,7 @@
               <div class="flex flex-wrap items-center gap-2">
                 <Button size="sm" variant="ghost" class="h-8 gap-2" onclick={() => lastRun && restoreHistoryItem(lastRun)} disabled={!lastRun}>
                   <RotateCcw class="h-3.5 w-3.5" />
-                  Replay
+                  Refresh
                 </Button>
                   <Button size="sm" variant="ghost" class="h-8 gap-2" onclick={resetAll}>
                     <Trash2 class="h-3.5 w-3.5" />
@@ -904,35 +934,7 @@
                 {/if}
               </div>
 
-              <div class="rounded-xl border bg-muted/10 p-4">
-                <div class="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p class="text-sm font-semibold">Context & reuse</p>
-                    <p class="text-xs text-muted-foreground">Replay with the same target or adjust inputs above.</p>
-                  </div>
-                  <div class="flex items-center gap-2">
-                    <Button size="sm" variant="ghost" class="gap-2" onclick={() => lastRun && restoreHistoryItem(lastRun)} disabled={!lastRun}>
-                      <RotateCcw class="h-4 w-4" />
-                      Replay
-                    </Button>
-                    <Button size="sm" variant="ghost" class="gap-2" href="/history">
-                      <History class="h-4 w-4" />
-                      History
-                    </Button>
-                  </div>
-                </div>
-                <div class="mt-3 grid gap-3 sm:grid-cols-2">
-                  <div class="rounded-lg border bg-background/50 p-3">
-                    <p class="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Target</p>
-                    <p class="text-sm font-mono break-words text-foreground/90">{lastRun?.target || (showResultScopes ? resultScopes.join(' ') : computedResourceScope)}</p>
-                  </div>
-                  <div class="rounded-lg border bg-background/50 p-3">
-                    <p class="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Audience / tenant</p>
-                    <p class="text-sm font-mono break-words text-foreground/90">{audienceClaim || 'Audience not returned'}</p>
-                    <p class="text-[11px] text-muted-foreground">Tenant: {tenantClaim || 'unknown'}</p>
-                  </div>
-                </div>
-              </div>
+
             {:else}
               <div class="flex flex-col items-center justify-center rounded-xl border border-dashed bg-muted/10 py-16 text-center">
                 <div class="mb-4 rounded-full bg-primary/10 p-3">
@@ -977,6 +979,7 @@
             items={filteredHistory} 
             limit={10} 
             onRestore={restoreHistoryItem} 
+            onLoad={loadHistoryItem}
             onDelete={deleteHistoryItem}
           />
         </Card.Content>
@@ -1081,12 +1084,12 @@
           {/if}
         </div>
 
-        <div class="flex flex-wrap items-center gap-2">
-          <Button size="sm" variant="secondary" class="gap-2" onclick={() => copyToClipboard(result?.accessToken || '')} disabled={!hasToken}>
-            <Copy class="h-4 w-4" />
-            {copied ? 'Copied' : 'Copy token'}
-          </Button>
-          {#if hasResult}
+        {#if hasResult}
+          <div class="flex flex-wrap items-center gap-2">
+            <Button size="sm" variant="secondary" class="gap-2" onclick={() => copyToClipboard(result?.accessToken || '')} disabled={!hasToken}>
+              <Copy class="h-4 w-4" />
+              {copied ? 'Copied' : 'Copy token'}
+            </Button>
             <Button size="sm" variant="ghost" class="gap-2" onclick={() => tokenVisible = !tokenVisible}>
               {#if tokenVisible}
                 <EyeOff class="h-4 w-4" />
@@ -1096,9 +1099,8 @@
                 Show
               {/if}
             </Button>
-          {/if}
-
-        </div>
+          </div>
+        {/if}
       </div>
     {/if}
   </div>

@@ -29,6 +29,13 @@
     window.location.href = `/?${params.toString()}`;
   }
 
+  async function loadHistoryItem(item: HistoryItem) {
+    if (item.tokenData) {
+      localStorage.setItem('pending_token_load', JSON.stringify(item));
+      window.location.href = '/';
+    }
+  }
+
   async function deleteHistoryItem(item: HistoryItem) {
     await historyState.delete(item);
   }
@@ -79,6 +86,7 @@
         <HistoryList 
           items={historyState.items} 
           onRestore={restoreHistoryItem} 
+          onLoad={loadHistoryItem}
           onDelete={deleteHistoryItem}
         />
       </ScrollArea>

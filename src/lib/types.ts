@@ -2,6 +2,7 @@ export interface HistoryItem {
     type: 'App Token' | 'User Token';
     target: string;
     timestamp: number;
+    tokenData?: TokenData;
 }
 
 export interface TokenData {
