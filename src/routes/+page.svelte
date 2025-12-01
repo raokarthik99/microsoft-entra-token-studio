@@ -6,6 +6,9 @@
   import HistoryList from '$lib/components/HistoryList.svelte';
   import DecodedClaims from '$lib/components/DecodedClaims.svelte';
   import TokenFullScreenView from '$lib/components/TokenFullScreenView.svelte';
+  import TokenStatusBadge from '$lib/components/TokenStatusBadge.svelte';
+  import { getTokenStatus } from '$lib/utils';
+  import { time } from '$lib/stores/time';
   import { toast } from "svelte-sonner";
 
   
@@ -82,9 +85,6 @@
 
 
   let decodedClaims = $derived(result ? parseJwt(result.accessToken) : null);
-  const expiresOnDate = $derived(result?.expiresOn ? new Date(result.expiresOn) : null);
-  const expiresInMinutes = $derived(expiresOnDate ? Math.round((expiresOnDate.getTime() - Date.now()) / 60000) : null);
-  const expiryStatus = $derived(expiresInMinutes === null ? 'unknown' : expiresInMinutes < 0 ? 'expired' : expiresInMinutes <= 5 ? 'expiring' : 'valid');
   const historyCount = $derived(historyState.items.length);
   const resultKind = $derived(result ? (result.scopes?.length ? 'User Token' : 'App Token') : '');
   const issuedAtDate = $derived(decodedClaims?.iat ? new Date(Number((decodedClaims as any).iat) * 1000) : null);
@@ -130,13 +130,8 @@
   const lastRun = $derived(historyState.items[0] ?? null);
   const activeFlowLabel = $derived(activeTab === 'app-token' ? 'App token' : 'User token');
   const showResultScopes = $derived(resultKind !== 'App Token' && resultScopes.length > 0);
+  const currentStatus = $derived(result?.expiresOn ? getTokenStatus(new Date(result.expiresOn), $time) : null);
   const scopeCount = $derived(resultScopes.length);
-  const isExpiringSoon = $derived(expiresInMinutes !== null && expiresInMinutes <= 5);
-  const expiresLabel = $derived(() => {
-    if (!expiresOnDate) return 'Expiry not provided';
-    const rel = readableExpiry();
-    return rel ? `${expiresOnDate.toLocaleString()} · ${rel}` : expiresOnDate.toLocaleString();
-  });
   const claimEntries = $derived(decodedClaims ? Object.entries(decodedClaims) : []);
   const hasToken = $derived(Boolean(result?.accessToken));
   const resolvedRedirectUri = $derived(
@@ -448,13 +443,7 @@
     scopes = value;
   }
 
-  function readableExpiry() {
-    if (expiresInMinutes === null) return null;
-    if (expiresInMinutes < 0) return `${Math.abs(expiresInMinutes)} min ago`;
-    if (expiresInMinutes <= 1) return 'expires now';
-    if (expiresInMinutes < 60) return `${expiresInMinutes} min left`;
-    return `${Math.round(expiresInMinutes / 60)} hr remaining`;
-  }
+
 
   function formatTimestamp(ts: number) {
     return new Date(ts).toLocaleString();
@@ -484,7 +473,7 @@
 </script>
 
 <svelte:head>
-  <title>Token Studio | Entra Token Client</title>
+  <title>Playground | Entra Token Client</title>
 </svelte:head>
 
 <div class="space-y-8">
@@ -777,8 +766,8 @@
               <div class="flex flex-wrap items-center gap-2">
                 <Button 
                   size="sm" 
-                  variant={expiryStatus === 'expired' || expiryStatus === 'expiring' ? 'default' : 'ghost'} 
-                  class={`h-8 gap-2 ${expiryStatus === 'expired' || expiryStatus === 'expiring' ? 'shadow-[0_0_15px_-3px_oklch(var(--primary)/0.6)] hover:shadow-[0_0_20px_-3px_oklch(var(--primary)/0.7)] transition-all' : ''}`}
+                  variant={currentStatus?.label === 'Expired' || currentStatus?.label === 'Expiring' ? 'default' : 'ghost'} 
+                  class={`h-8 gap-2 ${currentStatus?.label === 'Expired' || currentStatus?.label === 'Expiring' ? 'shadow-[0_0_15px_-3px_oklch(var(--primary)/0.6)] hover:shadow-[0_0_20px_-3px_oklch(var(--primary)/0.7)] transition-all' : ''}`}
                   onclick={refreshCurrent} 
                   disabled={loading || !hasResult}
                   title="Refresh this token"
@@ -813,10 +802,8 @@
                 {#if audienceClaim}
                   <Badge variant="outline" class="max-w-[200px] truncate px-2 py-0.5 text-xs font-normal text-muted-foreground" title={audienceClaim}>Aud: {audienceClaim}</Badge>
                 {/if}
-                {#if expiresOnDate}
-                  <Badge variant={expiryStatus === 'expired' ? 'destructive' : expiryStatus === 'expiring' ? 'secondary' : 'outline'} class="px-2 py-0.5 text-xs font-normal">
-                    {expiryStatus === 'expired' ? 'Expired' : expiryStatus === 'expiring' ? 'Expiring' : 'Expires'} {readableExpiry()}
-                  </Badge>
+                {#if result?.expiresOn}
+                  <TokenStatusBadge expiresOn={result.expiresOn} class="px-2 py-0.5 text-xs font-normal" />
                 {/if}
               {/if}
             </div>
@@ -875,13 +862,19 @@
                 <div class="rounded-lg border bg-muted/25 p-4">
                   <p class="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Expiry</p>
                   <div class="text-sm font-semibold text-foreground">
-                    {#if expiresOnDate}
-                      {expiresOnDate.toLocaleString()}
+                    {#if result?.expiresOn}
+                      {new Date(result.expiresOn).toLocaleString()}
                     {:else}
                       Unknown
                     {/if}
                   </div>
-                  <p class="text-xs text-muted-foreground">{readableExpiry() || 'Lifetime not provided'}</p>
+                  <div class="mt-1">
+                    {#if result?.expiresOn}
+                      <TokenStatusBadge expiresOn={result.expiresOn} textOnly showIcon={false} class="text-xs text-muted-foreground" />
+                    {:else}
+                      <p class="text-xs text-muted-foreground">Lifetime not provided</p>
+                    {/if}
+                  </div>
                 </div>
               <div class="rounded-lg border bg-muted/25 p-4">
                 <p class="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Scopes / audiences</p>
@@ -1038,10 +1031,8 @@
               Awaiting token
             {/if}
           </Badge>
-          {#if hasResult && expiresOnDate}
-            <Badge variant={expiryStatus === 'expired' ? 'destructive' : expiryStatus === 'expiring' ? 'secondary' : 'outline'} class="px-2 py-1 font-normal">
-              {expiryStatus === 'expired' ? 'Expired' : ''} {readableExpiry() || 'Expiry unknown'}
-            </Badge>
+          {#if hasResult && result?.expiresOn}
+            <TokenStatusBadge expiresOn={result.expiresOn} class="px-2 py-1 font-normal" />
           {/if}
           {#if showResultScopes}
             <Badge variant="outline" class="px-2 py-1 font-normal">{scopeCount} {scopeCount === 1 ? 'scope' : 'scopes'}</Badge>
@@ -1090,8 +1081,8 @@
             </Button>
             <Button 
               size="sm" 
-              variant={expiryStatus === 'expired' || expiryStatus === 'expiring' ? 'default' : 'ghost'} 
-              class={`gap-2 ${expiryStatus === 'expired' || expiryStatus === 'expiring' ? 'shadow-[0_0_15px_-3px_oklch(var(--primary)/0.6)] hover:shadow-[0_0_20px_-3px_oklch(var(--primary)/0.7)] transition-all' : ''}`}
+              variant={currentStatus?.label === 'Expired' || currentStatus?.label === 'Expiring' ? 'default' : 'ghost'} 
+              class={`gap-2 ${currentStatus?.label === 'Expired' || currentStatus?.label === 'Expiring' ? 'shadow-[0_0_15px_-3px_oklch(var(--primary)/0.6)] hover:shadow-[0_0_20px_-3px_oklch(var(--primary)/0.7)] transition-all' : ''}`}
               onclick={refreshCurrent}
               title="Refresh this token"
             >

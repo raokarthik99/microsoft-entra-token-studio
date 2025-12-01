@@ -5,6 +5,10 @@
   import { RotateCcw, Copy, Trash2, Eye, Clock3 } from "@lucide/svelte";
   import { toast } from "svelte-sonner";
 
+  import TokenStatusBadge from "./TokenStatusBadge.svelte";
+  import { getTokenStatus } from "$lib/utils";
+  import { time } from "$lib/stores/time";
+
   let { items, limit, onRestore, onLoad, onDelete } = $props<{ 
     items: HistoryItem[], 
     limit?: number,
@@ -24,16 +28,6 @@
       toast.error("Failed to copy");
     }
   }
-
-  function getExpiryStatus(item: HistoryItem) {
-    if (!item.tokenData?.expiresOn) return null;
-    const expiresOn = new Date(item.tokenData.expiresOn);
-    const minutesLeft = Math.round((expiresOn.getTime() - Date.now()) / 60000);
-    
-    if (minutesLeft < 0) return { label: 'Expired', variant: 'destructive' as const };
-    if (minutesLeft <= 5) return { label: 'Expiring', variant: 'secondary' as const };
-    return { label: 'Valid', variant: 'outline' as const };
-  }
 </script>
 
 <div class="space-y-2">
@@ -44,7 +38,7 @@
   {:else}
     <ul class="divide-y rounded-lg border bg-card">
       {#each displayItems as item}
-        {@const status = getExpiryStatus(item)}
+        {@const status = item.tokenData?.expiresOn ? getTokenStatus(new Date(item.tokenData.expiresOn), $time) : null}
         <li class="flex flex-col gap-3 p-4 transition hover:bg-muted/40 group first:rounded-t-lg last:rounded-b-lg sm:flex-row sm:items-start sm:justify-between">
           <div class="space-y-1.5 min-w-0 flex-1">
             <div class="flex flex-wrap items-center gap-2">
@@ -54,10 +48,8 @@
               <span class="text-xs text-muted-foreground">
                 {new Date(item.timestamp).toLocaleString()}
               </span>
-              {#if status}
-                <Badge variant={status.variant} class="text-[10px] h-5 px-1.5 font-normal">
-                  {status.label}
-                </Badge>
+              {#if item.tokenData?.expiresOn}
+                <TokenStatusBadge expiresOn={item.tokenData.expiresOn} />
               {/if}
             </div>
             <p class="font-mono text-sm text-foreground break-all line-clamp-2" title={item.target}>
@@ -88,6 +80,7 @@
                 <span class="hidden lg:inline">Load</span>
               </Button>
             {/if}
+
 
             <Button 
               variant={status?.label === 'Expired' || status?.label === 'Expiring' ? 'default' : 'ghost'} 

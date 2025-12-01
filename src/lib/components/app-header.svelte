@@ -9,7 +9,7 @@
   let { user, onLogout, photoUrl } = $props<{ user?: AccountInfo | null, onLogout?: () => void, photoUrl?: string | null }>();
 
   const titles: Record<string, string> = {
-    '/': 'Token Studio',
+    '/': 'Playground',
     '/history': 'History',
     '/settings': 'Settings',
   };

@@ -10,6 +10,8 @@
   import { fade, fly } from "svelte/transition";
   import { toast } from "svelte-sonner";
 
+  import TokenStatusBadge from "./TokenStatusBadge.svelte";
+
   let { 
     result = null, 
     decodedClaims = null, 
@@ -40,21 +42,7 @@
   const resultKind = $derived(result ? (result.scopes?.length ? 'User Token' : 'App Token') : 'Token');
   const scopeCount = $derived(result?.scopes?.length || 0);
   const expiresOnDate = $derived(result?.expiresOn ? new Date(result.expiresOn) : null);
-  
-  function readableExpiry() {
-    if (!expiresOnDate) return null;
-    const minutes = Math.round((expiresOnDate.getTime() - Date.now()) / 60000);
-    if (minutes < 0) return `${Math.abs(minutes)} min ago`;
-    if (minutes <= 1) return 'expires now';
-    if (minutes < 60) return `${minutes} min left`;
-    return `${Math.round(minutes / 60)} hr remaining`;
-  }
 
-  const expiryStatus = $derived(() => {
-    if (!expiresOnDate) return 'unknown';
-    const minutes = Math.round((expiresOnDate.getTime() - Date.now()) / 60000);
-    return minutes < 0 ? 'expired' : minutes <= 5 ? 'expiring' : 'valid';
-  });
 </script>
 
 <div class="fixed inset-0 z-50 flex flex-col bg-background/95 backdrop-blur-sm supports-[backdrop-filter]:bg-background/90" transition:fade={{ duration: 200 }}>
@@ -79,11 +67,8 @@
         <Badge variant="outline" class="h-6 gap-1.5 px-2.5 font-normal text-muted-foreground">
           {result?.tokenType || 'Bearer'}
         </Badge>
-        {#if expiresOnDate}
-          <Badge variant={expiryStatus() === 'expired' ? 'destructive' : expiryStatus() === 'expiring' ? 'secondary' : 'outline'} class="h-6 gap-1.5 px-2.5 font-normal text-muted-foreground">
-            <Clock class="h-3.5 w-3.5" />
-            {expiryStatus() === 'expired' ? 'Expired' : ''} {readableExpiry()}
-          </Badge>
+        {#if result?.expiresOn}
+          <TokenStatusBadge expiresOn={result.expiresOn} class="h-6 gap-1.5 px-2.5 font-normal text-muted-foreground" />
         {/if}
       </div>
     </div>
@@ -148,6 +133,13 @@
                     {#each result.scopes as scope}
                       <Badge variant="secondary" class="font-mono text-[10px]">{scope}</Badge>
                     {/each}
+                  </div>
+                </div>
+              {:else if resultKind === 'App Token'}
+                <div class="space-y-2">
+                  <span class="text-xs font-medium text-muted-foreground uppercase tracking-wider">Scopes</span>
+                  <div class="text-xs text-muted-foreground italic">
+                    Scopes are not applicable for app token based flows.
                   </div>
                 </div>
               {/if}
