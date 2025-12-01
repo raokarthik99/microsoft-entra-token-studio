@@ -2,7 +2,6 @@
   import { onMount } from 'svelte';
   import type { HistoryItem, TokenData } from '$lib/types';
   import { parseJwt } from '$lib/utils';
-  import PageHeader from "$lib/components/page-header.svelte";
 
   
   import { Button } from "$lib/shadcn/components/ui/button";
@@ -410,10 +409,6 @@
 </svelte:head>
 
 <div class="space-y-8">
-  <PageHeader 
-    title="Token Studio" 
-    description="Generate and inspect tokens for your Entra applications."
-  />
   <section id="setup" class="rounded-2xl border bg-card shadow-sm overflow-hidden">
     <div class="border-b bg-muted/30 px-5 py-4">
       <div class="flex flex-wrap items-center justify-between gap-4">

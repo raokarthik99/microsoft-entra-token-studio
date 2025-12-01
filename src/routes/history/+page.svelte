@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import type { HistoryItem } from '$lib/types';
-  import PageHeader from "$lib/components/page-header.svelte";
 
   import { Button } from "$lib/shadcn/components/ui/button";
   import { Trash2, Play, Copy } from "@lucide/svelte";
@@ -60,11 +59,7 @@
 </svelte:head>
 
 <div class="flex h-[calc(100vh-12rem)] flex-col gap-6">
-  <PageHeader 
-    title="History" 
-    description="Everything here lives only in your browser. Reuse inputs quickly or clear them when you are done."
-  >
-    <div class="flex items-center gap-4">
+  <div class="flex items-center justify-end gap-4">
       {#if lastUpdated}
         <span class="text-xs text-muted-foreground">Updated {lastUpdated}</span>
       {/if}
@@ -72,8 +67,7 @@
         <Trash2 class="h-4 w-4" />
         Clear
       </Button>
-    </div>
-  </PageHeader>
+  </div>
 
   <div class="flex-1 min-h-0 rounded-lg border bg-card shadow-sm overflow-hidden flex flex-col">
     {#if history.length === 0}

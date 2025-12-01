@@ -24,15 +24,19 @@
     <Sidebar.Menu>
       <Sidebar.MenuItem>
         <Sidebar.MenuButton size="lg" class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground">
-          <div class="flex items-center gap-3">
-            <div class="flex aspect-square size-9 items-center justify-center rounded-xl bg-muted p-1 shrink-0">
-              <img src={entraIconUrl} alt="Microsoft Entra logo" class="size-7" />
-            </div>
-            <div class="flex min-w-0 flex-col">
-              <span class="block truncate text-sm font-semibold leading-tight">Entra Token Studio</span>
-            </div>
-          </div>
-          <Badge variant="secondary" class="text-[11px]">v1</Badge>
+          {#snippet child({ props })}
+            <a href="/" {...props}>
+              <div class="flex items-center gap-3">
+                <div class="flex aspect-square size-9 items-center justify-center rounded-xl bg-muted p-1 shrink-0">
+                  <img src={entraIconUrl} alt="Microsoft Entra logo" class="size-7" />
+                </div>
+                <div class="flex min-w-0 flex-col">
+                  <span class="block truncate text-sm font-semibold leading-tight">Entra Token Studio</span>
+                </div>
+              </div>
+              <Badge variant="secondary" class="ml-auto text-[11px]">v1</Badge>
+            </a>
+          {/snippet}
         </Sidebar.MenuButton>
       </Sidebar.MenuItem>
     </Sidebar.Menu>
