@@ -675,7 +675,10 @@
                   <div class="space-y-3">
                     <div class="space-y-2">
                       <Label for="scopes">Scopes</Label>
-                      <Input type="text" id="scopes" bind:value={scopes} placeholder="User.Read Mail.Read (space separated)" required />
+                    <Input type="text" id="scopes" bind:value={scopes} placeholder="User.Read Mail.Read (space separated)" required />
+                      <p class="text-[10px] text-muted-foreground">
+                        Tip: You can request multiple scopes by separating them with spaces or commas.
+                      </p>
                     </div>
                     
                     <div class="space-y-1.5">
