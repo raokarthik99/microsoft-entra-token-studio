@@ -4,6 +4,7 @@
   import { parseJwt } from '$lib/utils';
   import { historyState } from '$lib/states/history.svelte';
   import HistoryList from '$lib/components/HistoryList.svelte';
+  import DecodedClaims from '$lib/components/DecodedClaims.svelte';
 
   
   import { Button } from "$lib/shadcn/components/ui/button";
@@ -879,43 +880,8 @@
                 </div>
 
                 {#if decodedClaims}
-                  <div class="space-y-3 rounded-xl border bg-muted/10 p-4">
-                    <div class="flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <p class="text-sm font-semibold">Decoded claims</p>
-                        <p class="text-xs text-muted-foreground">Key claims grouped for quick inspection.</p>
-                      </div>
-                      <Badge variant="outline" class="text-[11px]">{claimEntries.length} fields</Badge>
-                    </div>
-                    <div class="grid gap-2 sm:grid-cols-2">
-                      {#each claimEntries as [k, v]}
-                        <div class="rounded-lg border bg-background/60 p-3">
-                          <div class="flex items-center justify-between gap-2">
-                            <span class="text-[11px] uppercase tracking-[0.12em] text-muted-foreground truncate" title={k}>{k}</span>
-                            {#if k === 'aud'}
-                              <Badge variant="secondary" class="text-[10px]">Audience</Badge>
-                            {:else if k === 'iss'}
-                              <Badge variant="secondary" class="text-[10px]">Issuer</Badge>
-                            {:else if k === 'scp' || k === 'roles'}
-                              <Badge variant="secondary" class="text-[10px]">Permissions</Badge>
-                            {/if}
-                          </div>
-                          <div class="mt-1 text-xs font-mono leading-relaxed text-foreground/90 break-words">
-                            {#if Array.isArray(v)}
-                              <div class="flex flex-wrap gap-1">
-                                {#each v as item}
-                                  <Badge variant="outline" class="font-mono text-[11px]">{item}</Badge>
-                                {/each}
-                              </div>
-                            {:else if typeof v === 'object'}
-                              <pre class="whitespace-pre-wrap break-all text-[11px] text-muted-foreground">{JSON.stringify(v, null, 2)}</pre>
-                            {:else}
-                              {v}
-                            {/if}
-                          </div>
-                        </div>
-                      {/each}
-                    </div>
+                  <div class="rounded-xl border bg-muted/10 p-4">
+                    <DecodedClaims claims={decodedClaims} />
                   </div>
                 {/if}
               </div>
