@@ -38,7 +38,8 @@
     Zap,
     ArrowRight,
     Eye,
-    EyeOff
+    EyeOff,
+    ExternalLink
   } from "@lucide/svelte";
 
   type HealthStatus = {
@@ -427,14 +428,7 @@
             </span>
           </div>
         </div>
-        <Button variant="ghost" size="sm" class="h-8 gap-2 text-muted-foreground hover:text-foreground" onclick={() => refreshHealth()} disabled={healthLoading}>
-          {#if healthLoading}
-            <Loader2 class="h-3.5 w-3.5 animate-spin" />
-          {:else}
-            <RotateCcw class="h-3.5 w-3.5" />
-          {/if}
-          <span class="text-xs">Re-run checks</span>
-        </Button>
+
       </div>
     </div>
 
@@ -470,7 +464,25 @@
             <div class="space-y-2">
               <div class="flex items-center justify-between gap-2">
                 <Label class="text-xs text-muted-foreground">Redirect URI</Label>
-                <span class="text-[10px] text-muted-foreground">Must match Entra registration</span>
+                <div class="flex items-center gap-3">
+                  <a 
+                    href="https://learn.microsoft.com/en-us/entra/identity-platform/reply-url" 
+                    target="_blank" 
+                    rel="noreferrer" 
+                    class="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary hover:underline"
+                    title="Learn about Redirect URIs"
+                  >
+                    Docs <ExternalLink class="h-2.5 w-2.5" />
+                  </a>
+                  <a 
+                    href={appRedirectLink} 
+                    target="_blank" 
+                    rel="noreferrer" 
+                    class="flex items-center gap-1 text-[10px] text-primary hover:underline"
+                  >
+                    Add to App Registration <ArrowRight class="h-2.5 w-2.5" />
+                  </a>
+                </div>
               </div>
               <div class="flex gap-2">
                 <code class="flex-1 rounded-md border bg-background px-3 py-2 font-mono text-xs text-foreground/90 break-all">
@@ -480,13 +492,26 @@
                   <Copy class="h-4 w-4" />
                 </Button>
               </div>
+              <p class="text-[10px] text-muted-foreground">
+                Must exactly match the value in Entra (case-sensitive).
+              </p>
+            </div>
+
+            <div class="flex items-start gap-2 rounded-lg border border-border/50 bg-background/40 p-3">
+              <Info class="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <div class="space-y-1">
+                <p class="text-xs font-medium text-foreground">Changing the application</p>
+                <p class="text-xs text-muted-foreground">
+                  To switch apps, update <code class="font-mono text-[10px]">CLIENT_ID</code> and <code class="font-mono text-[10px]">CLIENT_SECRET</code> in your <code class="font-mono text-[10px]">.env</code> file. To change the redirect URI, set <code class="font-mono text-[10px]">REDIRECT_URI</code>. Restart the server to apply.
+                </p>
+              </div>
             </div>
           </div>
         </div>
 
         <!-- Right Column: Status & Checklist -->
         <div class="space-y-5">
-          <h4 class="text-sm font-medium text-foreground">Health Check</h4>
+          <h4 class="text-sm font-medium text-foreground">Configuration Status</h4>
           
           <div class="space-y-2">
             {#each setupChecklist as item}
