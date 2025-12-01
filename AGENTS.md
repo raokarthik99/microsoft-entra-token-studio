@@ -13,7 +13,7 @@
 - **Client-side Auth**: `src/lib/services/auth.ts` (MSAL wrapper), `src/lib/stores/auth.ts` (auth state), `src/routes/auth/callback/+page.svelte` (redirect handler).
 - **Server routes**: `src/routes/api/token/app/+server.ts` (confidential client tokens), `src/routes/api/health/+server.ts` (config check).
 - Supporting pages: `src/routes/history/+page.svelte` (local history) and `src/routes/settings/+page.svelte` (theme, profile, data clearing).
-- **History**: `src/lib/services/history.ts` manages IndexedDB storage via `idb-keyval`. `src/lib/components/HistoryList.svelte` is the shared UI for history items.
+- **History**: `src/lib/states/history.svelte.ts` manages state via a shared `HistoryState` class (Svelte 5 runes). `src/lib/services/history.ts` handles `idb-keyval` persistence. `src/lib/components/HistoryList.svelte` is the shared UI.
 - Shared logic/UI in `src/lib` (`components/`, `shadcn/`, `utils.ts`, `types.ts`, server-only MSAL helpers in `server/msal.ts`). Keep server imports out of client modules.
 - Global shell and styles: `src/app.html`, `src/app.css`; static assets live in `static/`.
 - Type configuration extends SvelteKit defaults via `tsconfig.json`; use the `$lib` alias.

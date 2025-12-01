@@ -2,12 +2,13 @@
   import type { HistoryItem } from '$lib/types';
   import { Button } from "$lib/shadcn/components/ui/button";
   import { Badge } from "$lib/shadcn/components/ui/badge";
-  import { Play, Copy } from "@lucide/svelte";
+  import { Play, Copy, Trash2 } from "@lucide/svelte";
 
-  let { items, limit, onRestore } = $props<{ 
+  let { items, limit, onRestore, onDelete } = $props<{ 
     items: HistoryItem[], 
     limit?: number,
-    onRestore: (item: HistoryItem) => void 
+    onRestore: (item: HistoryItem) => void,
+    onDelete?: (item: HistoryItem) => void
   }>();
 
   let displayItems = $derived(limit ? items.slice(0, limit) : items);
@@ -52,6 +53,11 @@
                 <Play class="h-4 w-4" />
                 <span class="hidden sm:inline">Use again</span>
               </Button>
+              {#if onDelete}
+                <Button variant="ghost" size="icon" class="h-8 w-8 text-muted-foreground hover:text-destructive" onclick={() => onDelete(item)} title="Remove from history">
+                  <Trash2 class="h-4 w-4" />
+                </Button>
+              {/if}
             </div>
           </div>
         </li>

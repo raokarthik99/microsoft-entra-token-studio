@@ -2,7 +2,7 @@
   import { onMount, tick } from 'svelte';
   import type { HistoryItem, TokenData } from '$lib/types';
   import { parseJwt } from '$lib/utils';
-  import { historyService } from '$lib/services/history';
+  import { historyState } from '$lib/states/history.svelte';
   import HistoryList from '$lib/components/HistoryList.svelte';
 
   
@@ -62,7 +62,7 @@
   let activeTab = $state('app-token');
   let resource = $state('https://graph.microsoft.com');
   let scopes = $state('User.Read');
-  let history = $state<HistoryItem[]>([]);
+  // history state is now managed by historyState
   let result = $state<TokenData | null>(null);
   let error = $state<string | null>(null);
   let loading = $state(false);
@@ -79,7 +79,7 @@
   let decodedClaims = $derived(result ? parseJwt(result.accessToken) : null);
   const expiresOnDate = $derived(result?.expiresOn ? new Date(result.expiresOn) : null);
   const expiresInMinutes = $derived(expiresOnDate ? Math.max(0, Math.round((expiresOnDate.getTime() - Date.now()) / 60000)) : null);
-  const historyCount = $derived(history.length);
+  const historyCount = $derived(historyState.items.length);
   const resultKind = $derived(result ? (result.scopes?.length ? 'User Token' : 'App Token') : '');
   const issuedAtDate = $derived(decodedClaims?.iat ? new Date(Number((decodedClaims as any).iat) * 1000) : null);
   const audienceClaim = $derived((() => {
@@ -118,14 +118,14 @@
   ];
   const scopesPreview = $derived(scopes.split(/[ ,]+/).filter(Boolean));
   const filteredHistory = $derived((() => {
-    if (historyFilter === 'all') return history;
-    return history.filter((item) => historyFilter === 'app' ? item.type === 'App Token' : item.type === 'User Token');
+    if (historyFilter === 'all') return historyState.items;
+    return historyState.items.filter((item) => historyFilter === 'app' ? item.type === 'App Token' : item.type === 'User Token');
   })());
   const historyPeek = $derived(filteredHistory.slice(0, 8));
   const hasResult = $derived(Boolean(result));
   const statusLabel = $derived(error ? 'Error' : hasResult ? 'Issued' : 'Waiting');
   const statusTone: 'secondary' | 'outline' | 'destructive' = $derived(error ? 'destructive' : hasResult ? 'secondary' : 'outline');
-  const lastRun = $derived(history[0] ?? null);
+  const lastRun = $derived(historyState.items[0] ?? null);
   const activeFlowLabel = $derived(activeTab === 'app-token' ? 'App token' : 'User token');
   const showResultScopes = $derived(resultKind !== 'App Token' && resultScopes.length > 0);
   const scopeCount = $derived(resultScopes.length);
@@ -236,7 +236,7 @@
       window.history.replaceState({}, document.title, window.location.pathname);
     }
 
-    loadHistory();
+    // historyState.load() is called in constructor, but we can call it again if needed, or rely on it being singleton
     checkUrlForToken();
     refreshHealth();
 
@@ -250,20 +250,13 @@
     }
   });
 
-  async function loadHistory() {
-    history = await historyService.getHistory();
-  }
+  // Removed loadHistory function
 
   async function addToHistory(item: HistoryItem) {
-    history = await historyService.addHistoryItem(item);
+    await historyState.add(item);
   }
 
-  async function clearHistory() {
-    if (confirm('Clear history?')) {
-      history = [];
-      await historyService.clearHistory();
-    }
-  }
+  // Removed clearHistory function - use historyState.clear()
 
   async function refreshHealth() {
     healthLoading = true;
@@ -402,6 +395,10 @@
       await tick();
       handleUserSubmit();
     }
+  }
+
+  async function deleteHistoryItem(item: HistoryItem) {
+    await historyState.delete(item);
   }
 
   function applyResourcePreset(value: string) {
@@ -967,6 +964,7 @@
       <Card.Root class="border bg-card/70">
         <Card.Header class="pb-3">
           <div class="flex flex-wrap items-center justify-between gap-3">
+
             <div class="flex items-center gap-2">
               <History class="h-5 w-5 text-muted-foreground" />
               <Card.Title>Recent activity</Card.Title>
@@ -976,7 +974,7 @@
                 View all
                 <ArrowRight class="h-4 w-4" />
               </Button>
-              <Button variant="ghost" size="icon" title="Clear history" onclick={clearHistory} disabled={history.length === 0}>
+              <Button variant="ghost" size="icon" title="Clear history" onclick={() => historyState.clear()} disabled={historyState.items.length === 0}>
                 <Trash2 class="h-4 w-4" />
               </Button>
             </div>
@@ -992,6 +990,7 @@
             items={filteredHistory} 
             limit={10} 
             onRestore={restoreHistoryItem} 
+            onDelete={deleteHistoryItem}
           />
         </Card.Content>
       </Card.Root>

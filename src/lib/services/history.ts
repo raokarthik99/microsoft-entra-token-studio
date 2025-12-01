@@ -37,6 +37,18 @@ export const historyService = {
     }
   },
 
+  async deleteHistoryItem(timestamp: number): Promise<HistoryItem[]> {
+    try {
+      const currentHistory = (await get<HistoryItem[]>(HISTORY_KEY)) || [];
+      const newHistory = currentHistory.filter(item => item.timestamp !== timestamp);
+      await set(HISTORY_KEY, newHistory);
+      return newHistory;
+    } catch (error) {
+      console.error('Failed to delete history item', error);
+      return [];
+    }
+  },
+
   async migrateFromLocalStorage(): Promise<void> {
     try {
       const stored = localStorage.getItem(HISTORY_KEY);

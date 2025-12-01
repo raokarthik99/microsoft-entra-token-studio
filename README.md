@@ -102,6 +102,7 @@ Never commit `.env` or real secrets.
 ### History and settings
 - Recent targets are stored in `IndexedDB` (via `idb-keyval`) and surface on the dashboard and `/history`.
 - **Use again**: One-click replay from history automatically populates and submits the request.
+- **Manage history**: Delete individual items via the trash icon or clear all data from the dashboard or Settings.
 - Clear data, switch theme, or view your **Profile** details from `/settings`.
 
 ### Setup and health
