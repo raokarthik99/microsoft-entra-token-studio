@@ -4,7 +4,7 @@
   import { Input } from "$lib/shadcn/components/ui/input";
   import * as Select from "$lib/shadcn/components/ui/select";
   import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "$lib/shadcn/components/ui/table";
-  import { Clock3, ArrowUpDown, ArrowUp, ArrowDown, Search, Filter } from "@lucide/svelte";
+  import { Clock3, ArrowUpDown, ArrowUp, ArrowDown, Search, Filter, Trash2 } from "@lucide/svelte";
   import TokenStatusBadge from "./TokenStatusBadge.svelte";
   import DataTableActions from "./history-table/data-table-actions.svelte";
   import { getReadableExpiry, getTokenStatus, cn } from "$lib/utils";
@@ -30,8 +30,10 @@
     onRestore,
     onLoad,
     onDelete,
+    onDeleteMany,
     enableToolbar = true,
     enableSorting = true,
+    enableSelection = false,
     compact = false,
     showFooter = true,
     emptyCtaHref = undefined,
@@ -42,8 +44,10 @@
     onRestore: (item: HistoryItem) => void;
     onLoad?: (item: HistoryItem) => void;
     onDelete?: (item: HistoryItem) => void;
+    onDeleteMany?: (items: HistoryItem[]) => void | Promise<void>;
     enableToolbar?: boolean;
     enableSorting?: boolean;
+    enableSelection?: boolean;
     compact?: boolean;
     showFooter?: boolean;
     emptyCtaHref?: string;
@@ -56,6 +60,8 @@
   let sortKey = $state<SortKey>("timestamp");
   let sortDirection = $state<"asc" | "desc">("desc");
   let showFooterState = $state(showFooter);
+  let selectedTimestamps = $state<Set<number>>(new Set());
+  let selectAllRef = $state<HTMLInputElement | null>(null);
 
   const baseRows = $derived((() => {
     const source: HistoryItem[] = limit ? items.slice(0, limit) : items;
@@ -138,6 +144,33 @@
     return sorted;
   })());
 
+  $effect(() => {
+    const availableTimestamps = new Set(items.map((item: HistoryItem) => item.timestamp));
+    const retained = new Set([...selectedTimestamps].filter((timestamp) => availableTimestamps.has(timestamp)));
+
+    if (retained.size !== selectedTimestamps.size) {
+      selectedTimestamps = retained;
+    }
+  });
+
+  const selectedItems = $derived(
+    baseRows
+      .filter((row) => selectedTimestamps.has(row.item.timestamp))
+      .map((row) => row.item)
+  );
+
+  const selectedCount = $derived(selectedItems.length);
+  const allFilteredSelected = $derived(
+    filteredRows.length > 0 &&
+      filteredRows.every((row) => selectedTimestamps.has(row.item.timestamp))
+  );
+
+  $effect(() => {
+    if (selectAllRef) {
+      selectAllRef.indeterminate = selectedCount > 0 && !allFilteredSelected;
+    }
+  });
+
   const isFiltered = $derived(
     searchQuery.trim().length > 0 || typeFilter !== "all" || statusFilter !== "all"
   );
@@ -158,6 +191,38 @@
     statusFilter = "all";
     sortKey = "timestamp";
     sortDirection = "desc";
+  }
+
+  function toggleRowSelection(timestamp: number) {
+    if (!enableSelection) return;
+    const next = new Set(selectedTimestamps);
+    if (next.has(timestamp)) {
+      next.delete(timestamp);
+    } else {
+      next.add(timestamp);
+    }
+    selectedTimestamps = next;
+  }
+
+  function toggleAllFiltered() {
+    if (!enableSelection) return;
+    const filteredTimestamps = filteredRows.map((row) => row.item.timestamp);
+    const allSelected = filteredTimestamps.every((timestamp) => selectedTimestamps.has(timestamp));
+    const next = new Set(selectedTimestamps);
+
+    if (allSelected) {
+      filteredTimestamps.forEach((timestamp) => next.delete(timestamp));
+    } else {
+      filteredTimestamps.forEach((timestamp) => next.add(timestamp));
+    }
+
+    selectedTimestamps = next;
+  }
+
+  async function handleBulkDelete() {
+    if (!onDeleteMany || !selectedItems.length) return;
+    await onDeleteMany(selectedItems);
+    selectedTimestamps = new Set();
   }
 </script>
 
@@ -202,22 +267,30 @@
                   ? "Expired"
                   : statusFilter === "expiring"
                     ? "Expiring soon"
-                    : statusFilter === "valid"
-                      ? "Valid"
-                      : "No expiry"}
+                    : "Valid"}
             </Select.Trigger>
             <Select.Content>
               <Select.Item value="all">All statuses</Select.Item>
               <Select.Item value="valid">Valid</Select.Item>
               <Select.Item value="expiring">Expiring soon</Select.Item>
               <Select.Item value="expired">Expired</Select.Item>
-              <Select.Item value="missing">No expiry data</Select.Item>
             </Select.Content>
           </Select.Root>
         </div>
       </div>
 
       <div class="flex items-center gap-2">
+        {#if enableSelection && onDeleteMany && selectedCount > 0}
+          <Button
+            variant="secondary"
+            size="sm"
+            class="gap-2"
+            onclick={handleBulkDelete}
+          >
+            <Trash2 class="h-4 w-4" />
+            {`Delete ${selectedCount} selected`}
+          </Button>
+        {/if}
         {#if isFiltered}
           <Button variant="ghost" size="sm" class="gap-2" onclick={resetFilters} title="Reset filters">
             <Filter class="h-4 w-4" />
@@ -232,10 +305,25 @@
   {/if}
 
   <div class={cn("flex flex-1 flex-col overflow-hidden rounded-lg border bg-card shadow-sm", compact ? "p-3" : "p-4")}>
-    <div class="flex-1 overflow-auto">
+  <div class="flex-1 overflow-auto">
       <Table class="min-w-full h-full">
         <TableHeader>
           <TableRow>
+            {#if enableSelection}
+              <TableHead class="w-[48px] pl-4">
+                <div class="flex justify-center">
+                  <input
+                    bind:this={selectAllRef}
+                    type="checkbox"
+                    aria-label="Select all filtered items"
+                    class="h-4 w-4 rounded border-input bg-background text-primary shadow-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    checked={allFilteredSelected}
+                    onchange={toggleAllFiltered}
+                    disabled={filteredRows.length === 0}
+                  />
+                </div>
+              </TableHead>
+            {/if}
             <TableHead class="w-[140px]">
               <button
                 type="button"
@@ -347,7 +435,7 @@
         <TableBody>
           {#if filteredRows.length === 0}
             <TableRow>
-              <TableCell colspan={6} class="p-0">
+              <TableCell colspan={enableSelection ? 7 : 6} class="p-0">
                 <div class={cn("flex items-center justify-center text-center text-sm text-muted-foreground border-t bg-muted/10", compact ? "min-h-[120px] px-4 py-8" : "min-h-[160px] px-6 py-10")}>
                   <div class="flex flex-col items-center gap-3">
                     <div class="flex h-10 w-10 items-center justify-center rounded-full bg-muted/60 text-muted-foreground">
@@ -386,6 +474,19 @@
                   row.statusKey === "expiring" ? "bg-amber-500/5" : ""
                 )}
               >
+                {#if enableSelection}
+                  <TableCell class="align-top pl-4">
+                    <div class="flex justify-center pt-1">
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${row.item.type} targeting ${row.item.target}`}
+                        class="h-4 w-4 rounded border-input bg-background text-primary shadow-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                        checked={selectedTimestamps.has(row.item.timestamp)}
+                        onchange={() => toggleRowSelection(row.item.timestamp)}
+                      />
+                    </div>
+                  </TableCell>
+                {/if}
                 <TableCell class="align-top">
                   <div class="flex items-center gap-2">
                     <Badge

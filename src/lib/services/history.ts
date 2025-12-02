@@ -54,6 +54,20 @@ export const historyService = {
     }
   },
 
+  async deleteHistoryItems(timestamps: number[]): Promise<HistoryItem[]> {
+    if (typeof window === 'undefined') return [];
+    try {
+      const timestampSet = new Set(timestamps);
+      const currentHistory = (await get<HistoryItem[]>(HISTORY_KEY)) || [];
+      const newHistory = currentHistory.filter((item) => !timestampSet.has(item.timestamp));
+      await set(HISTORY_KEY, newHistory);
+      return newHistory;
+    } catch (error) {
+      console.error('Failed to delete history items', error);
+      return [];
+    }
+  },
+
   async migrateFromLocalStorage(): Promise<void> {
     try {
       const stored = localStorage.getItem(HISTORY_KEY);

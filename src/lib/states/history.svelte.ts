@@ -34,6 +34,19 @@ export class HistoryState {
             this.items = await historyService.deleteHistoryItem(item.timestamp);
         }
     }
+
+    async deleteMany(items: HistoryItem[]) {
+        if (!items.length) return;
+        const message =
+            items.length === 1
+                ? 'Remove this item from history?'
+                : `Remove ${items.length} items from history?`;
+
+        if (confirm(message)) {
+            const timestamps = items.map((item) => item.timestamp);
+            this.items = await historyService.deleteHistoryItems(timestamps);
+        }
+    }
 }
 
 export const historyState = new HistoryState();

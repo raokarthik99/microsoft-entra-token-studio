@@ -7,8 +7,8 @@
       <p class="text-sm leading-relaxed text-muted-foreground">
         Built for rapid testing of Microsoft Entra flows. Issued tokens are local to your browser and never stored on the server.
       </p>
-      <p class="text-xs text-muted-foreground">
-        Tip: Use a non-production tenant for experimentation and clear history regularly.
+      <p class="text-xs font-semibold text-destructive">
+        Run this app locally only to keep your tokens safest.
       </p>
     </div>
     <div class="flex items-center gap-3 text-sm">

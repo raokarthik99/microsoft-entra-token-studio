@@ -31,6 +31,10 @@
   async function deleteHistoryItem(item: HistoryItem) {
     await historyState.delete(item);
   }
+
+  async function deleteHistoryItems(items: HistoryItem[]) {
+    await historyState.deleteMany(items);
+  }
 </script>
 
 <svelte:head>
@@ -38,7 +42,7 @@
 </svelte:head>
 
 <div class="flex h-[calc(100vh-12rem)] flex-col gap-6">
-  <div class="flex flex-wrap items-center justify-between gap-3">
+  <div class="flex flex-wrap items-center justify-end gap-3">
     <div class="flex items-center gap-4">
       {#if lastUpdated}
         <span class="text-xs text-muted-foreground">Updated {lastUpdated}</span>
@@ -57,6 +61,8 @@
         onRestore={restoreHistoryItem} 
         onLoad={loadHistoryItem}
         onDelete={deleteHistoryItem}
+        onDeleteMany={deleteHistoryItems}
+        enableSelection={true}
         enableToolbar={true}
         enableSorting={true}
         compact={false}

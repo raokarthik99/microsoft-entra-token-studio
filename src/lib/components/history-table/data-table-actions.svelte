@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { HistoryItem } from "$lib/types";
-  import { Button } from "$lib/shadcn/components/ui/button";
+  import { buttonVariants } from "$lib/shadcn/components/ui/button/button.svelte";
   import * as DropdownMenu from "$lib/shadcn/components/ui/dropdown-menu";
   import { Copy, Play, Eye, Trash2, MoreHorizontal } from "@lucide/svelte";
   import { toast } from "svelte-sonner";
@@ -37,16 +37,18 @@
 </script>
 
 <DropdownMenu.Root>
-  <DropdownMenu.Trigger asChild>
-    <Button
-      variant="ghost"
-      size={compact ? "icon-sm" : "icon"}
-      class="h-8 w-8"
+  <DropdownMenu.Trigger>
+    <button
+      class={buttonVariants({
+        variant: "ghost",
+        size: compact ? "icon-sm" : "icon"
+      })}
       aria-label="Open actions"
       title="Open actions"
+      type="button"
     >
       <MoreHorizontal class="h-4 w-4" />
-    </Button>
+    </button>
   </DropdownMenu.Trigger>
   <DropdownMenu.Content class="w-48" align="end">
     <DropdownMenu.Label>Actions</DropdownMenu.Label>
