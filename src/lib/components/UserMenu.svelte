@@ -41,7 +41,7 @@
     <DropdownMenu.Group>
       <DropdownMenu.Item>
         {#snippet child({ props })}
-          <a href="/settings" {...props} class={cn(props.class, "flex w-full items-center")}>
+          <a href="/settings" {...props} class={cn(props.class ?? "", "flex w-full items-center")}>
             <Settings class="mr-2 h-4 w-4" />
             <span>Settings</span>
           </a>

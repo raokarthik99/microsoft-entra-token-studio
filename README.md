@@ -14,8 +14,8 @@ Playground for generating and inspecting Microsoft Entra access tokens. Built wi
 - **Full-screen token inspector** for immersive token analysis with ESC key support.
 - **Enhanced decoded claims viewer** with search, filtering (Important/All), and per-claim copy functionality.
 - **Floating token dock** for quick access to token actions without scrolling.
-- **Comprehensive history management** with Load, Refresh, and Delete actions; supports full token data persistence.
-- **Visual prominence** for expired/expiring tokens with highlighted refresh buttons.
+- **Comprehensive history management** with Load, Reissue, and Delete actions plus search/filter/sort.
+- **Visual prominence** for expired/expiring tokens with highlighted reissue buttons.
 - **Local-only storage** in IndexedDB for history and preferences; clear data anytime from Settings.
 - **Built-in readiness check** powered by `/api/health`, surfaced on the home page Setup card.
 - **Server-only secret handling** with `@azure/msal-node`; tokens stay in the browser unless you copy them.
@@ -106,8 +106,9 @@ Never commit `.env` or real secrets.
 ### History and settings
 - Recent requests are stored in `IndexedDB` (via `idb-keyval`) with full token data and surface on the dashboard and `/history`.
 - **Load**: View previously acquired tokens with decoded claims and full details.
-- **Refresh**: One-click token refresh from history automatically reissues the token with the same parameters.
+- **Reissue**: One-click token reissue from history automatically issues a token with the same parameters.
 - **Delete**: Remove individual items from history via the trash icon.
+- **Search, filter, sort**: Find entries by target/type/status, toggle status/type filters, and sort by issued/expires/status/target.
 - **Clear all**: Wipe all history data from the dashboard or Settings page.
 - **Token status**: History items display real-time expiry status (expired, expiring, valid) with visual indicators.
 - Clear data, switch theme, or view your **Profile** details from `/settings`.
@@ -129,10 +130,11 @@ Never commit `.env` or real secrets.
   - `DecodedClaims.svelte` — Searchable, filterable claims viewer with copy functionality.
   - `TokenFullScreenView.svelte` — Immersive full-screen token inspector.
   - `TokenStatusBadge.svelte` — Real-time token status indicators.
-  - `HistoryList.svelte` — Shared history management component with Load/Refresh/Delete.
+  - `HistoryList.svelte` — Shared history management component with Load/Reissue/Delete, search, filters, sorting.
+  - `history-table/data-table-actions.svelte` — Action dropdown for history rows (copy/load/reissue/delete).
   - Layout components: `app-header.svelte`, `app-sidebar.svelte`, `app-footer.svelte`.
 - `src/lib/states/history.svelte.ts` — Svelte 5 runes-based history state management.
-- `src/lib/shadcn/` — shadcn-svelte UI primitives and components.
+- `src/lib/shadcn/` — shadcn-svelte UI primitives and components (includes table primitives under `components/ui/table`).
 - `src/lib/utils.ts` — helpers for JWT decoding, expiry calculations, and token status.
 - `src/lib/types.ts` — TypeScript interfaces for HistoryItem and TokenData.
 - `src/lib/server/msal.ts` — server-only MSAL configuration.
@@ -144,8 +146,8 @@ Never commit `.env` or real secrets.
 - Token status badges display correct state (expired, expiring, valid) with appropriate colors.
 - Full-screen token view launches and exits correctly (via button or ESC key).
 - Decoded claims search and filtering (Important/All) work as expected.
-- History Load action displays full token details; Refresh reissues tokens; Delete removes items.
-- Real-time expiry updates occur every minute; expired/expiring tokens show prominent refresh buttons.
+- History table search/filter/sort works; Load displays token details; Reissue issues a fresh token; Delete removes items.
+- Real-time expiry updates occur every minute; expired/expiring tokens show prominent reissue buttons.
 - Floating token dock remains visible and accessible.
 - Setup card shows ready with a valid `.env`; `/api/health` matches the expected redirect URI.
 - No secrets or tokens leak into server logs or browser console beyond intentional copy actions.

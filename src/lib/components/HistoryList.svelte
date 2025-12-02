@@ -1,106 +1,461 @@
 <script lang="ts">
-  import type { HistoryItem } from '$lib/types';
-  import { Button } from "$lib/shadcn/components/ui/button";
   import { Badge } from "$lib/shadcn/components/ui/badge";
-  import { RotateCcw, Copy, Trash2, Eye, Clock3 } from "@lucide/svelte";
-  import { toast } from "svelte-sonner";
-
+  import { Button } from "$lib/shadcn/components/ui/button";
+  import { Input } from "$lib/shadcn/components/ui/input";
+  import * as Select from "$lib/shadcn/components/ui/select";
+  import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "$lib/shadcn/components/ui/table";
+  import { Clock3, ArrowUpDown, ArrowUp, ArrowDown, Search, Filter } from "@lucide/svelte";
   import TokenStatusBadge from "./TokenStatusBadge.svelte";
-  import { getTokenStatus } from "$lib/utils";
+  import DataTableActions from "./history-table/data-table-actions.svelte";
+  import { getReadableExpiry, getTokenStatus, cn } from "$lib/utils";
   import { time } from "$lib/stores/time";
+  import type { HistoryItem } from "$lib/types";
 
-  let { items, limit, onRestore, onLoad, onDelete } = $props<{ 
-    items: HistoryItem[], 
-    limit?: number,
-    onRestore: (item: HistoryItem) => void,
-    onLoad?: (item: HistoryItem) => void,
-    onDelete?: (item: HistoryItem) => void
+  type StatusKey = "expired" | "expiring" | "valid" | "missing";
+  type SortKey = "timestamp" | "target" | "type" | "status" | "expiresOn";
+  type HistoryRow = {
+    item: HistoryItem;
+    typeKey: "app" | "user";
+    issuedOn: Date;
+    issuedAgo: string;
+    expiresOn: Date | null;
+    readableExpiry: string | null;
+    status: ReturnType<typeof getTokenStatus> | null;
+    statusKey: StatusKey;
+  };
+
+  let {
+    items,
+    limit,
+    onRestore,
+    onLoad,
+    onDelete,
+    enableToolbar = true,
+    enableSorting = true,
+    compact = false,
+    showFooter = true,
+    emptyCtaHref = undefined,
+    emptyCtaLabel = undefined
+  } = $props<{
+    items: HistoryItem[];
+    limit?: number;
+    onRestore: (item: HistoryItem) => void;
+    onLoad?: (item: HistoryItem) => void;
+    onDelete?: (item: HistoryItem) => void;
+    enableToolbar?: boolean;
+    enableSorting?: boolean;
+    compact?: boolean;
+    showFooter?: boolean;
+    emptyCtaHref?: string;
+    emptyCtaLabel?: string;
   }>();
 
-  let displayItems = $derived(limit ? items.slice(0, limit) : items);
+  let searchQuery = $state("");
+  let typeFilter = $state<"all" | "app" | "user">("all");
+  let statusFilter = $state<"all" | StatusKey>("all");
+  let sortKey = $state<SortKey>("timestamp");
+  let sortDirection = $state<"asc" | "desc">("desc");
+  let showFooterState = $state(showFooter);
 
-  async function copyTarget(value: string) {
-    try {
-      await navigator.clipboard.writeText(value);
-      toast.success("Copied to clipboard");
-    } catch (err) {
-      console.error('Failed to copy value', err);
-      toast.error("Failed to copy");
+  const baseRows = $derived((() => {
+    const source: HistoryItem[] = limit ? items.slice(0, limit) : items;
+    const now = $time;
+
+    return source.map((item: HistoryItem): HistoryRow => {
+      const typeKey = item.type === "App Token" ? "app" : "user";
+      const issuedOn = new Date(item.timestamp);
+      const expiresOn = item.tokenData?.expiresOn ? new Date(item.tokenData.expiresOn) : null;
+      const status = expiresOn ? getTokenStatus(expiresOn, now) : null;
+      const statusKey: StatusKey = status
+        ? status.label === "Expired"
+          ? "expired"
+          : status.label === "Expiring"
+            ? "expiring"
+            : "valid"
+        : "missing";
+
+      return {
+        item,
+        typeKey,
+        issuedOn,
+        issuedAgo: getReadableExpiry(issuedOn, now),
+        expiresOn,
+        readableExpiry: expiresOn ? getReadableExpiry(expiresOn, now) : null,
+        status,
+        statusKey
+      };
+    });
+  })());
+
+  const statusOrder: Record<StatusKey, number> = {
+    expired: 0,
+    expiring: 1,
+    valid: 2,
+    missing: 3
+  };
+
+  const typeOrder: Record<HistoryRow["typeKey"], number> = {
+    app: 0,
+    user: 1
+  };
+
+  const filteredRows = $derived((() => {
+    const query = searchQuery.trim().toLowerCase();
+
+    const filtered = baseRows.filter((row) => {
+      const matchesType = typeFilter === "all" || row.typeKey === typeFilter;
+      const matchesStatus = statusFilter === "all" || row.statusKey === statusFilter;
+      const matchesSearch =
+        !query ||
+        row.item.target.toLowerCase().includes(query) ||
+        row.item.type.toLowerCase().includes(query) ||
+        (row.status?.label?.toLowerCase()?.includes(query) ?? false);
+
+      return matchesType && matchesStatus && matchesSearch;
+    });
+
+    const sorted = [...filtered].sort((a, b) => {
+      const direction = sortDirection === "asc" ? 1 : -1;
+
+      switch (sortKey) {
+        case "target":
+          return a.item.target.localeCompare(b.item.target) * direction;
+        case "type":
+          return (typeOrder[a.typeKey] - typeOrder[b.typeKey]) * direction;
+        case "status":
+          return (statusOrder[a.statusKey] - statusOrder[b.statusKey]) * direction;
+        case "expiresOn": {
+          if (!a.expiresOn && !b.expiresOn) return 0;
+          if (!a.expiresOn) return 1;
+          if (!b.expiresOn) return -1;
+          return (a.expiresOn.getTime() - b.expiresOn.getTime()) * direction;
+        }
+        default:
+          return (a.item.timestamp - b.item.timestamp) * direction;
+      }
+    });
+
+    return sorted;
+  })());
+
+  const isFiltered = $derived(
+    searchQuery.trim().length > 0 || typeFilter !== "all" || statusFilter !== "all"
+  );
+
+  function toggleSort(key: SortKey) {
+    if (!enableSorting) return;
+    if (sortKey === key) {
+      sortDirection = sortDirection === "asc" ? "desc" : "asc";
+    } else {
+      sortKey = key;
+      sortDirection = key === "target" ? "asc" : "desc";
     }
+  }
+
+  function resetFilters() {
+    searchQuery = "";
+    typeFilter = "all";
+    statusFilter = "all";
+    sortKey = "timestamp";
+    sortDirection = "desc";
   }
 </script>
 
-<div class="space-y-2">
-  {#if displayItems.length === 0}
-    <div class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed bg-muted/30 p-8 text-center text-sm text-muted-foreground">
-      <p>No history yet</p>
+<div class="flex h-full flex-col space-y-3">
+  {#if enableToolbar}
+    <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/40 p-3">
+      <div class="flex flex-1 flex-wrap items-center gap-2">
+        <div class="relative w-full min-w-[220px] max-w-sm">
+          <Search class="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search target, scope, or status"
+            bind:value={searchQuery}
+            class="pl-9"
+          />
+        </div>
+
+        <div class="flex items-center gap-2">
+          <Select.Root
+            type="single"
+            value={typeFilter}
+            onValueChange={(value) => (typeFilter = value as typeof typeFilter)}
+          >
+            <Select.Trigger class="w-[150px]">
+              {typeFilter === "all" ? "All types" : typeFilter === "app" ? "App tokens" : "User tokens"}
+            </Select.Trigger>
+            <Select.Content>
+              <Select.Item value="all">All types</Select.Item>
+              <Select.Item value="app">App tokens</Select.Item>
+              <Select.Item value="user">User tokens</Select.Item>
+            </Select.Content>
+          </Select.Root>
+
+          <Select.Root
+            type="single"
+            value={statusFilter}
+            onValueChange={(value) => (statusFilter = value as typeof statusFilter)}
+          >
+            <Select.Trigger class="w-[170px]">
+              {statusFilter === "all"
+                ? "All statuses"
+                : statusFilter === "expired"
+                  ? "Expired"
+                  : statusFilter === "expiring"
+                    ? "Expiring soon"
+                    : statusFilter === "valid"
+                      ? "Valid"
+                      : "No expiry"}
+            </Select.Trigger>
+            <Select.Content>
+              <Select.Item value="all">All statuses</Select.Item>
+              <Select.Item value="valid">Valid</Select.Item>
+              <Select.Item value="expiring">Expiring soon</Select.Item>
+              <Select.Item value="expired">Expired</Select.Item>
+              <Select.Item value="missing">No expiry data</Select.Item>
+            </Select.Content>
+          </Select.Root>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        {#if isFiltered}
+          <Button variant="ghost" size="sm" class="gap-2" onclick={resetFilters} title="Reset filters">
+            <Filter class="h-4 w-4" />
+            Reset
+          </Button>
+        {/if}
+        <Badge variant="outline" class="text-xs font-normal">
+          {filteredRows.length} / {baseRows.length} {limit ? "recent" : "total"}
+        </Badge>
+      </div>
     </div>
-  {:else}
-    <ul class="divide-y rounded-lg border bg-card">
-      {#each displayItems as item}
-        {@const status = item.tokenData?.expiresOn ? getTokenStatus(new Date(item.tokenData.expiresOn), $time) : null}
-        <li class="flex flex-col gap-3 p-4 transition hover:bg-muted/40 group first:rounded-t-lg last:rounded-b-lg sm:flex-row sm:items-start sm:justify-between">
-          <div class="space-y-1.5 min-w-0 flex-1">
-            <div class="flex flex-wrap items-center gap-2">
-              <Badge variant={item.type === 'App Token' ? 'secondary' : 'outline'} class="text-xs font-normal">
-                {item.type}
-              </Badge>
-              <span class="text-xs text-muted-foreground">
-                {new Date(item.timestamp).toLocaleString()}
-              </span>
-              {#if item.tokenData?.expiresOn}
-                <TokenStatusBadge expiresOn={item.tokenData.expiresOn} />
-              {/if}
-            </div>
-            <p class="font-mono text-sm text-foreground break-all line-clamp-2" title={item.target}>
-              {item.target}
-            </p>
-          </div>
-          
-          <div class="flex flex-wrap items-center gap-1 sm:flex-nowrap sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-            <div class="flex items-center gap-1">
-              <Button variant="ghost" size="sm" class="h-8 gap-2 text-muted-foreground" onclick={() => copyTarget(item.target)} title="Copy resource/scope">
-                <Copy class="h-3.5 w-3.5" />
-                <span class="sr-only sm:not-sr-only sm:hidden lg:inline">Target</span>
-              </Button>
-
-              {#if item.tokenData?.accessToken}
-                <Button variant="ghost" size="sm" class="h-8 gap-2 text-muted-foreground" onclick={() => copyTarget(item.tokenData!.accessToken)} title="Copy token">
-                  <Copy class="h-3.5 w-3.5" />
-                  <span class="sr-only sm:not-sr-only sm:hidden lg:inline">Token</span>
-                </Button>
-              {/if}
-            </div>
-
-            <div class="mx-1 hidden h-4 w-px bg-border sm:block"></div>
-
-            {#if item.tokenData && onLoad}
-              <Button variant="ghost" size="sm" class="h-8 gap-2" onclick={() => onLoad(item)} title="Load token details">
-                <Eye class="h-4 w-4" />
-                <span class="hidden lg:inline">Load</span>
-              </Button>
-            {/if}
-
-
-            <Button 
-              variant={status?.label === 'Expired' || status?.label === 'Expiring' ? 'default' : 'ghost'} 
-              size="sm" 
-              class={`h-8 gap-2 ${status?.label === 'Expired' || status?.label === 'Expiring' ? 'shadow-[0_0_15px_-3px_oklch(var(--primary)/0.6)] hover:shadow-[0_0_20px_-3px_oklch(var(--primary)/0.7)] transition-all' : ''}`}
-              onclick={() => onRestore(item)}
-              title="Refresh token"
-            >
-              <RotateCcw class="h-4 w-4" />
-              <span class="hidden lg:inline">Refresh</span>
-            </Button>
-
-            {#if onDelete}
-              <Button variant="ghost" size="icon" class="h-8 w-8 text-muted-foreground hover:text-destructive" onclick={() => { onDelete(item); toast.success("Item removed from history"); }} title="Remove from history">
-                <Trash2 class="h-4 w-4" />
-              </Button>
-            {/if}
-          </div>
-        </li>
-      {/each}
-    </ul>
   {/if}
+
+  <div class={cn("flex flex-1 flex-col overflow-hidden rounded-lg border bg-card shadow-sm", compact ? "p-3" : "p-4")}>
+    <div class="flex-1 overflow-auto">
+      <Table class="min-w-full h-full">
+        <TableHeader>
+          <TableRow>
+            <TableHead class="w-[140px]">
+              <button
+                type="button"
+                class="flex items-center gap-1 text-xs font-semibold text-muted-foreground"
+                onclick={() => toggleSort("type")}
+                disabled={!enableSorting}
+              >
+                Type
+                {#if enableSorting}
+                  {#if sortKey === "type"}
+                    {#if sortDirection === "asc"}
+                      <ArrowUp class="h-3.5 w-3.5" />
+                    {:else}
+                      <ArrowDown class="h-3.5 w-3.5" />
+                    {/if}
+                  {:else}
+                    <ArrowUpDown class="h-3.5 w-3.5 opacity-60" />
+                  {/if}
+                {/if}
+              </button>
+            </TableHead>
+            <TableHead>
+              <button
+                type="button"
+                class="flex items-center gap-1 text-xs font-semibold text-muted-foreground"
+                onclick={() => toggleSort("target")}
+                disabled={!enableSorting}
+              >
+                Target
+                {#if enableSorting}
+                  {#if sortKey === "target"}
+                    {#if sortDirection === "asc"}
+                      <ArrowUp class="h-3.5 w-3.5" />
+                    {:else}
+                      <ArrowDown class="h-3.5 w-3.5" />
+                    {/if}
+                  {:else}
+                    <ArrowUpDown class="h-3.5 w-3.5 opacity-60" />
+                  {/if}
+                {/if}
+              </button>
+            </TableHead>
+            <TableHead class="w-[160px]">
+              <button
+                type="button"
+                class="flex items-center gap-1 text-xs font-semibold text-muted-foreground"
+                onclick={() => toggleSort("status")}
+                disabled={!enableSorting}
+              >
+                Status
+                {#if enableSorting}
+                  {#if sortKey === "status"}
+                    {#if sortDirection === "asc"}
+                      <ArrowUp class="h-3.5 w-3.5" />
+                    {:else}
+                      <ArrowDown class="h-3.5 w-3.5" />
+                    {/if}
+                  {:else}
+                    <ArrowUpDown class="h-3.5 w-3.5 opacity-60" />
+                  {/if}
+                {/if}
+              </button>
+            </TableHead>
+            <TableHead class="w-[200px]">
+              <button
+                type="button"
+                class="flex items-center gap-1 text-xs font-semibold text-muted-foreground"
+                onclick={() => toggleSort("timestamp")}
+                disabled={!enableSorting}
+              >
+                Issued
+                {#if enableSorting}
+                  {#if sortKey === "timestamp"}
+                    {#if sortDirection === "asc"}
+                      <ArrowUp class="h-3.5 w-3.5" />
+                    {:else}
+                      <ArrowDown class="h-3.5 w-3.5" />
+                    {/if}
+                  {:else}
+                    <ArrowUpDown class="h-3.5 w-3.5 opacity-60" />
+                  {/if}
+                {/if}
+              </button>
+            </TableHead>
+            <TableHead class="w-[180px]">
+              <button
+                type="button"
+                class="flex items-center gap-1 text-xs font-semibold text-muted-foreground"
+                onclick={() => toggleSort("expiresOn")}
+                disabled={!enableSorting}
+              >
+                Expires
+                {#if enableSorting}
+                  {#if sortKey === "expiresOn"}
+                    {#if sortDirection === "asc"}
+                      <ArrowUp class="h-3.5 w-3.5" />
+                    {:else}
+                      <ArrowDown class="h-3.5 w-3.5" />
+                    {/if}
+                  {:else}
+                    <ArrowUpDown class="h-3.5 w-3.5 opacity-60" />
+                  {/if}
+                {/if}
+              </button>
+            </TableHead>
+            <TableHead class="w-[140px] text-right pr-4">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {#if filteredRows.length === 0}
+            <TableRow>
+              <TableCell colspan={6} class="p-0">
+                <div class={cn("flex items-center justify-center text-center text-sm text-muted-foreground border-t bg-muted/10", compact ? "min-h-[120px] px-4 py-8" : "min-h-[160px] px-6 py-10")}>
+                  <div class="flex flex-col items-center gap-3">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-full bg-muted/60 text-muted-foreground">
+                      <Clock3 class="h-4 w-4" />
+                    </div>
+                    <div class="space-y-1">
+                      <p class="text-base text-foreground/90">
+                        {#if items.length === 0}
+                          No history yet.
+                        {:else}
+                          Nothing matches your filters.
+                        {/if}
+                      </p>
+                      <p class="text-sm text-muted-foreground">
+                        {#if items.length === 0}
+                          Generate a token to see it here.
+                        {:else}
+                          Adjust search or filters to find an entry.
+                        {/if}
+                      </p>
+                    </div>
+                    {#if emptyCtaHref && emptyCtaLabel}
+                      <Button href={emptyCtaHref} size="sm" class="gap-2">
+                        {emptyCtaLabel}
+                      </Button>
+                    {/if}
+                  </div>
+                </div>
+              </TableCell>
+            </TableRow>
+          {:else}
+            {#each filteredRows as row}
+              <TableRow
+                class={cn(
+                  row.statusKey === "expired" ? "bg-destructive/5" : "",
+                  row.statusKey === "expiring" ? "bg-amber-500/5" : ""
+                )}
+              >
+                <TableCell class="align-top">
+                  <div class="flex items-center gap-2">
+                    <Badge
+                      variant={row.item.type === "App Token" ? "secondary" : "outline"}
+                      class="text-xs font-medium"
+                    >
+                      {row.item.type}
+                    </Badge>
+                  </div>
+                </TableCell>
+                <TableCell class="align-top">
+                  <p class="font-mono text-[13px] leading-5 text-foreground/90 break-all">{row.item.target}</p>
+                  {#if row.item.tokenData?.scope || row.item.tokenData?.scopes?.length}
+                    <p class="mt-1 text-[11px] text-muted-foreground">
+                      {(row.item.tokenData.scopes ?? [row.item.tokenData.scope]).filter(Boolean).join(", ")}
+                    </p>
+                  {/if}
+                </TableCell>
+                <TableCell class="align-top">
+                  {#if row.expiresOn}
+                    <TokenStatusBadge expiresOn={row.expiresOn} compact />
+                    <p class="mt-1 text-[11px] text-muted-foreground">
+                      {row.statusKey === "expired"
+                        ? `Expired ${row.readableExpiry}`
+                        : row.statusKey === "expiring"
+                          ? `Expires in ${row.readableExpiry}`
+                          : `Expires in ${row.readableExpiry}`}
+                    </p>
+                  {:else}
+                    <p class="text-xs text-muted-foreground">No expiry data</p>
+                  {/if}
+                </TableCell>
+                <TableCell class="align-top">
+                  <div class="text-sm font-medium leading-tight">{row.issuedOn.toLocaleString()}</div>
+                  <div class="text-[11px] text-muted-foreground">Issued {row.issuedAgo}</div>
+                </TableCell>
+                <TableCell class="align-top">
+                  {#if row.expiresOn}
+                    <div class="text-sm font-medium leading-tight">{row.expiresOn.toLocaleString()}</div>
+                    <div class="text-[11px] text-muted-foreground">
+                      {row.statusKey === "expired" ? row.readableExpiry : `In ${row.readableExpiry}`}
+                    </div>
+                  {:else}
+                    <div class="text-xs text-muted-foreground">—</div>
+                  {/if}
+                </TableCell>
+                <TableCell class="align-top text-right pr-4">
+                  <DataTableActions
+                    item={row.item}
+                    statusLabel={row.status?.label ?? "No expiry"}
+                    onRestore={onRestore}
+                    onLoad={onLoad}
+                    onDelete={onDelete}
+                    showDelete={Boolean(onDelete) && enableToolbar}
+                    compact={compact}
+                  />
+                </TableCell>
+              </TableRow>
+            {/each}
+          {/if}
+        </TableBody>
+      </Table>
+    </div>
+    {#if showFooterState}
+      <div class={cn("flex items-center gap-2 border-t text-muted-foreground", compact ? "px-3 py-2" : "px-4 py-3")}>
+        <Clock3 class="h-4 w-4" />
+        <span class="text-sm">
+          {filteredRows.length} / {baseRows.length} {limit ? "recent items" : "history items"}.
+        </span>
+      </div>
+    {/if}
+  </div>
 </div>

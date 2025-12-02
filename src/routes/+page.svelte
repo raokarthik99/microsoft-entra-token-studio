@@ -22,7 +22,6 @@
   import { ScrollArea } from "$lib/shadcn/components/ui/scroll-area";
   
   import { 
-    RotateCcw,
     User,
     History,
     ChevronDown,
@@ -80,7 +79,7 @@
 
   let tokenVisible = $state(true);
   let hasAutoScrolled = $state(false);
-  let floatingExpanded = $state(true);
+  let floatingExpanded = $state(false);
   let isFullScreen = $state(false);
 
 
@@ -363,8 +362,9 @@
       toast.success("User token acquired successfully");
     } catch (err: any) {
       console.error('Token acquisition failed', err);
-      error = err.message || 'Failed to acquire token';
-      toast.error(error);
+      const message = err?.message ?? 'Failed to acquire token';
+      error = message;
+      toast.error(message);
     } finally {
       loading = false;
     }
@@ -763,18 +763,19 @@
                 <Card.Description>Run a flow above, then review the decoded claims and raw token output.</Card.Description>
               </div>
               
-              <div class="flex flex-wrap items-center gap-2">
-                <Button 
-                  size="sm" 
-                  variant={currentStatus?.label === 'Expired' || currentStatus?.label === 'Expiring' ? 'default' : 'ghost'} 
-                  class={`h-8 gap-2 ${currentStatus?.label === 'Expired' || currentStatus?.label === 'Expiring' ? 'shadow-[0_0_15px_-3px_oklch(var(--primary)/0.6)] hover:shadow-[0_0_20px_-3px_oklch(var(--primary)/0.7)] transition-all' : ''}`}
-                  onclick={refreshCurrent} 
-                  disabled={loading || !hasResult}
-                  title="Refresh this token"
-                >
-                  <RotateCcw class="h-3.5 w-3.5" />
-                  Refresh
-                </Button>
+              {#if hasResult}
+                <div class="flex flex-wrap items-center gap-2">
+                  <Button 
+                    size="sm" 
+                    variant={currentStatus?.label === 'Expired' || currentStatus?.label === 'Expiring' ? 'default' : 'ghost'} 
+                    class={`h-8 gap-2 ${currentStatus?.label === 'Expired' || currentStatus?.label === 'Expiring' ? 'shadow-[0_0_15px_-3px_oklch(var(--primary)/0.6)] hover:shadow-[0_0_20px_-3px_oklch(var(--primary)/0.7)] transition-all' : ''}`}
+                    onclick={refreshCurrent} 
+                    disabled={loading || !hasResult}
+                    title="Reissue this token"
+                  >
+                    <Play class="h-3.5 w-3.5" />
+                    Reissue
+                  </Button>
 
                   <Separator orientation="vertical" class="h-4" />
                   <Button size="sm" variant="outline" class="h-8 gap-2" onclick={() => isFullScreen = true} title="Open in full screen view">
@@ -782,6 +783,7 @@
                     Expanded View
                   </Button>
                 </div>
+              {/if}
             </div>
 
             <div class="flex flex-wrap items-center gap-2 pt-2">
@@ -965,13 +967,20 @@
           </div>
         </Card.Header>
         <Card.Content class="p-0">
-          <HistoryList 
-            items={historyState.items} 
-            limit={5} 
-            onRestore={restoreHistoryItem} 
-            onLoad={loadHistoryItem}
-            onDelete={deleteHistoryItem}
-          />
+          <div class="px-3 md:px-4">
+            <HistoryList 
+              items={historyState.items} 
+              limit={5} 
+              onRestore={restoreHistoryItem} 
+              onLoad={loadHistoryItem}
+              enableToolbar={false}
+              enableSorting={false}
+              compact={true}
+              showFooter={false}
+              emptyCtaHref="/"
+              emptyCtaLabel="Start generating"
+            />
+          </div>
         </Card.Content>
       </Card.Root>
     </div>
@@ -1002,9 +1011,11 @@
         <Button variant="ghost" size="icon" class="h-8 w-8" onclick={scrollToOutput} title="Jump to full output">
           <Link2 class="h-4 w-4 -rotate-45" />
         </Button>
-        <Button variant="ghost" size="icon" class="h-8 w-8" onclick={() => isFullScreen = true} title="Maximize view">
-          <Maximize2 class="h-4 w-4" />
-        </Button>
+        {#if hasResult}
+          <Button variant="ghost" size="icon" class="h-8 w-8" onclick={() => isFullScreen = true} title="Maximize view">
+            <Maximize2 class="h-4 w-4" />
+          </Button>
+        {/if}
         <Button
           variant="ghost"
           size="icon"
@@ -1084,10 +1095,10 @@
               variant={currentStatus?.label === 'Expired' || currentStatus?.label === 'Expiring' ? 'default' : 'ghost'} 
               class={`gap-2 ${currentStatus?.label === 'Expired' || currentStatus?.label === 'Expiring' ? 'shadow-[0_0_15px_-3px_oklch(var(--primary)/0.6)] hover:shadow-[0_0_20px_-3px_oklch(var(--primary)/0.7)] transition-all' : ''}`}
               onclick={refreshCurrent}
-              title="Refresh this token"
+              title="Reissue this token"
             >
-              <RotateCcw class="h-4 w-4" />
-              Refresh
+              <Play class="h-4 w-4" />
+              Reissue
             </Button>
             <Button size="sm" variant="ghost" class="gap-2" onclick={() => tokenVisible = !tokenVisible} title={tokenVisible ? 'Hide token' : 'Show token'}>
               {#if tokenVisible}

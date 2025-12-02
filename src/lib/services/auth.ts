@@ -87,8 +87,7 @@ export class AuthService {
     if (!this.msalInstance) return;
 
     const loginRequest: RedirectRequest = {
-      scopes: ['openid', 'profile', 'offline_access', 'User.Read'],
-      responseMode: 'fragment', // Ensure hash fragment for client-side handling
+      scopes: ['openid', 'profile', 'offline_access', 'User.Read']
     };
 
     try {

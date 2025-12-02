@@ -45,7 +45,7 @@
     <Sidebar.Group>
       <Sidebar.GroupLabel>Menu</Sidebar.GroupLabel>
       <Sidebar.GroupContent>
-        <Sidebar.Menu class="space-y-2">
+        <Sidebar.Menu class="space-y-2 pl-2">
           {#each nav as item}
             <Sidebar.MenuItem>
               <Sidebar.MenuButton isActive={$page.url.pathname === item.href}>
@@ -68,7 +68,7 @@
     <Sidebar.Group class="mt-4">
       <Sidebar.GroupLabel>Jump to flow</Sidebar.GroupLabel>
       <Sidebar.GroupContent>
-        <Sidebar.Menu class="space-y-2">
+        <Sidebar.Menu class="space-y-2 pl-2">
           {#each quickLinks as item}
             <Sidebar.MenuItem>
               <Sidebar.MenuButton>
@@ -86,10 +86,4 @@
     </Sidebar.Group>
   </Sidebar.Content>
 
-  <Sidebar.Footer>
-    <div class="space-y-2 rounded-xl border border-dashed border-sidebar-border/70 bg-sidebar-accent/40 p-4 text-xs leading-relaxed text-muted-foreground">
-      <div class="font-semibold text-foreground">Keep tokens ephemeral</div>
-      <p>Use history for convenience, but clear often to avoid stale secrets.</p>
-    </div>
-  </Sidebar.Footer>
 </Sidebar.Root>
