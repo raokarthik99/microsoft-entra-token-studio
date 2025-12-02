@@ -1,6 +1,6 @@
 # Entra Token Client
 
-Token studio for generating and inspecting Microsoft Entra access tokens. Built with SvelteKit 2, Svelte 5 runes, and TypeScript.
+Playground for generating and inspecting Microsoft Entra access tokens. Built with SvelteKit 2, Svelte 5 runes, and TypeScript.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![SvelteKit](https://img.shields.io/badge/SvelteKit-2.48-orange.svg)
@@ -8,12 +8,17 @@ Token studio for generating and inspecting Microsoft Entra access tokens. Built 
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue.svg)
 
 ## Features
-- App tokens via confidential client credentials at `/api/token/app`; resources are normalized to `/.default`.
-- User tokens through the authorization code + PKCE flow (`/auth/start` → `/auth/callback`).
-- Immediate JWT decoding with claims, scopes, expiry helpers, and a floating copy panel.
-- Local-only history, presets, and quick replay; data lives in `IndexedDB` and can be cleared from Settings.
-- Built-in readiness check powered by `/api/health`, surfaced on the home page Setup card.
-- Server-only secret handling with `@azure/msal-node`; tokens stay in the browser unless you copy them.
+- **App tokens** via confidential client credentials at `/api/token/app`; resources are normalized to `/.default`.
+- **User tokens** through the authorization code + PKCE flow with silent acquisition and popup fallback.
+- **Token status tracking** with real-time indicators (expired, expiring, valid) and color-coded badges.
+- **Full-screen token inspector** for immersive token analysis with ESC key support.
+- **Enhanced decoded claims viewer** with search, filtering (Important/All), and per-claim copy functionality.
+- **Floating token dock** for quick access to token actions without scrolling.
+- **Comprehensive history management** with Load, Refresh, and Delete actions; supports full token data persistence.
+- **Visual prominence** for expired/expiring tokens with highlighted refresh buttons.
+- **Local-only storage** in IndexedDB for history and preferences; clear data anytime from Settings.
+- **Built-in readiness check** powered by `/api/health`, surfaced on the home page Setup card.
+- **Server-only secret handling** with `@azure/msal-node`; tokens stay in the browser unless you copy them.
 
 ## Quick Start
 1. **Prerequisites**
@@ -99,10 +104,12 @@ Never commit `.env` or real secrets.
 4. The token is returned directly to the client and displayed for decoding.
 
 ### History and settings
-### History and settings
-- Recent targets are stored in `IndexedDB` (via `idb-keyval`) and surface on the dashboard and `/history`.
-- **Use again**: One-click replay from history automatically populates and submits the request.
-- **Manage history**: Delete individual items via the trash icon or clear all data from the dashboard or Settings.
+- Recent requests are stored in `IndexedDB` (via `idb-keyval`) with full token data and surface on the dashboard and `/history`.
+- **Load**: View previously acquired tokens with decoded claims and full details.
+- **Refresh**: One-click token refresh from history automatically reissues the token with the same parameters.
+- **Delete**: Remove individual items from history via the trash icon.
+- **Clear all**: Wipe all history data from the dashboard or Settings page.
+- **Token status**: History items display real-time expiry status (expired, expiring, valid) with visual indicators.
 - Clear data, switch theme, or view your **Profile** details from `/settings`.
 
 ### Setup and health
@@ -110,21 +117,37 @@ Never commit `.env` or real secrets.
 - The same endpoint can be polled directly for JSON readiness data.
 
 ## Project Structure
-- `src/routes/+page.svelte` — Token Studio dashboard (flows, setup check, output, history peek).
+- `src/routes/+page.svelte` — Playground dashboard (flows, setup check, output, history peek).
 - `src/routes/api/token/app/+server.ts` — client-credential token issuer (server-side).
 - `src/routes/auth/callback/+page.svelte` — Client-side redirect handler for MSAL.js.
 - `src/lib/services/auth.ts` — Client-side authentication service (MSAL.js wrapper).
 - `src/lib/stores/auth.ts` — Svelte stores for authentication state.
+- `src/lib/stores/time.ts` — Reactive time store for real-time expiry updates.
 - `src/routes/api/health/+server.ts` — readiness details exposed to the UI.
 - `src/routes/history/+page.svelte` and `src/routes/settings/+page.svelte` — local history and preferences.
-- `src/lib` — shared UI (shadcn components, layout chrome), helpers (`utils.ts`, `types.ts`), server-only MSAL config (`server/msal.ts`).
+- `src/lib/components/` — reusable UI components:
+  - `DecodedClaims.svelte` — Searchable, filterable claims viewer with copy functionality.
+  - `TokenFullScreenView.svelte` — Immersive full-screen token inspector.
+  - `TokenStatusBadge.svelte` — Real-time token status indicators.
+  - `HistoryList.svelte` — Shared history management component with Load/Refresh/Delete.
+  - Layout components: `app-header.svelte`, `app-sidebar.svelte`, `app-footer.svelte`.
+- `src/lib/states/history.svelte.ts` — Svelte 5 runes-based history state management.
+- `src/lib/shadcn/` — shadcn-svelte UI primitives and components.
+- `src/lib/utils.ts` — helpers for JWT decoding, expiry calculations, and token status.
+- `src/lib/types.ts` — TypeScript interfaces for HistoryItem and TokenData.
+- `src/lib/server/msal.ts` — server-only MSAL configuration.
 - `static/` and `src/app.css`/`src/app.html` — assets and global styles.
 
 ## Manual Validation Checklist
 - App token flow issues a token for the provided resource and decodes claims.
 - User token flow signs in, returns delegated scopes, and decoded claims render without errors.
+- Token status badges display correct state (expired, expiring, valid) with appropriate colors.
+- Full-screen token view launches and exits correctly (via button or ESC key).
+- Decoded claims search and filtering (Important/All) work as expected.
+- History Load action displays full token details; Refresh reissues tokens; Delete removes items.
+- Real-time expiry updates occur every minute; expired/expiring tokens show prominent refresh buttons.
+- Floating token dock remains visible and accessible.
 - Setup card shows ready with a valid `.env`; `/api/health` matches the expected redirect URI.
-- History entries appear, can be replayed, and can be cleared (from dashboard or `/settings`).
 - No secrets or tokens leak into server logs or browser console beyond intentional copy actions.
 
 ## Troubleshooting

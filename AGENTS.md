@@ -1,20 +1,29 @@
 # Repository Guidelines
 
 ## Context
-- SvelteKit 2 app using Svelte 5 runes and TypeScript. UI is built from shadcn components plus a small set of custom layout pieces.
+- SvelteKit 2 app using Svelte 5 runes and TypeScript. UI is built from shadcn components plus custom layout pieces and feature-specific components.
 - **App tokens**: Server-side client credentials flow via `/api/token/app`.
 - **User tokens**: Client-side Authorization Code + PKCE flow via MSAL.js (`@azure/msal-browser`). Supports silent acquisition and popup fallback.
-- **Authentication**: Embedded user authentication (Single-Page Application model). Users sign in to the app to access the dashboard.
+- **Authentication**: Embedded user authentication (Single-Page Application model). Users sign in to the app to access the Playground.
+- **Token status tracking**: Real-time expiry monitoring with color-coded badges (expired, expiring, valid).
+- **Full-screen token inspector**: Immersive token analysis view with ESC key support.
 - Readiness is surfaced through `/api/health` and mirrored on the home page Setup card.
 - Tokens and history live only in `IndexedDB` (via `idb-keyval`); secrets stay server-side. Avoid logging tokens or secrets in client or server code.
 
 ## Project Structure & Module Organization
-- `src/routes/+page.svelte` is the Token Studio dashboard (setup checks, flows, decoded output, floating panel, history preview).
+- `src/routes/+page.svelte` is the Playground dashboard (setup checks, flows, decoded output, floating panel, history preview).
 - **Client-side Auth**: `src/lib/services/auth.ts` (MSAL wrapper), `src/lib/stores/auth.ts` (auth state), `src/routes/auth/callback/+page.svelte` (redirect handler).
 - **Server routes**: `src/routes/api/token/app/+server.ts` (confidential client tokens), `src/routes/api/health/+server.ts` (config check).
 - Supporting pages: `src/routes/history/+page.svelte` (local history) and `src/routes/settings/+page.svelte` (theme, profile, data clearing).
-- **History**: `src/lib/states/history.svelte.ts` manages state via a shared `HistoryState` class (Svelte 5 runes). `src/lib/services/history.ts` handles `idb-keyval` persistence. `src/lib/components/HistoryList.svelte` is the shared UI.
-- Shared logic/UI in `src/lib` (`components/`, `shadcn/`, `utils.ts`, `types.ts`, server-only MSAL helpers in `server/msal.ts`). Keep server imports out of client modules.
+- **History management**: `src/lib/states/history.svelte.ts` manages state via a shared `HistoryState` class (Svelte 5 runes). `src/lib/services/history.ts` handles `idb-keyval` persistence. `src/lib/components/HistoryList.svelte` is the shared UI component used across main page and history page.
+- **UI Components** (`src/lib/components/`):
+  - `DecodedClaims.svelte` — Searchable, filterable claims viewer with important/all toggle and per-claim copy.
+  - `TokenFullScreenView.svelte` — Immersive full-screen token inspector with raw token, decoded claims, and scopes.
+  - `TokenStatusBadge.svelte` — Real-time status indicators based on token expiry.
+  - `HistoryList.svelte` — Shared history list with Load, Refresh, and Delete actions.
+  - Layout: `app-header.svelte`, `app-sidebar.svelte`, `app-footer.svelte`, `LoginScreen.svelte`, `UserMenu.svelte`.
+- **State management**: Svelte 5 runes-based state in `src/lib/states/`; reactive time store in `src/lib/stores/time.ts` for real-time expiry updates.
+- Shared logic/UI in `src/lib` (`shadcn/` for shadcn-svelte primitives, `utils.ts` for JWT/expiry/status helpers, `types.ts` for TypeScript interfaces, server-only MSAL helpers in `server/msal.ts`). Keep server imports out of client modules.
 - Global shell and styles: `src/app.html`, `src/app.css`; static assets live in `static/`.
 - Type configuration extends SvelteKit defaults via `tsconfig.json`; use the `$lib` alias.
 
@@ -34,7 +43,12 @@
 
 ## Testing Guidelines
 - No automated tests yet; rely on `pnpm check` plus manual verification.
-- Smoke test both flows from the home page, ensure decoded claims render, and confirm history entries appear and can be cleared (dashboard and `/history`).
+- Smoke test both flows from the home page, ensure decoded claims render, and confirm history entries appear and can be managed.
+- **Token status badges**: Verify expired, expiring, and valid states display with correct colors and update in real-time.
+- **Full-screen token view**: Test launch (via button), ESC key exit, and that all sections (raw token, scopes, decoded claims) render correctly.
+- **Decoded claims**: Test search functionality, Important/All filter toggle, and per-claim copy actions.
+- **History management**: Verify Load displays full token details, Refresh reissues tokens, and Delete removes items.
+- **Real-time updates**: Confirm token expiry status updates every minute; expired/expiring tokens show prominent refresh buttons.
 - Validate readiness with `/api/health` and the Setup card once `.env` is populated (tenant/client/redirect).
 - Sanity check theme and data clearing under `/settings` when touching local storage logic.
 
