@@ -4,6 +4,7 @@
   import * as DropdownMenu from "$lib/shadcn/components/ui/dropdown-menu";
   import { Copy, Play, Eye, Trash2, MoreHorizontal } from "@lucide/svelte";
   import { toast } from "svelte-sonner";
+  import { cn } from "$lib/utils";
 
   let {
     item,
@@ -73,9 +74,16 @@
       </DropdownMenu.Item>
     {/if}
 
-    <DropdownMenu.Item onclick={() => onRestore(item)} class={urgent ? "text-primary focus:text-primary" : ""}>
+    <DropdownMenu.Item
+      onclick={() => onRestore(item)}
+      class={cn(
+        urgent
+          ? "bg-primary text-primary-foreground hover:bg-primary/90 focus:bg-primary/90 data-[highlighted]:bg-primary/90 data-[highlighted]:text-primary-foreground"
+          : ""
+      )}
+    >
       <Play class="mr-2 h-4 w-4" />
-      <span>{urgent ? "Reissue (expiring)" : "Reissue token"}</span>
+      <span>Reissue</span>
     </DropdownMenu.Item>
 
     {#if showDelete && onDelete}

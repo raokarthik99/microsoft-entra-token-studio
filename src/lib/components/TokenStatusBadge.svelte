@@ -20,9 +20,31 @@
     textOnly?: boolean
   }>();
 
-  const date = new Date(expiresOn);
-  const status = $derived(getTokenStatus(date, $time));
-  const readable = $derived(getReadableExpiry(date, $time));
+  const parsedExpiresOn = $derived((() => {
+    if (!expiresOn) return null;
+    const parsed = expiresOn instanceof Date ? expiresOn : new Date(expiresOn);
+    return isNaN(parsed.getTime()) ? null : parsed;
+  })());
+
+  const status = $derived(
+    parsedExpiresOn
+      ? getTokenStatus(parsedExpiresOn, $time)
+      : { label: "No expiry", variant: "outline" as const, minutes: 0 }
+  );
+
+  const readable = $derived(parsedExpiresOn ? getReadableExpiry(parsedExpiresOn, $time) : null);
+  const resolvedVariant = $derived(variant ?? status.variant);
+
+  const labelText = $derived((() => {
+    if (!parsedExpiresOn || !readable) return "No expiry";
+    const prefix =
+      status.label === "Expired"
+        ? "Expired"
+        : status.label === "Expiring"
+          ? "Expiring in"
+          : "Expires in";
+    return `${prefix} ${readable}`;
+  })());
 </script>
 
 {#if textOnly}
@@ -33,18 +55,18 @@
     {#if compact}
       {status.label}
     {:else}
-      {status.label === 'Expired' ? 'Expired' : status.label === 'Expiring' ? 'Expiring in' : 'Expires in'} {readable}
+      {labelText}
     {/if}
   </span>
 {:else}
-  <Badge variant={status.variant} class={cn("font-normal transition-colors", compact ? "px-1.5 h-5 text-[10px]" : "gap-1.5", className)}>
+  <Badge variant={resolvedVariant} class={cn("font-normal transition-colors", compact ? "px-1.5 h-5 text-[10px]" : "gap-1.5", className)}>
     {#if showIcon && !compact}
       <Clock class="h-3.5 w-3.5" />
     {/if}
     {#if compact}
       {status.label}
     {:else}
-      {status.label === 'Expired' ? 'Expired' : status.label === 'Expiring' ? 'Expiring in' : 'Expires in'} {readable}
+      {labelText}
     {/if}
   </Badge>
 {/if}

@@ -467,7 +467,7 @@
               </TableCell>
             </TableRow>
           {:else}
-            {#each filteredRows as row}
+            {#each filteredRows as row (row.item.timestamp)}
               <TableRow
                 class={cn(
                   row.statusKey === "expired" ? "bg-destructive/5" : "",
