@@ -70,7 +70,7 @@
     missing: string[];
   };
 
-  let activeTab = $state('app-token');
+  let activeTab = $state('user-token');
   let resource = $state('https://graph.microsoft.com');
   let scopes = $state('User.Read');
   // history state is now managed by historyState
@@ -736,65 +736,17 @@
       </div>
       <Tabs.Root id="flows" value={activeTab} onValueChange={(v) => switchTab(v)} class="w-full">
         <Tabs.List class="grid w-full grid-cols-2 rounded-full bg-muted/60 p-1">
-          <Tabs.Trigger value="app-token" class="gap-2 rounded-full">
-            <ShieldHalf class="h-4 w-4" />
-            App token
-          </Tabs.Trigger>
           <Tabs.Trigger value="user-token" class="gap-2 rounded-full">
             <User class="h-4 w-4" />
             User token
           </Tabs.Trigger>
+          <Tabs.Trigger value="app-token" class="gap-2 rounded-full">
+            <ShieldHalf class="h-4 w-4" />
+            App token
+          </Tabs.Trigger>
         </Tabs.List>
 
         <div class="mt-4 space-y-4">
-          <Tabs.Content value="app-token">
-            <Card.Root class="border bg-card/80 shadow-sm">
-              <Card.Header class="space-y-2">
-                <div class="flex items-center justify-between gap-3">
-                  <div>
-                    <Card.Title>App token</Card.Title>
-                    <Card.Description>Daemon/service-to-API calls using your confidential client.</Card.Description>
-                  </div>
-                  <Badge variant="secondary" class="gap-2">
-                    <ShieldHalf class="h-4 w-4" />
-                    Client credentials
-                  </Badge>
-                </div>
-              </Card.Header>
-              <Card.Content class="space-y-4">
-                <form onsubmit={(e) => { e.preventDefault(); handleAppSubmit(); }} class="space-y-4">
-                  <div class="space-y-2">
-                    <div class="flex items-center justify-between gap-2">
-                      <Label for="resource">Resource</Label>
-                      <span class="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">/.default will be applied</span>
-                    </div>
-                    <Input type="text" id="resource" bind:value={resource} placeholder="https://graph.microsoft.com or api://client-id" required />
-                    <div class="flex flex-wrap gap-2">
-                      {#each resourcePresets as preset}
-                        <Button type="button" size="sm" variant="secondary" class="gap-2" onclick={() => applyResourcePreset(preset.value)}>
-                          <ShieldCheck class="h-3.5 w-3.5" />
-                          {preset.label}
-                        </Button>
-                      {/each}
-                    </div>
-                    <div class="rounded-lg border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-                      Tokens are issued via your confidential client credentials and stay in the browser unless you copy them.
-                    </div>
-                  </div>
-                  <Button type="submit" class="w-full gap-2" disabled={loading}>
-                    {#if loading}
-                      <Loader2 class="h-4 w-4 animate-spin" />
-                      Processing...
-                    {:else}
-                      <Play class="h-4 w-4" />
-                      <span>Issue token</span>
-                    {/if}
-                  </Button>
-                </form>
-              </Card.Content>
-            </Card.Root>
-          </Tabs.Content>
-
           <Tabs.Content value="user-token">
             <Card.Root class="border bg-card/80 shadow-sm">
               <Card.Header class="space-y-2">
@@ -841,6 +793,54 @@
                     {#if loading}
                       <Loader2 class="h-4 w-4 animate-spin" />
                       Acquiring token...
+                    {:else}
+                      <Play class="h-4 w-4" />
+                      <span>Issue token</span>
+                    {/if}
+                  </Button>
+                </form>
+              </Card.Content>
+            </Card.Root>
+          </Tabs.Content>
+
+          <Tabs.Content value="app-token">
+            <Card.Root class="border bg-card/80 shadow-sm">
+              <Card.Header class="space-y-2">
+                <div class="flex items-center justify-between gap-3">
+                  <div>
+                    <Card.Title>App token</Card.Title>
+                    <Card.Description>Daemon/service-to-API calls using your confidential client.</Card.Description>
+                  </div>
+                  <Badge variant="secondary" class="gap-2">
+                    <ShieldHalf class="h-4 w-4" />
+                    Client credentials
+                  </Badge>
+                </div>
+              </Card.Header>
+              <Card.Content class="space-y-4">
+                <form onsubmit={(e) => { e.preventDefault(); handleAppSubmit(); }} class="space-y-4">
+                  <div class="space-y-2">
+                    <div class="flex items-center justify-between gap-2">
+                      <Label for="resource">Resource</Label>
+                      <span class="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">/.default will be applied</span>
+                    </div>
+                    <Input type="text" id="resource" bind:value={resource} placeholder="https://graph.microsoft.com or api://client-id" required />
+                    <div class="flex flex-wrap gap-2">
+                      {#each resourcePresets as preset}
+                        <Button type="button" size="sm" variant="secondary" class="gap-2" onclick={() => applyResourcePreset(preset.value)}>
+                          <ShieldCheck class="h-3.5 w-3.5" />
+                          {preset.label}
+                        </Button>
+                      {/each}
+                    </div>
+                    <div class="rounded-lg border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                      Tokens are issued via your confidential client credentials and stay in the browser unless you copy them.
+                    </div>
+                  </div>
+                  <Button type="submit" class="w-full gap-2" disabled={loading}>
+                    {#if loading}
+                      <Loader2 class="h-4 w-4 animate-spin" />
+                      Processing...
                     {:else}
                       <Play class="h-4 w-4" />
                       <span>Issue token</span>

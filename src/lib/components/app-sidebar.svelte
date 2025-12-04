@@ -14,8 +14,8 @@
   ];
 
   const quickLinks = [
-    { href: '/?tab=app-token', label: 'App token (daemon)', icon: ShieldHalf },
     { href: '/?tab=user-token', label: 'User token (delegated)', icon: Zap },
+    { href: '/?tab=app-token', label: 'App token (daemon)', icon: ShieldHalf },
   ];
 </script>
 

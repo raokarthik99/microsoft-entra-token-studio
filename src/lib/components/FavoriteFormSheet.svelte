@@ -15,7 +15,7 @@
     open = $bindable(false),
     mode = "create" as EditorMode,
     favorite = null,
-    defaultType = "App Token" as FavoriteItem["type"],
+    defaultType = "User Token" as FavoriteItem["type"],
     defaultTarget = "",
     existingTags = [] as string[],
     title = mode === "edit" ? "Edit favorite" : "Add favorite",
@@ -154,19 +154,19 @@
         <div class="grid grid-cols-2 gap-2">
           <Button
             type="button"
-            variant={type === "App Token" ? "default" : "outline"}
-            class="justify-center"
-            onclick={() => (type = "App Token")}
-          >
-            App Token
-          </Button>
-          <Button
-            type="button"
             variant={type === "User Token" ? "default" : "outline"}
             class="justify-center"
             onclick={() => (type = "User Token")}
           >
             User Token
+          </Button>
+          <Button
+            type="button"
+            variant={type === "App Token" ? "default" : "outline"}
+            class="justify-center"
+            onclick={() => (type = "App Token")}
+          >
+            App Token
           </Button>
         </div>
       </div>
