@@ -4,7 +4,7 @@
   import { Input } from "$lib/shadcn/components/ui/input";
   import * as Select from "$lib/shadcn/components/ui/select";
   import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "$lib/shadcn/components/ui/table";
-  import { Clock3, ArrowUpDown, ArrowUp, ArrowDown, Search, Filter, Trash2 } from "@lucide/svelte";
+  import { Clock3, ArrowUpDown, ArrowUp, ArrowDown, Search, Filter, Trash2, Play } from "@lucide/svelte";
   import TokenStatusBadge from "./TokenStatusBadge.svelte";
   import DataTableActions from "./history-table/data-table-actions.svelte";
   import { getReadableExpiry, getTokenStatus, cn } from "$lib/utils";
@@ -31,6 +31,9 @@
     onLoad,
     onDelete,
     onDeleteMany,
+    onFavorite,
+    onUnfavorite,
+    isFavorited,
     enableToolbar = true,
     enableSorting = true,
     enableSelection = false,
@@ -45,6 +48,9 @@
     onLoad?: (item: HistoryItem) => void;
     onDelete?: (item: HistoryItem) => void;
     onDeleteMany?: (items: HistoryItem[]) => void | Promise<void>;
+    onFavorite?: (item: HistoryItem) => void;
+    onUnfavorite?: (item: HistoryItem) => void;
+    isFavorited?: (item: HistoryItem) => boolean;
     enableToolbar?: boolean;
     enableSorting?: boolean;
     enableSelection?: boolean;
@@ -306,7 +312,7 @@
 
   <div class={cn("flex flex-1 flex-col overflow-hidden rounded-lg border bg-card shadow-sm", compact ? "p-3" : "p-4")}>
   <div class="flex-1 overflow-auto">
-      <Table class="min-w-full h-full">
+      <Table class="table-auto w-full">
         <TableHeader>
           <TableRow>
             {#if enableSelection}
@@ -459,6 +465,7 @@
                     </div>
                     {#if emptyCtaHref && emptyCtaLabel}
                       <Button href={emptyCtaHref} size="sm" class="gap-2">
+                        <Play class="h-4 w-4" />
                         {emptyCtaLabel}
                       </Button>
                     {/if}
@@ -540,6 +547,9 @@
                     onRestore={onRestore}
                     onLoad={onLoad}
                     onDelete={onDelete}
+                    onFavorite={onFavorite}
+                    onUnfavorite={onUnfavorite}
+                    favoriteExists={isFavorited ? isFavorited(row.item) : false}
                     showDelete={Boolean(onDelete) && enableToolbar}
                     compact={compact}
                   />

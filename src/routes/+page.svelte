@@ -1,9 +1,11 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
-  import type { HistoryItem, TokenData } from '$lib/types';
+  import type { HistoryItem, TokenData, FavoriteItem } from '$lib/types';
   import { parseJwt } from '$lib/utils';
   import { historyState } from '$lib/states/history.svelte';
+  import { favoritesState } from '$lib/states/favorites.svelte';
   import HistoryList from '$lib/components/HistoryList.svelte';
+  import FavoriteFormSheet from '$lib/components/FavoriteFormSheet.svelte';
   import DecodedClaims from '$lib/components/DecodedClaims.svelte';
   import TokenFullScreenView from '$lib/components/TokenFullScreenView.svelte';
   import TokenStatusBadge from '$lib/components/TokenStatusBadge.svelte';
@@ -47,7 +49,10 @@
     Eye,
     EyeOff,
     ExternalLink,
-    Maximize2
+    Maximize2,
+    Home,
+    Star,
+    StarOff
   } from "@lucide/svelte";
 
   type HealthStatus = {
@@ -76,11 +81,15 @@
   let health = $state<HealthStatus | null>(null);
   let healthLoading = $state(false);
   let copied = $state(false);
+  let favoriteOpen = $state(false);
+  let favoriteDraft: HistoryItem | null = $state(null);
 
   let tokenVisible = $state(true);
   let hasAutoScrolled = $state(false);
   let floatingExpanded = $state(false);
   let isFullScreen = $state(false);
+  let tokenSectionEl = $state<HTMLElement | null>(null);
+  let tokenSectionInView = $state(true);
 
 
   let decodedClaims = $derived(result ? parseJwt(result.accessToken) : null);
@@ -202,6 +211,31 @@
     } else {
       hasAutoScrolled = false;
     }
+  });
+
+  $effect(() => {
+    if (typeof window === 'undefined') return;
+    if (!tokenSectionEl) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        tokenSectionInView = entry?.isIntersecting ?? false;
+      },
+      { threshold: 0.3 }
+    );
+
+    observer.observe(tokenSectionEl);
+
+    return () => observer.disconnect();
+  });
+
+  $effect(() => {
+    if (!hasResult) {
+      floatingExpanded = false;
+      return;
+    }
+
+    floatingExpanded = !tokenSectionInView;
   });
 
   onMount(() => {
@@ -431,6 +465,61 @@
     }
   }
 
+  const favoriteTags = $derived(
+    Array.from(new Set(favoritesState.items.flatMap((fav) => fav.tags ?? []))).filter(Boolean)
+  );
+
+  type FavoriteFormValue = Omit<FavoriteItem, 'id' | 'timestamp' | 'createdAt' | 'useCount'> & {
+    useCount?: number;
+    createdAt?: number;
+    timestamp?: number;
+  };
+
+  function isFavorited(item: HistoryItem) {
+    return favoritesState.items.some((fav) => fav.type === item.type && fav.target === item.target);
+  }
+
+  function startFavoriteFromHistory(item: HistoryItem) {
+    favoriteDraft = item;
+    favoriteOpen = true;
+  }
+
+  async function saveFavoriteFromHistory(payload: FavoriteFormValue) {
+    if (!favoriteDraft) return;
+    try {
+      await favoritesState.addFromHistory(favoriteDraft, payload);
+      await favoritesState.load();
+      toast.success('Added to favorites');
+    } catch (err) {
+      console.error('Failed to add favorite', err);
+      toast.error('Could not add to favorites');
+    } finally {
+      favoriteDraft = null;
+      favoriteOpen = false;
+    }
+  }
+
+  async function removeFavoriteFromHistory(item: HistoryItem) {
+    const match = favoritesState.items.find((fav) => fav.type === item.type && fav.target === item.target);
+    if (!match) return;
+    await favoritesState.delete(match);
+    toast.success('Removed from favorites');
+  }
+
+  const currentFavoriteSeed: HistoryItem | null = $derived((() => {
+    const latest = historyState.items[0];
+    if (!latest || !latest.tokenData) return null;
+    return latest;
+  })());
+
+  const currentFavorited = $derived(currentFavoriteSeed ? isFavorited(currentFavoriteSeed) : false);
+
+  function startFavoriteFromCurrent() {
+    if (!currentFavoriteSeed) return;
+    favoriteDraft = currentFavoriteSeed;
+    favoriteOpen = true;
+  }
+
   async function deleteHistoryItem(item: HistoryItem) {
     await historyState.delete(item);
   }
@@ -477,6 +566,18 @@
 </svelte:head>
 
 <div class="space-y-8">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div class="flex items-center gap-3">
+      <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+        <Home class="h-5 w-5" />
+      </div>
+      <div>
+        <p class="text-lg font-semibold leading-tight">Playground</p>
+        <p class="text-sm text-muted-foreground">Generate and inspect tokens with live status updates.</p>
+      </div>
+    </div>
+  </div>
+
   <section id="setup" class="rounded-2xl border bg-card shadow-sm overflow-hidden">
     <div class="border-b bg-muted/30 px-5 py-4">
       <div class="flex flex-wrap items-center justify-between gap-4">
@@ -631,7 +732,7 @@
     <div class="space-y-3">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <p class="text-sm font-semibold text-foreground">Choose a flow</p>
-        <p class="text-xs text-muted-foreground">Issue a token first; the decoded output will populate below.</p>
+                    <p class="text-xs text-muted-foreground">Start generating first; the decoded output will populate below.</p>
       </div>
       <Tabs.Root id="flows" value={activeTab} onValueChange={(v) => switchTab(v)} class="w-full">
         <Tabs.List class="grid w-full grid-cols-2 rounded-full bg-muted/60 p-1">
@@ -664,10 +765,10 @@
                 <form onsubmit={(e) => { e.preventDefault(); handleAppSubmit(); }} class="space-y-4">
                   <div class="space-y-2">
                     <div class="flex items-center justify-between gap-2">
-                      <Label for="resource">Resource URL</Label>
+                      <Label for="resource">Resource</Label>
                       <span class="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">/.default will be applied</span>
                     </div>
-                    <Input type="text" id="resource" bind:value={resource} placeholder="https://graph.microsoft.com" required />
+                    <Input type="text" id="resource" bind:value={resource} placeholder="https://graph.microsoft.com or api://client-id" required />
                     <div class="flex flex-wrap gap-2">
                       {#each resourcePresets as preset}
                         <Button type="button" size="sm" variant="secondary" class="gap-2" onclick={() => applyResourcePreset(preset.value)}>
@@ -685,8 +786,8 @@
                       <Loader2 class="h-4 w-4 animate-spin" />
                       Processing...
                     {:else}
-                      <span>Issue app token</span>
                       <Play class="h-4 w-4" />
+                      <span>Issue token</span>
                     {/if}
                   </Button>
                 </form>
@@ -741,8 +842,8 @@
                       <Loader2 class="h-4 w-4 animate-spin" />
                       Acquiring token...
                     {:else}
-                      <span>Get user token</span>
-                      <LogIn class="h-4 w-4" />
+                      <Play class="h-4 w-4" />
+                      <span>Issue token</span>
                     {/if}
                   </Button>
                 </form>
@@ -781,6 +882,22 @@
                   <Button size="sm" variant="outline" class="h-8 gap-2" onclick={() => isFullScreen = true} title="Open in full screen view">
                     <Maximize2 class="h-3.5 w-3.5" />
                     Expanded View
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={currentFavorited ? "secondary" : "ghost"}
+                    class="h-8 gap-2"
+                    onclick={() => (currentFavorited ? removeFavoriteFromHistory(currentFavoriteSeed!) : startFavoriteFromCurrent())}
+                    disabled={!currentFavoriteSeed}
+                    title={currentFavorited ? "Remove Favorite" : "Favorite"}
+                  >
+                    {#if currentFavorited}
+                      <StarOff class="h-3.5 w-3.5" />
+                      Remove Favorite
+                    {:else}
+                      <Star class="h-3.5 w-3.5" />
+                      Favorite
+                    {/if}
                   </Button>
                 </div>
               {/if}
@@ -897,7 +1014,10 @@
             </div>
 
               <div class="grid gap-4 lg:grid-cols-[1.15fr_0.9fr]">
-                <div class="space-y-2 rounded-xl border bg-muted/15 p-4">
+                <div
+                  class="space-y-2 rounded-xl border bg-muted/15 p-4"
+                  bind:this={tokenSectionEl}
+                >
                   <div class="flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <p class="text-sm font-semibold">Access token</p>
@@ -939,14 +1059,18 @@
 
 
             {:else}
-              <div class="flex flex-col items-center justify-center rounded-xl border border-dashed bg-muted/10 py-16 text-center">
+              <div class="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed bg-muted/10 py-16 text-center">
                 <div class="mb-4 rounded-full bg-primary/10 p-3">
-                  <Sparkles class="h-6 w-6 text-primary" />
+                  <ShieldCheck class="h-6 w-6 text-primary" />
                 </div>
                 <h3 class="text-lg font-semibold text-foreground">Ready to issue tokens</h3>
                 <p class="mt-2 max-w-sm text-sm text-muted-foreground">
                   Use the App token or User token forms above, then return here to see the raw token and decoded claims.
                 </p>
+                <Button variant="default" class="gap-2" onclick={scrollToFlows}>
+                  <Play class="h-4 w-4" />
+                  Start generating
+                </Button>
               </div>
             {/if}
           </Card.Content>
@@ -973,6 +1097,9 @@
               limit={5} 
               onRestore={restoreHistoryItem} 
               onLoad={loadHistoryItem}
+              onFavorite={startFavoriteFromHistory}
+              onUnfavorite={removeFavoriteFromHistory}
+              isFavorited={isFavorited}
               enableToolbar={false}
               enableSorting={false}
               compact={true}
@@ -986,6 +1113,29 @@
     </div>
   </div>
 </div>
+
+<FavoriteFormSheet
+  bind:open={favoriteOpen}
+  mode="create"
+  title="Save to favorites"
+  favorite={favoriteDraft
+    ? {
+        id: 'draft',
+        type: favoriteDraft.type,
+        target: favoriteDraft.target,
+        timestamp: favoriteDraft.timestamp,
+        tokenData: favoriteDraft.tokenData,
+        createdAt: favoriteDraft.timestamp,
+        useCount: 1
+      }
+    : undefined}
+  existingTags={favoriteTags}
+  onSave={saveFavoriteFromHistory}
+  onClose={() => {
+    favoriteOpen = false;
+    favoriteDraft = null;
+  }}
+/>
 
 
 
@@ -1076,34 +1226,50 @@
           {:else}
             <div class="space-y-2 text-sm text-muted-foreground">
               <p class="leading-relaxed">Issue an app or user token and it will stay docked here for quick copy.</p>
-              <Button size="sm" variant="secondary" class="gap-2" onclick={scrollToFlows}>
+              <Button size="sm" variant="default" class="gap-2" onclick={scrollToFlows}>
                 <Play class="h-4 w-4" />
-                Issue a token
+                Start generating
               </Button>
             </div>
           {/if}
         </div>
 
-        {#if hasResult}
-          <div class="flex flex-wrap items-center gap-2">
-            <Button size="sm" variant="secondary" class="gap-2" onclick={() => copyToClipboard(result?.accessToken || '')} disabled={!hasToken} title="Copy access token">
-              <Copy class="h-4 w-4" />
-              {copied ? 'Copied' : 'Copy token'}
+          {#if hasResult}
+            <div class="flex flex-wrap items-center gap-2">
+              <Button size="sm" variant="secondary" class="gap-2" onclick={() => copyToClipboard(result?.accessToken || '')} disabled={!hasToken} title="Copy access token">
+                <Copy class="h-4 w-4" />
+                {copied ? 'Copied' : 'Copy token'}
             </Button>
-            <Button 
-              size="sm" 
-              variant={currentStatus?.label === 'Expired' || currentStatus?.label === 'Expiring' ? 'default' : 'ghost'} 
-              class={`gap-2 ${currentStatus?.label === 'Expired' || currentStatus?.label === 'Expiring' ? 'shadow-[0_0_15px_-3px_oklch(var(--primary)/0.6)] hover:shadow-[0_0_20px_-3px_oklch(var(--primary)/0.7)] transition-all' : ''}`}
-              onclick={refreshCurrent}
-              title="Reissue this token"
-            >
-              <Play class="h-4 w-4" />
-              Reissue
-            </Button>
-            <Button size="sm" variant="ghost" class="gap-2" onclick={() => tokenVisible = !tokenVisible} title={tokenVisible ? 'Hide token' : 'Show token'}>
-              {#if tokenVisible}
-                <EyeOff class="h-4 w-4" />
-                Hide
+              <Button 
+                size="sm" 
+                variant={currentStatus?.label === 'Expired' || currentStatus?.label === 'Expiring' ? 'default' : 'ghost'} 
+                class={`gap-2 ${currentStatus?.label === 'Expired' || currentStatus?.label === 'Expiring' ? 'shadow-[0_0_15px_-3px_oklch(var(--primary)/0.6)] hover:shadow-[0_0_20px_-3px_oklch(var(--primary)/0.7)] transition-all' : ''}`}
+                onclick={refreshCurrent}
+                title="Reissue this token"
+              >
+                <Play class="h-4 w-4" />
+                Reissue
+              </Button>
+              <Button
+                size="sm"
+                variant={currentFavorited ? "secondary" : "ghost"}
+                class="gap-2"
+                onclick={() => (currentFavorited ? removeFavoriteFromHistory(currentFavoriteSeed!) : startFavoriteFromCurrent())}
+                disabled={!currentFavoriteSeed}
+                title={currentFavorited ? "Remove from favorites" : "Add to favorites"}
+              >
+                {#if currentFavorited}
+                  <StarOff class="h-4 w-4" />
+                  Remove Favorite
+                {:else}
+                  <Star class="h-4 w-4" />
+                  Favorite
+                {/if}
+              </Button>
+              <Button size="sm" variant="ghost" class="gap-2" onclick={() => tokenVisible = !tokenVisible} title={tokenVisible ? 'Hide token' : 'Show token'}>
+                {#if tokenVisible}
+                  <EyeOff class="h-4 w-4" />
+                  Hide
               {:else}
                 <Eye class="h-4 w-4" />
                 Show

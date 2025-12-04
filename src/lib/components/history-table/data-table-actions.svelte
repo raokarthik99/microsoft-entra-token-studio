@@ -2,7 +2,7 @@
   import type { HistoryItem } from "$lib/types";
   import { buttonVariants } from "$lib/shadcn/components/ui/button/button.svelte";
   import * as DropdownMenu from "$lib/shadcn/components/ui/dropdown-menu";
-  import { Copy, Play, Eye, Trash2, MoreHorizontal } from "@lucide/svelte";
+  import { Copy, Play, Eye, Trash2, MoreHorizontal, Star, StarOff } from "@lucide/svelte";
   import { toast } from "svelte-sonner";
   import { cn } from "$lib/utils";
 
@@ -12,6 +12,9 @@
     onRestore,
     onLoad,
     onDelete,
+    onFavorite,
+    onUnfavorite,
+    favoriteExists = false,
     showDelete = false,
     compact = false
   } = $props<{
@@ -20,6 +23,9 @@
     onRestore: (item: HistoryItem) => void;
     onLoad?: (item: HistoryItem) => void;
     onDelete?: (item: HistoryItem) => void;
+    onFavorite?: (item: HistoryItem) => void;
+    onUnfavorite?: (item: HistoryItem) => void;
+    favoriteExists?: boolean;
     showDelete?: boolean;
     compact?: boolean;
   }>();
@@ -51,28 +57,8 @@
       <MoreHorizontal class="h-4 w-4" />
     </button>
   </DropdownMenu.Trigger>
-  <DropdownMenu.Content class="w-48" align="end">
+  <DropdownMenu.Content class="w-52" align="end">
     <DropdownMenu.Label>Actions</DropdownMenu.Label>
-    <DropdownMenu.Separator />
-
-    <DropdownMenu.Item onclick={() => copyValue(item.target, "Target")}>
-      <Copy class="mr-2 h-4 w-4" />
-      <span>Copy target</span>
-    </DropdownMenu.Item>
-
-    {#if item.tokenData?.accessToken}
-      <DropdownMenu.Item onclick={() => copyValue(item.tokenData!.accessToken, "Token")}>
-        <Copy class="mr-2 h-4 w-4" />
-        <span>Copy token</span>
-      </DropdownMenu.Item>
-    {/if}
-
-    {#if item.tokenData && onLoad}
-      <DropdownMenu.Item onclick={() => onLoad(item)}>
-        <Eye class="mr-2 h-4 w-4" />
-        <span>Load details</span>
-      </DropdownMenu.Item>
-    {/if}
 
     <DropdownMenu.Item
       onclick={() => onRestore(item)}
@@ -85,6 +71,43 @@
       <Play class="mr-2 h-4 w-4" />
       <span>Reissue</span>
     </DropdownMenu.Item>
+
+    {#if item.tokenData && onLoad}
+      <DropdownMenu.Item onclick={() => onLoad(item)}>
+        <Eye class="mr-2 h-4 w-4" />
+        <span>Load details</span>
+      </DropdownMenu.Item>
+    {/if}
+
+    <DropdownMenu.Separator />
+
+    <DropdownMenu.Label class="text-[11px] text-muted-foreground">Copy</DropdownMenu.Label>
+    <DropdownMenu.Item onclick={() => copyValue(item.target, "Target")}>
+      <Copy class="mr-2 h-4 w-4" />
+      <span>Copy target</span>
+    </DropdownMenu.Item>
+
+    {#if item.tokenData?.accessToken}
+      <DropdownMenu.Item onclick={() => copyValue(item.tokenData!.accessToken, "Token")}>
+        <Copy class="mr-2 h-4 w-4" />
+        <span>Copy token</span>
+      </DropdownMenu.Item>
+    {/if}
+
+    {#if onFavorite}
+      <DropdownMenu.Separator />
+      {#if favoriteExists && onUnfavorite}
+        <DropdownMenu.Item onclick={() => onUnfavorite(item)}>
+          <StarOff class="mr-2 h-4 w-4" />
+          <span>Remove Favorite</span>
+        </DropdownMenu.Item>
+      {:else}
+        <DropdownMenu.Item onclick={() => onFavorite(item)}>
+          <Star class="mr-2 h-4 w-4" />
+          <span>Favorite</span>
+        </DropdownMenu.Item>
+      {/if}
+    {/if}
 
     {#if showDelete && onDelete}
       <DropdownMenu.Separator />
