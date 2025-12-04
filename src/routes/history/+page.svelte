@@ -125,7 +125,7 @@
         enableSorting={true}
         compact={false}
         showFooter={false}
-        emptyCtaHref="/"
+        emptyCtaHref="/?cta=start-generating"
         emptyCtaLabel="Start generating"
       />
     </div>

@@ -119,7 +119,7 @@
         enableToolbar={true}
         enableSelection={true}
         compact={false}
-        emptyCtaHref="/?tab=user-token"
+        emptyCtaHref="/?tab=user-token&cta=start-generating"
         emptyCtaLabel="Start generating"
       />
     </div>

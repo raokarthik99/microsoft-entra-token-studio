@@ -39,7 +39,8 @@
     enableSelection = false,
     compact = false,
     emptyCtaHref = undefined,
-    emptyCtaLabel = undefined
+    emptyCtaLabel = undefined,
+    emptyCtaOnClick = undefined
   } = $props<{
     items: FavoriteItem[];
     onUse: (item: FavoriteItem) => void;
@@ -52,6 +53,7 @@
     compact?: boolean;
     emptyCtaHref?: string;
     emptyCtaLabel?: string;
+    emptyCtaOnClick?: () => void;
   }>();
 
   let searchQuery = $state("");
@@ -496,7 +498,12 @@
                           : "Adjust search or filters to find an entry."}
                       </p>
                     </div>
-                    {#if emptyCtaHref && emptyCtaLabel}
+                    {#if emptyCtaLabel && emptyCtaOnClick}
+                      <Button size="sm" class="gap-2" onclick={emptyCtaOnClick}>
+                        <Play class="h-4 w-4" />
+                        {emptyCtaLabel}
+                      </Button>
+                    {:else if emptyCtaHref && emptyCtaLabel}
                       <Button href={emptyCtaHref} size="sm" class="gap-2">
                         <Play class="h-4 w-4" />
                         {emptyCtaLabel}

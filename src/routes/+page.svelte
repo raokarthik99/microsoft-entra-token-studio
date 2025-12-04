@@ -70,7 +70,9 @@
     missing: string[];
   };
 
-  let activeTab = $state('user-token');
+  type FlowTab = 'app-token' | 'user-token';
+
+  let activeTab: FlowTab = $state('user-token');
   let resource = $state('https://graph.microsoft.com');
   let scopes = $state('User.Read');
   // history state is now managed by historyState
@@ -90,6 +92,8 @@
   let isFullScreen = $state(false);
   let tokenSectionEl = $state<HTMLElement | null>(null);
   let tokenSectionInView = $state(true);
+  let highlightTarget: 'scopes' | 'resource' | null = $state(null);
+  let highlightTimeout: ReturnType<typeof setTimeout> | null = null;
 
 
   let decodedClaims = $derived(result ? parseJwt(result.accessToken) : null);
@@ -240,7 +244,9 @@
 
   onMount(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    const tab = urlParams.get('tab');
+    const tabParam = urlParams.get('tab');
+    const tab = tabParam === 'app-token' || tabParam === 'user-token' ? tabParam : null;
+    const startGeneratingIntent = urlParams.get('cta') === 'start-generating';
     if (tab) {
       activeTab = tab;
       
@@ -259,11 +265,7 @@
       if (lastScopes) scopes = lastScopes;
 
       const savedTab = localStorage.getItem('active_tab');
-      if (savedTab) activeTab = savedTab;
-    }
-
-    if (tab) {
-      window.history.replaceState({}, document.title, window.location.pathname);
+      if (savedTab === 'app-token' || savedTab === 'user-token') activeTab = savedTab;
     }
 
     // historyState.load() is called in constructor, but we can call it again if needed, or rely on it being singleton
@@ -288,6 +290,16 @@
       } catch (e) {
         console.error('Failed to load pending token', e);
       }
+    }
+
+    if (startGeneratingIntent) {
+      setTimeout(() => {
+        scrollToFlows({ highlight: true, targetTab: tab ?? activeTab });
+      }, 150);
+    }
+
+    if (tab || startGeneratingIntent || urlParams.has('resource') || urlParams.has('scopes') || urlParams.has('autorun')) {
+      window.history.replaceState({}, document.title, window.location.pathname);
     }
   });
 
@@ -427,7 +439,7 @@
     }
   }
 
-  function switchTab(tab: string) {
+  function switchTab(tab: FlowTab) {
     activeTab = tab;
     localStorage.setItem('active_tab', tab);
   }
@@ -545,10 +557,41 @@
     }
   }
 
-  function scrollToFlows() {
+  function highlightRequiredInput(tab: FlowTab) {
+    const targetField = tab === 'app-token' ? 'resource' : 'scopes';
+    highlightTarget = targetField;
+
+    const inputEl = document.getElementById(targetField) as HTMLInputElement | null;
+    if (inputEl) {
+      inputEl.focus({ preventScroll: true });
+      inputEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+    }
+
+    if (highlightTimeout) {
+      clearTimeout(highlightTimeout);
+    }
+
+    highlightTimeout = window.setTimeout(() => {
+      highlightTarget = null;
+    }, 1800);
+  }
+
+  async function scrollToFlows(options: { highlight?: boolean; targetTab?: FlowTab } = {}) {
+    const { highlight = false, targetTab } = options;
+
+    if (targetTab && targetTab !== activeTab) {
+      switchTab(targetTab);
+      await tick();
+    }
+
     const flowsEl = document.getElementById('flows');
     if (flowsEl) {
       flowsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    if (highlight) {
+      await tick();
+      highlightRequiredInput(targetTab ?? activeTab);
     }
   }
 
@@ -734,7 +777,7 @@
         <p class="text-sm font-semibold text-foreground">Choose a flow</p>
                     <p class="text-xs text-muted-foreground">Start generating first; the decoded output will populate below.</p>
       </div>
-      <Tabs.Root id="flows" value={activeTab} onValueChange={(v) => switchTab(v)} class="w-full">
+      <Tabs.Root id="flows" value={activeTab} onValueChange={(v) => switchTab(v as FlowTab)} class="w-full">
         <Tabs.List class="grid w-full grid-cols-2 rounded-full bg-muted/60 p-1">
           <Tabs.Trigger value="user-token" class="gap-2 rounded-full">
             <User class="h-4 w-4" />
@@ -750,14 +793,15 @@
           <Tabs.Content value="user-token">
             <Card.Root class="border bg-card/80 shadow-sm">
               <Card.Header class="space-y-2">
-                <div class="flex items-start justify-between gap-3">
+                <div class="flex items-center justify-between gap-3">
                   <div class="space-y-1">
-                    <div class="flex items-center gap-2">
-                      <Card.Title>User token</Card.Title>
-                      <Badge variant="secondary" class="font-normal text-muted-foreground">Auth code flow</Badge>
-                    </div>
+                    <Card.Title>User token</Card.Title>
                     <Card.Description>Interactive sign-in for delegated scopes.</Card.Description>
                   </div>
+                  <Badge variant="secondary" class="gap-2 font-semibold text-foreground">
+                    <LogIn class="h-4 w-4" />
+                    Auth code flow
+                  </Badge>
                 </div>
               </Card.Header>
               <Card.Content class="space-y-4">
@@ -765,7 +809,16 @@
                   <div class="space-y-3">
                     <div class="space-y-2">
                       <Label for="scopes">Scopes</Label>
-                    <Input type="text" id="scopes" bind:value={scopes} placeholder="User.Read Mail.Read (space separated)" required />
+                    <Input
+                      type="text"
+                      id="scopes"
+                      bind:value={scopes}
+                      placeholder="User.Read Mail.Read (space separated)"
+                      required
+                      class={highlightTarget === 'scopes'
+                        ? 'ring-2 ring-amber-500/70 ring-offset-2 ring-offset-background bg-gradient-to-r from-amber-200/70 via-orange-100/70 to-transparent shadow-[0_0_0_10px_rgba(251,191,36,0.35),0_14px_30px_-10px_rgba(249,115,22,0.45)] animate-[pulse_1.2s_ease-in-out_0s_4]'
+                        : ''}
+                    />
                       <p class="text-[10px] text-muted-foreground">
                         Tip: You can request multiple scopes by separating them with spaces or commas.
                       </p>
@@ -811,7 +864,7 @@
                     <Card.Title>App token</Card.Title>
                     <Card.Description>Daemon/service-to-API calls using your confidential client.</Card.Description>
                   </div>
-                  <Badge variant="secondary" class="gap-2">
+                  <Badge variant="secondary" class="gap-2 font-semibold text-foreground">
                     <ShieldHalf class="h-4 w-4" />
                     Client credentials
                   </Badge>
@@ -824,7 +877,16 @@
                       <Label for="resource">Resource</Label>
                       <span class="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">/.default will be applied</span>
                     </div>
-                    <Input type="text" id="resource" bind:value={resource} placeholder="https://graph.microsoft.com or api://client-id" required />
+                    <Input
+                      type="text"
+                      id="resource"
+                      bind:value={resource}
+                      placeholder="https://graph.microsoft.com or api://client-id"
+                      required
+                      class={highlightTarget === 'resource'
+                        ? 'ring-2 ring-amber-500/70 ring-offset-2 ring-offset-background bg-gradient-to-r from-amber-200/70 via-orange-100/70 to-transparent shadow-[0_0_0_10px_rgba(251,191,36,0.35),0_14px_30px_-10px_rgba(249,115,22,0.45)] animate-[pulse_1.2s_ease-in-out_0s_4]'
+                        : ''}
+                    />
                     <div class="flex flex-wrap gap-2">
                       {#each resourcePresets as preset}
                         <Button type="button" size="sm" variant="secondary" class="gap-2" onclick={() => applyResourcePreset(preset.value)}>
@@ -1067,7 +1129,7 @@
                 <p class="mt-2 max-w-sm text-sm text-muted-foreground">
                   Use the App token or User token forms above, then return here to see the raw token and decoded claims.
                 </p>
-                <Button variant="default" class="gap-2" onclick={scrollToFlows}>
+                <Button variant="default" class="gap-2" onclick={() => scrollToFlows({ highlight: true })}>
                   <Play class="h-4 w-4" />
                   Start generating
                 </Button>
@@ -1106,6 +1168,7 @@
               showFooter={false}
               emptyCtaHref="/"
               emptyCtaLabel="Start generating"
+              emptyCtaOnClick={() => scrollToFlows({ highlight: true })}
             />
           </div>
         </Card.Content>
@@ -1226,7 +1289,7 @@
           {:else}
             <div class="space-y-2 text-sm text-muted-foreground">
               <p class="leading-relaxed">Issue an app or user token and it will stay docked here for quick copy.</p>
-              <Button size="sm" variant="default" class="gap-2" onclick={scrollToFlows}>
+              <Button size="sm" variant="default" class="gap-2" onclick={() => scrollToFlows({ highlight: true })}>
                 <Play class="h-4 w-4" />
                 Start generating
               </Button>
