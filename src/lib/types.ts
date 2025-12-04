@@ -31,3 +31,18 @@ export interface FavoriteItem {
     useCount: number;
     color?: string;
 }
+
+export interface HealthStatus {
+    status: 'ok' | 'incomplete';
+    tenant: string | null;
+    clientId: string | null;
+    authority: string | null;
+    redirectUri: string;
+    checks: {
+        tenantId: boolean;
+        clientId: boolean;
+        clientSecret: boolean;
+        redirectUri: boolean;
+    };
+    missing: string[];
+}

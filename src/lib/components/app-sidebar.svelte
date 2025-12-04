@@ -1,7 +1,7 @@
 <script lang="ts">
   import * as Sidebar from "$lib/shadcn/components/ui/sidebar";
   import { Badge } from "$lib/shadcn/components/ui/badge";
-  import { History, Home, Zap, ShieldHalf, Star } from "@lucide/svelte";
+  import { History, Home, Zap, ShieldHalf, Star, ListChecks } from "@lucide/svelte";
   import { page } from '$app/stores';
   import entraIconUrl from "$lib/assets/microsoft-entra-color-icon.svg";
 
@@ -9,6 +9,7 @@
 
   const nav = [
     { href: '/', label: 'Playground', description: 'Generate and inspect tokens', icon: Home },
+    { href: '/setup', label: 'Setup', description: 'Configure tenant and app', icon: ListChecks },
     { href: '/favorites', label: 'Favorites', description: 'Quick access presets', icon: Star },
     { href: '/history', label: 'History', description: 'Recall past inputs', icon: History },
   ];

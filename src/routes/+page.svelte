@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
-  import type { HistoryItem, TokenData, FavoriteItem } from '$lib/types';
-  import { parseJwt } from '$lib/utils';
+  import type { HistoryItem, TokenData, FavoriteItem, HealthStatus } from '$lib/types';
+  import { parseJwt, getTokenStatus } from '$lib/utils';
   import { historyState } from '$lib/states/history.svelte';
   import { favoritesState } from '$lib/states/favorites.svelte';
   import { tokenDockState } from '$lib/states/token-dock.svelte';
@@ -9,11 +9,9 @@
   import FavoriteFormSheet from '$lib/components/FavoriteFormSheet.svelte';
   import DecodedClaims from '$lib/components/DecodedClaims.svelte';
   import TokenStatusBadge from '$lib/components/TokenStatusBadge.svelte';
-  import { getTokenStatus } from '$lib/utils';
   import { time } from '$lib/stores/time';
   import { toast } from "svelte-sonner";
 
-  
   import { Button } from "$lib/shadcn/components/ui/button";
   import { Input } from "$lib/shadcn/components/ui/input";
   import { Label } from "$lib/shadcn/components/ui/label";
@@ -26,44 +24,24 @@
   import { 
     User,
     History,
-    ChevronRight,
     Copy,
     Play,
     LogIn,
-    Trash2,
     Loader2,
     ShieldCheck,
     Clock3,
     ListChecks,
     AlertTriangle,
     Info,
-    Sparkles,
-    CheckCircle2,
     ShieldHalf,
     ArrowRight,
     Eye,
     EyeOff,
-    ExternalLink,
     Maximize2,
     Home,
     Star,
     StarOff
   } from "@lucide/svelte";
-
-  type HealthStatus = {
-    status: 'ok' | 'incomplete';
-    tenant: string | null;
-    clientId: string | null;
-    authority: string | null;
-    redirectUri: string;
-    checks: {
-      tenantId: boolean;
-      clientId: boolean;
-      clientSecret: boolean;
-      redirectUri: boolean;
-    };
-    missing: string[];
-  };
 
   type FlowTab = 'app-token' | 'user-token';
 
@@ -75,6 +53,7 @@
   let error = $state<string | null>(null);
   let loading = $state(false);
   let clientId = $state<string | null>(null);
+  let tenantId = $state<string | null>(null);
   let health = $state<HealthStatus | null>(null);
   let healthLoading = $state(false);
   let copied = $state(false);
@@ -87,7 +66,7 @@
   let highlightTimeout: number | null = null;
 
 
-  let decodedClaims = $derived(result ? parseJwt(result.accessToken) : null);
+  const decodedClaims = $derived(result ? parseJwt(result.accessToken) : null);
   const resultKind = $derived(result ? (result.scopes?.length ? 'User Token' : 'App Token') : '');
   const issuedAtDate = $derived(decodedClaims?.iat ? new Date(Number((decodedClaims as any).iat) * 1000) : null);
   const audienceClaim = $derived((() => {
@@ -95,16 +74,6 @@
     const aud = (decodedClaims as any).aud;
     return Array.isArray(aud) ? aud.join(', ') : String(aud);
   })());
-  const issuerClaim = $derived(decodedClaims?.iss ? String((decodedClaims as any).iss) : null);
-  const tenantClaim = $derived((() => {
-    if (!decodedClaims) return null;
-    return (decodedClaims as any).tid || (decodedClaims as any).tenantId || null;
-  })());
-  const toResourceScope = (value: string) => {
-    const cleaned = value.replace(/\/+$/, '');
-    return cleaned.toLowerCase().endsWith('/.default') ? cleaned : `${cleaned}/.default`;
-  };
-  const computedResourceScope = $derived(toResourceScope(resource));
   const resultScopes = $derived((() => {
     if (!result) return [];
     if (result.scopes?.length) return result.scopes;
@@ -124,73 +93,17 @@
     { label: 'Admin: Directory.Read.All', value: 'Directory.Read.All' },
     { label: 'Custom API scope', value: 'api://your-api/user.read' },
   ];
-  const scopesPreview = $derived(scopes.split(/[ ,]+/).filter(Boolean));
 
   const hasResult = $derived(Boolean(result));
-  const statusLabel = $derived(error ? 'Error' : hasResult ? 'Issued' : 'Waiting');
-  const statusTone: 'secondary' | 'outline' | 'destructive' = $derived(error ? 'destructive' : hasResult ? 'secondary' : 'outline');
   const lastRun = $derived(historyState.items[0] ?? null);
-  const activeFlowLabel = $derived(activeTab === 'app-token' ? 'App token' : 'User token');
   const showResultScopes = $derived(resultKind !== 'App Token' && resultScopes.length > 0);
   const currentStatus = $derived(result?.expiresOn ? getTokenStatus(new Date(result.expiresOn), $time) : null);
   const scopeCount = $derived(resultScopes.length);
-  const claimEntries = $derived(decodedClaims ? Object.entries(decodedClaims) : []);
-  const hasToken = $derived(Boolean(result?.accessToken));
-  const resolvedRedirectUri = $derived(
-    health?.redirectUri ||
-      (typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : '/auth/callback')
+  const configReady = $derived(health?.status === 'ok');
+  const configStatusLabel = $derived(
+    healthLoading ? 'Checking config' : configReady ? 'Config ready' : 'Configuration incomplete'
   );
-  const setupChecklist = $derived([
-    {
-      key: 'tenant',
-      label: 'Tenant ID',
-      ok: Boolean(health?.checks?.tenantId),
-      helper: health?.tenant || 'Set TENANT_ID to your directory ID.',
-    },
-    {
-      key: 'clientId',
-      label: 'Client ID',
-      ok: Boolean(health?.checks?.clientId),
-      helper: health?.clientId || 'Set CLIENT_ID from your Entra app registration.',
-    },
-    {
-      key: 'clientSecret',
-      label: 'Client secret',
-      ok: Boolean(health?.checks?.clientSecret),
-      helper: health?.checks?.clientSecret ? 'Secret loaded on server' : 'Set CLIENT_SECRET and restart the dev server.',
-    },
-    {
-      key: 'redirect',
-      label: 'Redirect URI',
-      ok: Boolean(health?.checks?.redirectUri || health?.redirectUri),
-      helper: resolvedRedirectUri,
-    },
-  ]);
-  const appListLink = 'https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade';
-  const appRedirectLink = $derived(
-    clientId
-      ? `https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/Authentication/appId/${clientId}`
-      : appListLink
-  );
-  const setupStatusLabel = $derived(
-    health ? (health.status === 'ok' ? 'Ready' : 'Check config') : 'Checking'
-  );
-  const setupStatusTone: 'secondary' | 'outline' | 'destructive' = $derived(
-    health?.status === 'ok' ? 'secondary' : 'outline'
-  );
-  const missingCount = $derived(health?.missing?.length ?? 0);
-  const setupSummary = $derived(
-    healthLoading
-      ? 'Checking configuration...'
-      : missingCount > 0
-        ? `${missingCount} ${missingCount === 1 ? 'item needs attention' : 'items need attention'}`
-        : health?.status === 'ok'
-          ? 'Ready to issue tokens.'
-          : 'Waiting for configuration.'
-  );
-  const showTroubleshooting = $derived(
-    Boolean(missingCount)
-  );
+  const configStatusTone: 'secondary' | 'outline' = $derived(configReady ? 'secondary' : 'outline');
 
   $effect(() => {
     if (typeof window === 'undefined') return;
@@ -300,6 +213,7 @@
       const data: HealthStatus = await res.json();
       health = data;
       clientId = data.clientId;
+      tenantId = data.tenant;
     } catch (err) {
       console.error('Failed to fetch config', err);
     } finally {
@@ -630,156 +544,64 @@
     </div>
   </div>
 
-  <section id="setup" class="rounded-2xl border bg-card shadow-sm overflow-hidden">
-    <div class="border-b bg-muted/30 px-5 py-4">
-      <div class="flex flex-wrap items-center justify-between gap-4">
-        <div class="flex items-center gap-3">
-          <div class="flex items-center gap-2">
-            <Sparkles class="h-4 w-4 text-primary" />
-            <h3 class="font-semibold text-foreground">Setup</h3>
-          </div>
-          <Separator orientation="vertical" class="h-4" />
-          <div class="flex items-center gap-2">
-            <Badge variant={setupStatusTone} class="gap-1.5 font-normal">
-              <ListChecks class="h-3.5 w-3.5" />
-              {setupStatusLabel}
-            </Badge>
-            <span class="hidden text-sm text-muted-foreground sm:inline-block">
-              {setupSummary}
-            </span>
-          </div>
-        </div>
-
-      </div>
-    </div>
-
-    <div class="p-5">
-      <div class="grid gap-8 lg:grid-cols-2">
-        <!-- Left Column: Configuration -->
-        <div class="space-y-5">
-          <div class="flex items-center justify-between">
-            <h4 class="text-sm font-medium text-foreground">Client Configuration</h4>
-            <a href={appRedirectLink} target="_blank" class="flex items-center gap-1 text-xs text-primary hover:underline" rel="noreferrer">
-              Open in Entra portal <ArrowRight class="h-3 w-3" />
-            </a>
-          </div>
-
-          <div class="rounded-xl border bg-muted/30 p-4 space-y-4">
-            <div class="space-y-2">
-              <div class="flex items-center justify-between gap-2">
-                <Label class="text-xs text-muted-foreground">Client ID</Label>
-                {#if !clientId}
-                  <span class="text-[10px] text-destructive">* Required</span>
-                {/if}
-              </div>
-              <div class="flex gap-2">
-                <code class="flex-1 rounded-md border bg-background px-3 py-2 font-mono text-xs text-foreground/90">
-                  {clientId || 'Not set (check .env)'}
-                </code>
-                <Button variant="outline" size="icon" class="h-9 w-9 shrink-0" onclick={() => copyToClipboard(clientId || '')} disabled={!clientId} title="Copy Client ID">
-                  <Copy class="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-
-            <div class="space-y-2">
-              <div class="flex items-center justify-between gap-2">
-                <Label class="text-xs text-muted-foreground">Redirect URI</Label>
-                <div class="flex items-center gap-3">
-                  <a 
-                    href="https://learn.microsoft.com/en-us/entra/identity-platform/reply-url" 
-                    target="_blank" 
-                    rel="noreferrer" 
-                    class="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary hover:underline"
-                    title="Learn about Redirect URIs"
-                  >
-                    Docs <ExternalLink class="h-2.5 w-2.5" />
-                  </a>
-                  <a 
-                    href={appRedirectLink} 
-                    target="_blank" 
-                    rel="noreferrer" 
-                    class="flex items-center gap-1 text-[10px] text-primary hover:underline"
-                  >
-                    Add to App Registration <ArrowRight class="h-2.5 w-2.5" />
-                  </a>
-                </div>
-              </div>
-              <div class="flex gap-2">
-                <code class="flex-1 rounded-md border bg-background px-3 py-2 font-mono text-xs text-foreground/90 break-all">
-                  {resolvedRedirectUri}
-                </code>
-                <Button variant="outline" size="icon" class="h-9 w-9 shrink-0" onclick={() => copyToClipboard(resolvedRedirectUri)} title="Copy Redirect URI">
-                  <Copy class="h-4 w-4" />
-                </Button>
-              </div>
-              <p class="text-[10px] text-muted-foreground">
-                Must exactly match the value in Entra (case-sensitive). <strong>Ensure this is added as a "Single-page application" platform.</strong>
-              </p>
-            </div>
-
-            <div class="flex items-start gap-2 rounded-lg border border-border/50 bg-background/40 p-3">
-              <Info class="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-              <div class="space-y-1">
-                <p class="text-xs font-medium text-foreground">Changing the application</p>
-                <p class="text-xs text-muted-foreground">
-                  To switch apps, update <code class="font-mono text-[10px]">CLIENT_ID</code> and <code class="font-mono text-[10px]">CLIENT_SECRET</code> in your <code class="font-mono text-[10px]">.env</code> file. To change the redirect URI, set <code class="font-mono text-[10px]">REDIRECT_URI</code>. Restart the server to apply.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Right Column: Status & Checklist -->
-        <div class="space-y-5">
-          <h4 class="text-sm font-medium text-foreground">Configuration Status</h4>
-          
-          <div class="space-y-2">
-            {#each setupChecklist as item}
-              <div class={`flex items-start gap-3 rounded-lg border p-2.5 transition-colors ${item.ok ? 'bg-background/50 border-border/50' : 'bg-amber-500/5 border-amber-500/20'}`}>
-                {#if item.ok}
-                  <CheckCircle2 class="mt-0.5 h-4 w-4 text-emerald-500 shrink-0" />
-                {:else}
-                  <AlertTriangle class="mt-0.5 h-4 w-4 text-amber-500 shrink-0" />
-                {/if}
-                <div class="space-y-0.5">
-                  <div class="text-sm font-medium leading-none text-foreground">{item.label}</div>
-                  <p class="text-xs text-muted-foreground">{item.helper}</p>
-                </div>
-              </div>
-            {/each}
-          </div>
-
-          {#if showTroubleshooting}
-            <div class="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 animate-in fade-in slide-in-from-top-2">
-              <div class="mb-2 flex items-center gap-2 text-xs font-semibold text-amber-600">
-                <Sparkles class="h-3.5 w-3.5" />
-                <span>Suggested Fixes</span>
-              </div>
-              <div class="space-y-2">
-                {#each health?.missing || [] as missingItem}
-                  <div class="flex items-start gap-2 text-xs text-muted-foreground">
-                    <span class="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-amber-500"></span>
-                    <span>Set {missingItem} in your .env/.env.local and restart the dev server.</span>
-                  </div>
-                {/each}
-              </div>
-            </div>
-          {/if}
-        </div>
-      </div>
-    </div>
-  </section>
-
   <div class="space-y-6">
-    <div class="flex flex-wrap items-center justify-between gap-2">
-      <h3 class="text-lg font-semibold text-foreground">Issue tokens</h3>
-      {#if lastRun}
-        <Badge variant="outline" class="gap-2">
-          <Clock3 class="h-4 w-4" />
-          Last run: {formatTimestamp(lastRun.timestamp)}
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div class="flex flex-wrap items-center gap-3">
+        <h3 class="text-lg font-semibold text-foreground">Issue tokens</h3>
+        <Badge variant={configStatusTone} class="gap-2">
+          {#if healthLoading}
+            <Loader2 class="h-3.5 w-3.5 animate-spin" />
+          {:else}
+            <ListChecks class="h-3.5 w-3.5" />
+          {/if}
+          {configStatusLabel}
         </Badge>
-      {/if}
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <a href="/setup" class="text-xs font-semibold text-primary hover:underline inline-flex items-center gap-1">
+          Open setup
+          <ArrowRight class="h-3 w-3" />
+        </a>
+        {#if lastRun}
+          <Badge variant="outline" class="gap-2">
+            <Clock3 class="h-4 w-4" />
+            Last run: {formatTimestamp(lastRun.timestamp)}
+          </Badge>
+        {/if}
+      </div>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+      <div class="flex items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2">
+        <span class="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Tenant</span>
+        <code class="font-mono text-xs text-foreground/90">{tenantId || 'Not set'}</code>
+        {#if tenantId}
+          <Button
+            variant="ghost"
+            size="icon"
+            class="h-7 w-7"
+            onclick={() => copyToClipboard(tenantId || '')}
+            title="Copy tenant ID"
+          >
+            <Copy class="h-3.5 w-3.5" />
+          </Button>
+        {/if}
+      </div>
+      <div class="flex items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2">
+        <span class="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Client</span>
+        <code class="font-mono text-xs text-foreground/90 break-all">{clientId || 'Not set'}</code>
+        {#if clientId}
+          <Button
+            variant="ghost"
+            size="icon"
+            class="h-7 w-7"
+            onclick={() => copyToClipboard(clientId || '')}
+            title="Copy client ID"
+          >
+            <Copy class="h-3.5 w-3.5" />
+          </Button>
+        {/if}
+      </div>
     </div>
     <div class="space-y-3">
       <div class="flex flex-wrap items-center justify-between gap-2">
@@ -1158,7 +980,7 @@
                 <div class="mb-4 rounded-full bg-primary/10 p-3">
                   <ShieldCheck class="h-6 w-6 text-primary" />
                 </div>
-                <h3 class="text-lg font-semibold text-foreground">Ready to issue tokens</h3>
+                <h3 class="text-lg font-semibold text-foreground">Run a token flow</h3>
                 <p class="mt-2 max-w-sm text-sm text-muted-foreground">
                   Use the App token or User token forms above, then return here to see the raw token and decoded claims.
                 </p>
