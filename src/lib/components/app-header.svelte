@@ -2,22 +2,33 @@
   import * as Breadcrumb from "$lib/shadcn/components/ui/breadcrumb";
   import { SidebarTrigger } from "$lib/shadcn/components/ui/sidebar";
   import { Separator } from "$lib/shadcn/components/ui/separator";
+  import { Button } from "$lib/shadcn/components/ui/button";
   import { page } from "$app/stores";
   import UserMenu from "$lib/components/UserMenu.svelte";
   import type { AccountInfo } from "@azure/msal-browser";
+  import { LogIn } from "@lucide/svelte";
 
-  let { user, onLogout, photoUrl } = $props<{ user?: AccountInfo | null, onLogout?: () => void, photoUrl?: string | null }>();
+  let { user, onLogout, onLogin, photoUrl } = $props<{ 
+    user?: AccountInfo | null, 
+    onLogout?: () => void, 
+    onLogin?: () => void,
+    photoUrl?: string | null 
+  }>();
 
   const titles: Record<string, string> = {
     '/': 'Playground',
     '/history': 'History',
     '/settings': 'Settings',
+    '/favorites': 'Favorites',
+    '/setup': 'Setup',
   };
 
   const subtitles: Record<string, string> = {
     '/': 'Token workbench',
     '/history': 'Your recent calls',
     '/settings': 'Preferences',
+    '/favorites': 'Quick access',
+    '/setup': 'Configuration',
   };
 
   const pageTitle = $derived(titles[$page.url.pathname] ?? 'Entra Client');
@@ -42,6 +53,12 @@
   <div class="flex items-center gap-2">
     {#if user && onLogout}
       <UserMenu {user} {onLogout} {photoUrl} />
+    {:else if onLogin}
+      <Button variant="outline" size="sm" class="gap-2" onclick={onLogin}>
+        <LogIn class="h-4 w-4" />
+        Sign In
+      </Button>
     {/if}
   </div>
 </header>
+

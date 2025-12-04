@@ -46,3 +46,25 @@ export interface HealthStatus {
     };
     missing: string[];
 }
+
+/**
+ * Configuration for an Entra app registration.
+ * Supports future multi-app scenarios where users can switch between different app configurations.
+ */
+export interface ClientConfig {
+    id: string;           // Unique identifier for UI purposes
+    name: string;         // Display name (e.g., "Production", "Dev Tenant")
+    clientId: string;
+    tenantId: string;
+    redirectUri: string;
+}
+
+/**
+ * User's preference for identity selection when issuing user tokens.
+ */
+export type IdentityPreferenceMode = 'use_last' | 'always_ask';
+
+export interface IdentityPreference {
+    mode: IdentityPreferenceMode;
+    setAt: number;
+}

@@ -5,7 +5,7 @@
 - SvelteKit 2 app using Svelte 5 runes and TypeScript. UI is built from shadcn components plus custom layout pieces and feature-specific components.
 - **App tokens**: Server-side client credentials flow via `/api/token/app`.
 - **User tokens**: Client-side Authorization Code + PKCE flow via MSAL.js (`@azure/msal-browser`). Supports silent acquisition and popup fallback.
-- **Authentication**: Embedded user authentication (Single-Page Application model). Users sign in to the app to access the Playground.
+- **Authentication**: Users can explore the app without signing in. Sign-in is triggered as part of the user token flow when issuing tokens. A "Sign In" button in the header is available for manual sign-in.
 - **Token status tracking**: Real-time expiry monitoring with color-coded badges (expired, expiring, valid).
 - **Full-screen token inspector**: Immersive token analysis view with ESC key support.
 - **Favorites system**: Save frequently used targets with names, tags, colors, and descriptions for quick access and reissue.
@@ -28,7 +28,7 @@
   - `FavoritesList.svelte` — Favorites management with advanced filtering by type, status, tags, and colors, plus bulk operations and usage tracking.
   - `FavoriteFormSheet.svelte` — Form for creating and editing favorites with name, tags, color, and description support.
   - `history-table/data-table-actions.svelte` — Row action menu for copy/load/reissue/delete.
-  - Layout: `app-header.svelte`, `app-sidebar.svelte`, `app-footer.svelte`, `LoginScreen.svelte`, `UserMenu.svelte`.
+  - Layout: `app-header.svelte`, `app-sidebar.svelte`, `app-footer.svelte`, `UserMenu.svelte`.
 - **State management**: Svelte 5 runes-based state in `src/lib/states/`; reactive time store in `src/lib/stores/time.ts` for real-time expiry updates.
 - Shared logic/UI in `src/lib` (`shadcn/` for shadcn-svelte primitives, including table components under `components/ui/table`; `utils.ts` for JWT/expiry/status helpers, `types.ts` for TypeScript interfaces, server-only MSAL helpers in `server/msal.ts`). Keep server imports out of client modules.
 - Global shell and styles: `src/app.html`, `src/app.css`; static assets live in `static/`.

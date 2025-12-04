@@ -2,12 +2,14 @@
   import * as Card from "$lib/shadcn/components/ui/card";
   import { Button } from "$lib/shadcn/components/ui/button";
   import { Label } from "$lib/shadcn/components/ui/label";
-  import { Trash2 } from "@lucide/svelte";
+  import { Trash2, LogOut, User } from "@lucide/svelte";
   import * as Select from "$lib/shadcn/components/ui/select";
   import { setMode, userPrefersMode } from "mode-watcher";
   import { Badge } from "$lib/shadcn/components/ui/badge";
+  import { toast } from "svelte-sonner";
 
-  import { auth } from '$lib/stores/auth';
+  import { auth, authServiceStore } from '$lib/stores/auth';
+  import { identityPreference } from '$lib/states/identity.svelte';
   import { Avatar, AvatarFallback, AvatarImage } from "$lib/shadcn/components/ui/avatar";
 
   function getInitials(name: string) {
@@ -20,6 +22,25 @@
       window.location.reload();
     }
   }
+
+  function clearCachedIdentity() {
+    if (confirm('This will sign you out and clear cached identity. You will need to sign in again.')) {
+      const service = $authServiceStore;
+      if (service) {
+        service.clearCachedAccounts();
+        toast.success('Cached identity cleared');
+      }
+    }
+  }
+
+  function handleIdentityPreferenceChange(value: string) {
+    identityPreference.setMode(value as 'use_last' | 'always_ask');
+    toast.success('Identity preference saved');
+  }
+
+  const identityPreferenceLabel = $derived(
+    identityPreference.mode === 'use_last' ? 'Always use last account' : 'Ask me each time'
+  );
 </script>
 
 <svelte:head>
@@ -35,23 +56,73 @@
         <Card.Description>Your authenticated session details.</Card.Description>
       </Card.Header>
       <Card.Content class="space-y-5">
-        <div class="flex items-center gap-4 rounded-xl border bg-muted/30 p-4">
-          <Avatar class="h-16 w-16 border border-border/50">
-            <AvatarImage src={$auth.photoUrl || ""} alt={$auth.user?.name} />
-            <AvatarFallback class="bg-primary/10 text-xl text-primary font-medium">
-              {getInitials($auth.user?.name || 'User')}
-            </AvatarFallback>
-          </Avatar>
-          <div class="space-y-1">
-            <h3 class="text-lg font-semibold">{$auth.user?.name}</h3>
-            <p class="text-sm text-muted-foreground">{$auth.user?.username}</p>
-            <div class="flex items-center gap-2 text-xs text-muted-foreground">
-              <span class="font-mono">Tenant ID: {$auth.user?.tenantId}</span>
+        {#if $auth.isAuthenticated}
+          <div class="flex items-center gap-4 rounded-xl border bg-muted/30 p-4">
+            <Avatar class="h-16 w-16 border border-border/50">
+              <AvatarImage src={$auth.photoUrl || ""} alt={$auth.user?.name} />
+              <AvatarFallback class="bg-primary/10 text-xl text-primary font-medium">
+                {getInitials($auth.user?.name || 'User')}
+              </AvatarFallback>
+            </Avatar>
+            <div class="space-y-1">
+              <h3 class="text-lg font-semibold">{$auth.user?.name}</h3>
+              <p class="text-sm text-muted-foreground">{$auth.user?.username}</p>
+              <div class="flex items-center gap-2 text-xs text-muted-foreground">
+                <span class="font-mono">Tenant ID: {$auth.user?.tenantId}</span>
+              </div>
             </div>
           </div>
-        </div>
+        {:else}
+          <div class="flex items-center gap-4 rounded-xl border bg-muted/30 p-4">
+            <div class="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+              <User class="h-8 w-8 text-muted-foreground" />
+            </div>
+            <div class="space-y-1">
+              <h3 class="text-lg font-semibold text-muted-foreground">Not signed in</h3>
+              <p class="text-sm text-muted-foreground">Sign in via the header or when issuing user tokens.</p>
+            </div>
+          </div>
+        {/if}
       </Card.Content>
     </Card.Root>
+
+    <Card.Root class="border bg-card/70 lg:col-span-2">
+      <Card.Header class="pb-2">
+        <Card.Title>Identity & Authentication</Card.Title>
+        <Card.Description>Control how the app handles sign-in for user tokens.</Card.Description>
+      </Card.Header>
+      <Card.Content class="space-y-5">
+        <div class="flex items-center justify-between gap-4 rounded-xl border bg-muted/30 p-4">
+          <div class="space-y-1">
+            <Label>Identity behavior</Label>
+            <p class="text-sm text-muted-foreground">Choose how the app selects identity when issuing user tokens.</p>
+          </div>
+          <Select.Root type="single" value={identityPreference.mode} onValueChange={handleIdentityPreferenceChange}>
+            <Select.Trigger class="w-[200px]">
+              {identityPreferenceLabel}
+            </Select.Trigger>
+            <Select.Content>
+              <Select.Item value="use_last">Always use last account</Select.Item>
+              <Select.Item value="always_ask">Ask me each time</Select.Item>
+            </Select.Content>
+          </Select.Root>
+        </div>
+
+        {#if $auth.isAuthenticated}
+          <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-muted/30 p-4">
+            <div class="space-y-1">
+              <Label>Clear cached identity</Label>
+              <p class="text-sm text-muted-foreground">Sign out and remove cached account from this browser.</p>
+            </div>
+            <Button variant="outline" onclick={clearCachedIdentity} class="gap-2">
+              <LogOut class="h-4 w-4" />
+              Clear identity
+            </Button>
+          </div>
+        {/if}
+      </Card.Content>
+    </Card.Root>
+
     <Card.Root class="border bg-card/70">
       <Card.Header class="pb-2">
         <Card.Title>Appearance</Card.Title>
@@ -97,3 +168,4 @@
     </Card.Root>
   </div>
 </div>
+

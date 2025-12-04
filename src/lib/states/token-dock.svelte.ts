@@ -27,6 +27,12 @@ export class TokenDockState {
     this.status = 'error';
   }
 
+  clearLoading() {
+    if (this.status === 'loading') {
+      this.status = this.token ? 'ready' : 'idle';
+    }
+  }
+
   setIdle() {
     this.status = this.token ? 'ready' : 'idle';
   }

@@ -7,11 +7,11 @@
   import AppSidebar from "$lib/components/app-sidebar.svelte";
   import AppHeader from "$lib/components/app-header.svelte";
   import AppFooter from "$lib/components/app-footer.svelte";
-  import LoginScreen from "$lib/components/LoginScreen.svelte";
   import { onMount } from 'svelte';
   import { AuthService } from '$lib/services/auth';
   import { auth, authServiceStore } from '$lib/stores/auth';
   import type { LayoutData } from './$types';
+  import type { ClientConfig } from '$lib/types';
   import TokenDock from "$lib/components/TokenDock.svelte";
 
   let { children, data } = $props<{ children: any, data: LayoutData }>();
@@ -19,13 +19,19 @@
 
   onMount(async () => {
     if (data.authConfig) {
-      authService = new AuthService(
-        data.authConfig.clientId,
-        data.authConfig.tenantId,
-        data.authConfig.redirectUri
-      );
+      const config: ClientConfig = {
+        id: data.authConfig.id ?? 'default',
+        name: data.authConfig.name ?? 'Default App',
+        clientId: data.authConfig.clientId,
+        tenantId: data.authConfig.tenantId,
+        redirectUri: data.authConfig.redirectUri,
+      };
+      authService = new AuthService(config);
       await authService.initialize();
       authServiceStore.set(authService);
+    } else {
+      // No auth config, mark loading as complete
+      auth.setUser(null);
     }
   });
 
@@ -64,13 +70,11 @@
       <p class="text-sm text-muted-foreground">Loading application...</p>
     </div>
   </div>
-{:else if !$auth.isAuthenticated}
-  <LoginScreen onLogin={handleLogin} loading={$auth.loading} />
 {:else}
   <SidebarProvider>
     <AppSidebar />
     <SidebarInset class="min-h-screen bg-background/80">
-      <AppHeader user={$auth.user} onLogout={handleLogout} photoUrl={$auth.photoUrl} />
+      <AppHeader user={$auth.user} onLogout={handleLogout} onLogin={handleLogin} photoUrl={$auth.photoUrl} />
       <div class="flex flex-1 flex-col gap-6 p-6 pt-2">
         <div class="mx-auto w-full max-w-6xl space-y-6">
           {@render children()}
@@ -81,3 +85,4 @@
     <TokenDock />
   </SidebarProvider>
 {/if}
+

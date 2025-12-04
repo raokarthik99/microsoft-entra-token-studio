@@ -40,8 +40,10 @@
     Maximize2,
     Home,
     Star,
-    StarOff
+    StarOff,
+    RefreshCw
   } from "@lucide/svelte";
+  import { auth, authServiceStore } from '$lib/stores/auth';
 
   type FlowTab = 'app-token' | 'user-token';
 
@@ -64,6 +66,10 @@
   let hasAutoScrolled = $state(false);
   let highlightTarget: 'scopes' | 'resource' | null = $state(null);
   let highlightTimeout: number | null = null;
+  let switchingAccount = $state(false);
+
+  // Derived state for active account
+  const activeAccount = $derived($auth.user);
 
 
   const decodedClaims = $derived(result ? parseJwt(result.accessToken) : null);
@@ -296,11 +302,7 @@
     }
   }
 
-  import { authServiceStore } from '$lib/stores/auth';
-
-  // ... (existing imports)
-
-  async function handleUserSubmit() {
+  async function handleUserSubmit(forceSwitch: boolean = false) {
     if (!scopes) return;
     localStorage.setItem('last_scopes', scopes);
     localStorage.setItem('active_tab', 'user-token');
@@ -314,7 +316,12 @@
       if (!service) throw new Error('Auth service not initialized');
       
       const scopeArray = scopes.split(/[ ,]+/).filter(Boolean);
-      const tokenResponse = await service.getToken(scopeArray);
+      // getToken handles unauthenticated users automatically (prompts sign-in)
+      // If forceSwitch is true, we force an interactive prompt to allow switching accounts
+      const options = forceSwitch 
+        ? { forceInteraction: true, prompt: 'select_account' as const }
+        : {}; // Don't pass forceInteraction: false, let getToken decide
+      const tokenResponse = await service.getToken(scopeArray, options);
       
       result = {
         accessToken: tokenResponse.accessToken,
@@ -337,12 +344,24 @@
     } catch (err: any) {
       console.error('Token acquisition failed', err);
       const message = err?.message ?? 'Failed to acquire token';
-      error = message;
-      tokenDockState.setError(message);
-      toast.error(message);
+      // Don't show error toast for cancelled sign-in
+      if (message !== 'Sign-in was cancelled') {
+        error = message;
+        tokenDockState.setError(message);
+        toast.error(message);
+      } else {
+        toast.warning("Sign-in was cancelled");
+        tokenDockState.clearLoading();
+      }
     } finally {
       loading = false;
+      switchingAccount = false;
     }
+  }
+
+  async function handleSwitchAccount() {
+    switchingAccount = true;
+    await handleUserSubmit(true);
   }
 
   function resetAll() {
@@ -672,10 +691,36 @@
                   <div class="rounded-lg border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
                     Consent is handled by Microsoft Identity. A popup may appear if permission is needed.
                   </div>
+                  
+                  <!-- Identity Indicator -->
+                  <div class="flex items-center justify-between rounded-lg border bg-background px-3 py-2.5">
+                    {#if activeAccount}
+                      <div class="flex items-center gap-2 text-sm">
+                        <User class="h-4 w-4 text-muted-foreground" />
+                        <span class="text-muted-foreground">Issuing as</span>
+                        <span class="font-medium text-foreground">{activeAccount.username || activeAccount.name}</span>
+                      </div>
+                      <button
+                        type="button"
+                        class="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline focus:outline-none"
+                        onclick={handleSwitchAccount}
+                        disabled={loading || switchingAccount}
+                      >
+                        <RefreshCw class={`h-3 w-3 ${switchingAccount ? 'animate-spin' : ''}`} />
+                        Switch account
+                      </button>
+                    {:else}
+                      <div class="flex items-center gap-2 text-sm">
+                        <LogIn class="h-4 w-4 text-muted-foreground" />
+                        <span class="text-muted-foreground">Click Issue token — we'll help you sign in</span>
+                      </div>
+                    {/if}
+                  </div>
+
                   <Button type="submit" class="w-full gap-2" disabled={loading}>
                     {#if loading}
                       <Loader2 class="h-4 w-4 animate-spin" />
-                      Acquiring token...
+                      {switchingAccount ? 'Switching account...' : 'Acquiring token...'}
                     {:else}
                       <Play class="h-4 w-4" />
                       <span>Issue token</span>

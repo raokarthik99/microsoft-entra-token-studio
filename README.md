@@ -110,11 +110,14 @@ Never commit `.env` or real secrets.
 
 ### User token (Authorization Code + PKCE)
 
-1. **Sign In**: The app now requires you to sign in with your Microsoft account to access the dashboard.
-2. Choose **User token** and enter scopes (space-separated, e.g., `User.Read Mail.Read`).
-3. Click **Get user token**.
-   - The app attempts to acquire the token **silently** using your active session.
-   - If consent is required (e.g., new scopes), a **popup** will appear for you to approve.
+1. Choose **User token** and enter scopes (space-separated, e.g., `User.Read Mail.Read`).
+2. The form displays your current identity:
+   - If signed in: Shows "Issuing as {email}" with a **Switch account** link.
+   - If not signed in: Prompts "Click Issue token — we'll help you sign in".
+3. Click **Issue token**.
+   - If not signed in, a Microsoft sign-in popup appears.
+   - If signed in, the app attempts **silent acquisition** first.
+   - If consent is required (e.g., new scopes), a **popup** appears for approval.
 4. The token is returned directly to the client and displayed for decoding.
 
 ### History and settings
