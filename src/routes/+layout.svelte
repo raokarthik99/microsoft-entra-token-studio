@@ -12,6 +12,7 @@
   import { AuthService } from '$lib/services/auth';
   import { auth, authServiceStore } from '$lib/stores/auth';
   import type { LayoutData } from './$types';
+  import TokenDock from "$lib/components/TokenDock.svelte";
 
   let { children, data } = $props<{ children: any, data: LayoutData }>();
   let authService: AuthService;
@@ -77,5 +78,6 @@
       </div>
       <AppFooter />
     </SidebarInset>
+    <TokenDock />
   </SidebarProvider>
 {/if}

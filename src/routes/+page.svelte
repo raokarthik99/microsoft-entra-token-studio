@@ -4,10 +4,10 @@
   import { parseJwt } from '$lib/utils';
   import { historyState } from '$lib/states/history.svelte';
   import { favoritesState } from '$lib/states/favorites.svelte';
+  import { tokenDockState } from '$lib/states/token-dock.svelte';
   import HistoryList from '$lib/components/HistoryList.svelte';
   import FavoriteFormSheet from '$lib/components/FavoriteFormSheet.svelte';
   import DecodedClaims from '$lib/components/DecodedClaims.svelte';
-  import TokenFullScreenView from '$lib/components/TokenFullScreenView.svelte';
   import TokenStatusBadge from '$lib/components/TokenStatusBadge.svelte';
   import { getTokenStatus } from '$lib/utils';
   import { time } from '$lib/stores/time';
@@ -26,14 +26,12 @@
   import { 
     User,
     History,
-    ChevronDown,
     ChevronRight,
     Copy,
     Play,
     LogIn,
     Trash2,
     Loader2,
-    Check,
     ShieldCheck,
     Clock3,
     ListChecks,
@@ -41,10 +39,7 @@
     Info,
     Sparkles,
     CheckCircle2,
-    Wand2,
-    Link2,
     ShieldHalf,
-    Zap,
     ArrowRight,
     Eye,
     EyeOff,
@@ -72,7 +67,7 @@
 
   type FlowTab = 'app-token' | 'user-token';
 
-  let activeTab: FlowTab = $state('user-token');
+  let activeTab = $state<FlowTab>('user-token');
   let resource = $state('https://graph.microsoft.com');
   let scopes = $state('User.Read');
   // history state is now managed by historyState
@@ -88,16 +83,11 @@
 
   let tokenVisible = $state(true);
   let hasAutoScrolled = $state(false);
-  let floatingExpanded = $state(false);
-  let isFullScreen = $state(false);
-  let tokenSectionEl = $state<HTMLElement | null>(null);
-  let tokenSectionInView = $state(true);
   let highlightTarget: 'scopes' | 'resource' | null = $state(null);
-  let highlightTimeout: ReturnType<typeof setTimeout> | null = null;
+  let highlightTimeout: number | null = null;
 
 
   let decodedClaims = $derived(result ? parseJwt(result.accessToken) : null);
-  const historyCount = $derived(historyState.items.length);
   const resultKind = $derived(result ? (result.scopes?.length ? 'User Token' : 'App Token') : '');
   const issuedAtDate = $derived(decodedClaims?.iat ? new Date(Number((decodedClaims as any).iat) * 1000) : null);
   const audienceClaim = $derived((() => {
@@ -217,29 +207,21 @@
     }
   });
 
+  // Keep main result in sync with the shared dock token so both views stay consistent across navigation.
   $effect(() => {
-    if (typeof window === 'undefined') return;
-    if (!tokenSectionEl) return;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        tokenSectionInView = entry?.isIntersecting ?? false;
-      },
-      { threshold: 0.3 }
-    );
-
-    observer.observe(tokenSectionEl);
-
-    return () => observer.disconnect();
-  });
-
-  $effect(() => {
-    if (!hasResult) {
-      floatingExpanded = false;
-      return;
+    const dockToken = tokenDockState.token;
+    if (dockToken?.tokenData) {
+      result = dockToken.tokenData;
+      if (dockToken.type === 'App Token') {
+        activeTab = 'app-token';
+        resource = dockToken.target;
+      } else {
+        activeTab = 'user-token';
+        scopes = dockToken.target;
+      }
+    } else if (!dockToken && !loading) {
+      result = null;
     }
-
-    floatingExpanded = !tokenSectionInView;
   });
 
   onMount(() => {
@@ -332,23 +314,34 @@
         const tokenBase64 = hash.split('token=')[1];
         const tokenJson = atob(tokenBase64);
         const tokenData = JSON.parse(tokenJson);
+        const tokenTarget = (tokenData.scopes || []).join(' ');
+        const timestamp = Date.now();
         
         activeTab = 'user-token';
         localStorage.setItem('active_tab', 'user-token');
         
         result = tokenData;
-        await addToHistory({ type: 'User Token', target: (tokenData.scopes || []).join(' '), timestamp: Date.now(), tokenData: JSON.parse(JSON.stringify(result!)) });
+        const historyItem: HistoryItem = {
+          type: 'User Token',
+          target: tokenTarget,
+          timestamp,
+          tokenData: JSON.parse(JSON.stringify(tokenData))
+        };
+        await addToHistory(historyItem);
+        tokenDockState.setToken(historyItem);
         
         window.history.replaceState({}, document.title, window.location.pathname);
       } catch (e) {
         console.error('Failed to parse token', e);
         error = 'Failed to parse token from URL';
+        tokenDockState.setError('Failed to parse token from URL');
       }
     }
     
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.has('error')) {
       error = `${urlParams.get('error')}: ${urlParams.get('error_description') || ''}`;
+      tokenDockState.setError(error);
     }
   }
 
@@ -356,6 +349,7 @@
     loading = true;
     error = null;
     result = null;
+    tokenDockState.setLoading({ type: 'App Token', target: resource });
     localStorage.setItem('last_resource', resource);
 
     try {
@@ -364,15 +358,25 @@
       
       if (res.ok) {
         result = data;
-        await addToHistory({ type: 'App Token', target: resource, timestamp: Date.now(), tokenData: JSON.parse(JSON.stringify(result!)) });
+        const issuedAt = Date.now();
+        const historyItem: HistoryItem = {
+          type: 'App Token',
+          target: resource,
+          timestamp: issuedAt,
+          tokenData: JSON.parse(JSON.stringify(data))
+        };
+        await addToHistory(historyItem);
+        tokenDockState.setToken(historyItem);
         toast.success("App token acquired successfully");
       } else {
         const errorMsg = data.details ? `${data.error}: ${data.details}` : data.error || 'Failed to fetch token';
         error = errorMsg;
+        tokenDockState.setError(errorMsg);
         toast.error(errorMsg);
       }
     } catch (err: any) {
       error = err.message;
+      tokenDockState.setError(err.message);
     } finally {
       loading = false;
     }
@@ -389,6 +393,7 @@
     loading = true;
     error = null;
     result = null;
+    tokenDockState.setLoading({ type: 'User Token', target: scopes });
 
     try {
       const service = $authServiceStore;
@@ -404,12 +409,22 @@
         scopes: tokenResponse.scopes,
       };
       
-      await addToHistory({ type: 'User Token', target: scopes, timestamp: Date.now(), tokenData: JSON.parse(JSON.stringify(result!)) });
+      const issuedAt = Date.now();
+      const historyItem: HistoryItem = {
+        type: 'User Token',
+        target: scopes,
+        timestamp: issuedAt,
+        tokenData: JSON.parse(JSON.stringify(result!))
+      };
+
+      await addToHistory(historyItem);
+      tokenDockState.setToken(historyItem);
       toast.success("User token acquired successfully");
     } catch (err: any) {
       console.error('Token acquisition failed', err);
       const message = err?.message ?? 'Failed to acquire token';
       error = message;
+      tokenDockState.setError(message);
       toast.error(message);
     } finally {
       loading = false;
@@ -461,6 +476,7 @@
   async function loadHistoryItem(item: HistoryItem) {
     if (item.tokenData) {
       result = item.tokenData;
+      tokenDockState.setToken(item);
       if (item.type === 'App Token') {
         activeTab = 'app-token';
         resource = item.target;
@@ -548,13 +564,6 @@
 
   function formatTimestamp(ts: number) {
     return new Date(ts).toLocaleString();
-  }
-
-  function scrollToOutput() {
-    const outputEl = document.getElementById('output');
-    if (outputEl) {
-      outputEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
   }
 
   function highlightRequiredInput(tab: FlowTab) {
@@ -775,7 +784,6 @@
     <div class="space-y-3">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <p class="text-sm font-semibold text-foreground">Choose a flow</p>
-                    <p class="text-xs text-muted-foreground">Start generating first; the decoded output will populate below.</p>
       </div>
       <Tabs.Root id="flows" value={activeTab} onValueChange={(v) => switchTab(v as FlowTab)} class="w-full">
         <Tabs.List class="grid w-full grid-cols-2 rounded-full bg-muted/60 p-1">
@@ -872,32 +880,41 @@
               </Card.Header>
               <Card.Content class="space-y-4">
                 <form onsubmit={(e) => { e.preventDefault(); handleAppSubmit(); }} class="space-y-4">
-                  <div class="space-y-2">
-                    <div class="flex items-center justify-between gap-2">
-                      <Label for="resource">Resource</Label>
-                      <span class="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">/.default will be applied</span>
+                  <div class="space-y-3">
+                    <div class="space-y-2">
+                      <div class="flex items-center justify-between gap-2">
+                        <Label for="resource">Resource</Label>
+                        <span class="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">/.default will be applied</span>
+                      </div>
+                      <Input
+                        type="text"
+                        id="resource"
+                        bind:value={resource}
+                        placeholder="https://graph.microsoft.com or api://client-id"
+                        required
+                        class={highlightTarget === 'resource'
+                          ? 'ring-2 ring-amber-500/70 ring-offset-2 ring-offset-background bg-gradient-to-r from-amber-200/70 via-orange-100/70 to-transparent shadow-[0_0_0_10px_rgba(251,191,36,0.35),0_14px_30px_-10px_rgba(249,115,22,0.45)] animate-[pulse_1.2s_ease-in-out_0s_4]'
+                          : ''}
+                      />
                     </div>
-                    <Input
-                      type="text"
-                      id="resource"
-                      bind:value={resource}
-                      placeholder="https://graph.microsoft.com or api://client-id"
-                      required
-                      class={highlightTarget === 'resource'
-                        ? 'ring-2 ring-amber-500/70 ring-offset-2 ring-offset-background bg-gradient-to-r from-amber-200/70 via-orange-100/70 to-transparent shadow-[0_0_0_10px_rgba(251,191,36,0.35),0_14px_30px_-10px_rgba(249,115,22,0.45)] animate-[pulse_1.2s_ease-in-out_0s_4]'
-                        : ''}
-                    />
-                    <div class="flex flex-wrap gap-2">
-                      {#each resourcePresets as preset}
-                        <Button type="button" size="sm" variant="secondary" class="gap-2" onclick={() => applyResourcePreset(preset.value)}>
-                          <ShieldCheck class="h-3.5 w-3.5" />
-                          {preset.label}
-                        </Button>
-                      {/each}
+                    
+                    <div class="space-y-1.5">
+                      <Label class="text-xs text-muted-foreground">Presets</Label>
+                      <div class="flex flex-wrap gap-2">
+                        {#each resourcePresets as preset}
+                          <button 
+                            type="button" 
+                            class="inline-flex items-center rounded-full border bg-background px-2.5 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                            onclick={() => applyResourcePreset(preset.value)}
+                          >
+                            {preset.label}
+                          </button>
+                        {/each}
+                      </div>
                     </div>
-                    <div class="rounded-lg border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-                      Tokens are issued via your confidential client credentials and stay in the browser unless you copy them.
-                    </div>
+                  </div>
+                  <div class="rounded-lg border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                    Tokens are issued via your confidential client credentials and stay in the browser unless you copy them.
                   </div>
                   <Button type="submit" class="w-full gap-2" disabled={loading}>
                     {#if loading}
@@ -928,6 +945,17 @@
               
               {#if hasResult}
                 <div class="flex flex-wrap items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    class="h-8 gap-2"
+                    onclick={() => copyToClipboard(result?.accessToken || '')}
+                    disabled={!hasResult}
+                    title="Copy access token"
+                  >
+                    <Copy class="h-3.5 w-3.5" />
+                    {copied ? 'Copied' : 'Copy'}
+                  </Button>
                   <Button 
                     size="sm" 
                     variant={currentStatus?.label === 'Expired' || currentStatus?.label === 'Expiring' ? 'default' : 'ghost'} 
@@ -938,12 +966,6 @@
                   >
                     <Play class="h-3.5 w-3.5" />
                     Reissue
-                  </Button>
-
-                  <Separator orientation="vertical" class="h-4" />
-                  <Button size="sm" variant="outline" class="h-8 gap-2" onclick={() => isFullScreen = true} title="Open in full screen view">
-                    <Maximize2 class="h-3.5 w-3.5" />
-                    Expanded View
                   </Button>
                   <Button
                     size="sm"
@@ -961,33 +983,32 @@
                       Favorite
                     {/if}
                   </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    class="h-8 gap-2"
+                    onclick={() => (tokenVisible = !tokenVisible)}
+                    disabled={!hasResult}
+                    title={tokenVisible ? 'Hide token' : 'Show token'}
+                  >
+                    {#if tokenVisible}
+                      <EyeOff class="h-3.5 w-3.5" />
+                      Hide
+                    {:else}
+                      <Eye class="h-3.5 w-3.5" />
+                      Show
+                    {/if}
+                  </Button>
+                  <Separator orientation="vertical" class="h-4" />
+                  <Button size="sm" variant="outline" class="h-8 gap-2" onclick={() => tokenDockState.openFullScreen()} title="Open in full screen view">
+                    <Maximize2 class="h-3.5 w-3.5" />
+                    Full Screen
+                  </Button>
                 </div>
               {/if}
             </div>
 
-            <div class="flex flex-wrap items-center gap-2 pt-2">
-              <Badge variant={statusTone} class="px-2 py-0.5 text-xs font-medium">{statusLabel}</Badge>
-              {#if lastRun}
-                <Badge variant="outline" class="gap-1.5 px-2 py-0.5 text-xs font-normal text-muted-foreground">
-                  <Clock3 class="h-3 w-3" />
-                  {formatTimestamp(lastRun.timestamp)}
-                </Badge>
-              {/if}
-              {#if hasResult}
-                <Separator orientation="vertical" class="h-4" />
-                <Badge variant="outline" class="px-2 py-0.5 text-xs font-normal text-muted-foreground">{resultKind || activeFlowLabel}</Badge>
-                <Badge variant="outline" class="px-2 py-0.5 text-xs font-normal text-muted-foreground">{result?.tokenType || 'Bearer'}</Badge>
-                {#if showResultScopes}
-                  <Badge variant="outline" class="px-2 py-0.5 text-xs font-normal text-muted-foreground">{scopeCount} {scopeCount === 1 ? 'scope' : 'scopes'}</Badge>
-                {/if}
-                {#if audienceClaim}
-                  <Badge variant="outline" class="max-w-[200px] truncate px-2 py-0.5 text-xs font-normal text-muted-foreground" title={audienceClaim}>Aud: {audienceClaim}</Badge>
-                {/if}
-                {#if result?.expiresOn}
-                  <TokenStatusBadge expiresOn={result.expiresOn} class="px-2 py-0.5 text-xs font-normal" />
-                {/if}
-              {/if}
-            </div>
+
           </Card.Header>
 
           <Card.Content class="space-y-5 pt-2">
@@ -1051,34 +1072,46 @@
                   </div>
                   <div class="mt-1">
                     {#if result?.expiresOn}
-                      <TokenStatusBadge expiresOn={result.expiresOn} textOnly showIcon={false} class="text-xs text-muted-foreground" />
+                      <TokenStatusBadge expiresOn={result.expiresOn} />
                     {:else}
                       <p class="text-xs text-muted-foreground">Lifetime not provided</p>
                     {/if}
                   </div>
                 </div>
-              <div class="rounded-lg border bg-muted/25 p-4">
-                <p class="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Scopes / audiences</p>
-                <ScrollArea class="mt-2 h-[110px] rounded-md border bg-background/50 px-2 py-2">
-                  <div class="flex flex-wrap gap-1">
-                    {#if showResultScopes}
-                      {#each resultScopes as scope}
-                        <Badge variant="outline" class="font-mono text-[11px] leading-4 break-all" title={scope}>{scope}</Badge>
-                      {/each}
-                    {:else if audienceClaim}
-                      <Badge variant="outline" class="font-mono text-[11px] leading-4 break-all" title={audienceClaim}>{audienceClaim}</Badge>
-                    {:else}
-                      <span class="text-xs text-muted-foreground">No scopes returned</span>
-                    {/if}
+              {#if showResultScopes}
+                <div class="rounded-lg border bg-muted/25 p-4 md:col-span-2 xl:col-span-2">
+                  <div class="flex items-center justify-between">
+                    <p class="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Scopes</p>
+                    <Badge variant="outline" class="text-[10px] h-5 px-1.5 font-normal text-muted-foreground">{scopeCount}</Badge>
                   </div>
-                </ScrollArea>
-              </div>
+                  <ScrollArea class="mt-2 h-[110px] rounded-md border bg-background/50 px-2 py-2">
+                    <div class="flex flex-wrap gap-1.5">
+                      {#each resultScopes as scope}
+                        <Badge variant="secondary" class="font-mono text-[11px] leading-4 break-all hover:bg-secondary/80 transition-colors" title={scope}>{scope}</Badge>
+                      {/each}
+                    </div>
+                  </ScrollArea>
+                </div>
+              {/if}
+
+              {#if audienceClaim}
+                <div class="rounded-lg border bg-muted/25 p-4 md:col-span-2 xl:col-span-2">
+                  <p class="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Audience</p>
+                  <div class="mt-2 flex items-start gap-2">
+                    <div class="rounded-md border bg-background/50 px-3 py-2 font-mono text-xs text-foreground/90 break-all w-full">
+                      {audienceClaim}
+                    </div>
+                    <Button variant="ghost" size="icon" class="h-8 w-8 shrink-0" onclick={() => copyToClipboard(audienceClaim)} title="Copy audience">
+                      <Copy class="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              {/if}
             </div>
 
               <div class="grid gap-4 lg:grid-cols-[1.15fr_0.9fr]">
                 <div
                   class="space-y-2 rounded-xl border bg-muted/15 p-4"
-                  bind:this={tokenSectionEl}
                 >
                   <div class="flex flex-wrap items-center justify-between gap-3">
                     <div>
@@ -1199,156 +1232,3 @@
     favoriteDraft = null;
   }}
 />
-
-
-
-<div class="pointer-events-none fixed inset-x-3 bottom-3 z-50 md:inset-auto md:bottom-6 md:right-6 md:w-[420px]">
-  <div class="pointer-events-auto overflow-hidden rounded-2xl border bg-background/95 shadow-2xl backdrop-blur supports-[backdrop-filter]:bg-background/90">
-    <div class="flex items-center justify-between gap-3 border-b bg-muted/40 px-4 py-3">
-
-      <div class="flex items-center gap-2">
-        <Badge variant="secondary" class="gap-1 text-[11px]">Token output</Badge>
-        <span class="text-xs text-muted-foreground truncate">
-          {#if hasResult}
-            {resultKind || activeFlowLabel}
-          {:else if error}
-            Error
-          {:else if loading}
-            Issuing...
-          {:else}
-            Not issued yet
-          {/if}
-        </span>
-      </div>
-      <div class="flex items-center gap-1.5">
-        <Button variant="ghost" size="icon" class="h-8 w-8" onclick={scrollToOutput} title="Jump to full output">
-          <Link2 class="h-4 w-4 -rotate-45" />
-        </Button>
-        {#if hasResult}
-          <Button variant="ghost" size="icon" class="h-8 w-8" onclick={() => isFullScreen = true} title="Maximize view">
-            <Maximize2 class="h-4 w-4" />
-          </Button>
-        {/if}
-        <Button
-          variant="ghost"
-          size="icon"
-          class="h-8 w-8"
-          onclick={() => floatingExpanded = !floatingExpanded}
-          aria-expanded={floatingExpanded}
-          aria-label={floatingExpanded ? 'Collapse floating token output' : 'Expand floating token output'}
-          title={floatingExpanded ? 'Collapse' : 'Expand'}
-        >
-          <ChevronDown class={`h-4 w-4 transition-transform ${floatingExpanded ? 'rotate-180' : ''}`} />
-        </Button>
-      </div>
-    </div>
-
-    {#if floatingExpanded}
-      <div class="space-y-3 px-4 py-3">
-        <div class="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-          <Badge variant="outline" class="px-2 py-1 font-normal">
-            {#if hasResult}
-              {resultKind || 'Token'}
-            {:else if error}
-              Error
-            {:else}
-              Awaiting token
-            {/if}
-          </Badge>
-          {#if hasResult && result?.expiresOn}
-            <TokenStatusBadge expiresOn={result.expiresOn} class="px-2 py-1 font-normal" />
-          {/if}
-          {#if showResultScopes}
-            <Badge variant="outline" class="px-2 py-1 font-normal">{scopeCount} {scopeCount === 1 ? 'scope' : 'scopes'}</Badge>
-          {/if}
-        </div>
-
-        <div class="rounded-lg border bg-muted/20 p-3">
-          {#if hasResult && tokenVisible}
-            <div class="line-clamp-4 whitespace-pre-wrap break-all font-mono text-[11px] leading-relaxed text-foreground/90">
-              {result?.accessToken}
-            </div>
-          {:else if hasResult && !tokenVisible}
-            <div class="flex items-center justify-between gap-2 text-sm text-muted-foreground">
-              <span>Token hidden.</span>
-              <Button size="sm" variant="ghost" class="gap-1 px-2" onclick={() => tokenVisible = true} title="Show token">
-                <Eye class="h-4 w-4" />
-                Show
-              </Button>
-            </div>
-          {:else if error}
-            <div class="flex items-start gap-2 text-xs text-destructive">
-              <AlertTriangle class="h-4 w-4 shrink-0" />
-              <span class="line-clamp-3 break-all leading-relaxed">{error}</span>
-            </div>
-          {:else if loading}
-            <div class="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 class="h-4 w-4 animate-spin" />
-              <span>Issuing token...</span>
-            </div>
-          {:else}
-            <div class="space-y-2 text-sm text-muted-foreground">
-              <p class="leading-relaxed">Issue an app or user token and it will stay docked here for quick copy.</p>
-              <Button size="sm" variant="default" class="gap-2" onclick={() => scrollToFlows({ highlight: true })}>
-                <Play class="h-4 w-4" />
-                Start generating
-              </Button>
-            </div>
-          {/if}
-        </div>
-
-          {#if hasResult}
-            <div class="flex flex-wrap items-center gap-2">
-              <Button size="sm" variant="secondary" class="gap-2" onclick={() => copyToClipboard(result?.accessToken || '')} disabled={!hasToken} title="Copy access token">
-                <Copy class="h-4 w-4" />
-                {copied ? 'Copied' : 'Copy token'}
-            </Button>
-              <Button 
-                size="sm" 
-                variant={currentStatus?.label === 'Expired' || currentStatus?.label === 'Expiring' ? 'default' : 'ghost'} 
-                class={`gap-2 ${currentStatus?.label === 'Expired' || currentStatus?.label === 'Expiring' ? 'shadow-[0_0_15px_-3px_oklch(var(--primary)/0.6)] hover:shadow-[0_0_20px_-3px_oklch(var(--primary)/0.7)] transition-all' : ''}`}
-                onclick={refreshCurrent}
-                title="Reissue this token"
-              >
-                <Play class="h-4 w-4" />
-                Reissue
-              </Button>
-              <Button
-                size="sm"
-                variant={currentFavorited ? "secondary" : "ghost"}
-                class="gap-2"
-                onclick={() => (currentFavorited ? removeFavoriteFromHistory(currentFavoriteSeed!) : startFavoriteFromCurrent())}
-                disabled={!currentFavoriteSeed}
-                title={currentFavorited ? "Remove from favorites" : "Add to favorites"}
-              >
-                {#if currentFavorited}
-                  <StarOff class="h-4 w-4" />
-                  Remove Favorite
-                {:else}
-                  <Star class="h-4 w-4" />
-                  Favorite
-                {/if}
-              </Button>
-              <Button size="sm" variant="ghost" class="gap-2" onclick={() => tokenVisible = !tokenVisible} title={tokenVisible ? 'Hide token' : 'Show token'}>
-                {#if tokenVisible}
-                  <EyeOff class="h-4 w-4" />
-                  Hide
-              {:else}
-                <Eye class="h-4 w-4" />
-                Show
-              {/if}
-            </Button>
-          </div>
-        {/if}
-      </div>
-    {/if}
-  </div>
-</div>
-
-{#if isFullScreen && hasResult}
-  <TokenFullScreenView 
-    {result} 
-    {decodedClaims} 
-    onClose={() => isFullScreen = false} 
-  />
-{/if}

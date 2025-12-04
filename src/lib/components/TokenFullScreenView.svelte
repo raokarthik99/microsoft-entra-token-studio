@@ -1,16 +1,22 @@
 <script lang="ts">
-  import { X, Copy, Check, Search, Filter, Maximize2, Minimize2, FileJson, Shield, Clock, User } from "@lucide/svelte";
+  import { goto } from "$app/navigation";
+  import { X, Copy, Check, FileJson, Shield, User, Eye, EyeOff, Play, Star, StarOff, Maximize2, ShieldCheck, Clock3, AlertTriangle, Info } from "@lucide/svelte";
   import { Button } from "$lib/shadcn/components/ui/button";
   import { Badge } from "$lib/shadcn/components/ui/badge";
   import { ScrollArea } from "$lib/shadcn/components/ui/scroll-area";
   import { Separator } from "$lib/shadcn/components/ui/separator";
-  import { Input } from "$lib/shadcn/components/ui/input";
   import * as Card from "$lib/shadcn/components/ui/card";
   import DecodedClaims from "./DecodedClaims.svelte";
   import { fade, fly } from "svelte/transition";
   import { toast } from "svelte-sonner";
 
   import TokenStatusBadge from "./TokenStatusBadge.svelte";
+  import FavoriteFormSheet from "$lib/components/FavoriteFormSheet.svelte";
+  import { favoritesState } from "$lib/states/favorites.svelte";
+  import { tokenDockState } from "$lib/states/token-dock.svelte";
+  import { getTokenStatus } from "$lib/utils";
+  import { time } from "$lib/stores/time";
+  import type { FavoriteItem, HistoryItem } from "$lib/types";
 
   let { 
     result = null, 
@@ -22,8 +28,21 @@
     onClose: () => void 
   }>();
 
+  let favoriteOpen = $state(false);
+  let favoriteDraft: HistoryItem | null = $state(null);
   let copiedToken = $state(false);
   let showRawToken = $state(true);
+
+  const activeToken = $derived(tokenDockState.token);
+  const hasToken = $derived(Boolean(result?.accessToken));
+  const favoriteTags = $derived(
+    Array.from(new Set(favoritesState.items.flatMap((fav) => fav.tags ?? []))).filter(Boolean)
+  );
+  const currentFavorited = $derived(
+    activeToken
+      ? favoritesState.items.some((fav) => fav.type === activeToken.type && fav.target === activeToken.target)
+      : false
+  );
 
   async function copyToken() {
     if (!result?.accessToken) return;
@@ -38,52 +57,171 @@
     }
   }
 
-  // Derived values for header
+  async function copyToClipboard(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("Copied to clipboard");
+    } catch (err) {
+      console.error('Failed to copy', err);
+      toast.error("Failed to copy to clipboard");
+    }
+  }
+
+  async function reissueCurrent() {
+    const context = activeToken ?? tokenDockState.context;
+    if (!context?.type || !context?.target) return;
+
+    const params = new URLSearchParams();
+    if (context.type === 'App Token') {
+      params.set('tab', 'app-token');
+      params.set('resource', context.target);
+    } else {
+      params.set('tab', 'user-token');
+      params.set('scopes', context.target);
+    }
+    params.set('autorun', 'true');
+
+    tokenDockState.closeFullScreen();
+    await goto(`/?${params.toString()}`);
+  }
+
+  function toggleVisibility() {
+    showRawToken = !showRawToken;
+  }
+
+  type FavoriteFormValue = Omit<FavoriteItem, 'id' | 'timestamp' | 'createdAt' | 'useCount'> & {
+    useCount?: number;
+    createdAt?: number;
+    timestamp?: number;
+  };
+
+  function startFavorite() {
+    if (!activeToken) return;
+    favoriteDraft = activeToken;
+    favoriteOpen = true;
+  }
+
+  async function saveFavorite(payload: FavoriteFormValue) {
+    if (!favoriteDraft) return;
+    try {
+      await favoritesState.addFromHistory(favoriteDraft, payload);
+      await favoritesState.load();
+      toast.success('Added to favorites');
+    } catch (err) {
+      console.error('Failed to add favorite', err);
+      toast.error('Could not add to favorites');
+    } finally {
+      favoriteDraft = null;
+      favoriteOpen = false;
+    }
+  }
+
+  async function removeFavorite() {
+    if (!activeToken) return;
+    const match = favoritesState.items.find(
+      (fav) => fav.type === activeToken.type && fav.target === activeToken.target
+    );
+    if (!match) return;
+    await favoritesState.delete(match);
+    toast.success('Removed from favorites');
+  }
+
+  // Derived values
   const resultKind = $derived(result ? (result.scopes?.length ? 'User Token' : 'App Token') : 'Token');
-  const scopeCount = $derived(result?.scopes?.length || 0);
-  const expiresOnDate = $derived(result?.expiresOn ? new Date(result.expiresOn) : null);
+  const currentStatus = $derived(result?.expiresOn ? getTokenStatus(new Date(result.expiresOn), $time) : null);
+  const issuedAtDate = $derived(decodedClaims?.iat ? new Date(Number((decodedClaims as any).iat) * 1000) : null);
+  const audienceClaim = $derived((() => {
+    if (!decodedClaims || !(decodedClaims as any).aud) return null;
+    const aud = (decodedClaims as any).aud;
+    return Array.isArray(aud) ? aud.join(', ') : String(aud);
+  })());
+  
+  const resultScopes = $derived((() => {
+    if (!result) return [];
+    if (result.scopes?.length) return result.scopes;
+    if (result.scope) return result.scope.split(' ').filter(Boolean);
+    return [];
+  })());
+  
+  const showResultScopes = $derived(resultKind !== 'App Token' && resultScopes.length > 0);
+  const scopeCount = $derived(resultScopes.length);
 
 </script>
 
 <div class="fixed inset-0 z-50 flex flex-col bg-background/95 backdrop-blur-sm supports-[backdrop-filter]:bg-background/90" transition:fade={{ duration: 200 }}>
   <!-- Header -->
-  <header class="flex items-center justify-between border-b bg-background/50 px-6 py-3 shadow-sm">
+  <header class="flex flex-col gap-3 border-b bg-background/50 px-6 py-3 shadow-sm md:flex-row md:items-center md:justify-between shrink-0">
     <div class="flex items-center gap-4">
       <div class="flex items-center gap-3">
-        <div class="rounded-full bg-primary/10 p-2">
-          <Shield class="h-5 w-5 text-primary" />
-        </div>
         <div>
-          <h2 class="text-lg font-semibold leading-none tracking-tight">Token Inspector</h2>
+          <h2 class="text-lg font-semibold leading-none tracking-tight">Token result</h2>
         </div>
       </div>
       
-      <Separator orientation="vertical" class="h-8" />
-      
-      <div class="flex items-center gap-2">
-        <Badge variant="secondary" class="h-6 gap-1.5 px-2.5 font-medium">
-          {resultKind}
-        </Badge>
-        <Badge variant="outline" class="h-6 gap-1.5 px-2.5 font-normal text-muted-foreground">
-          {result?.tokenType || 'Bearer'}
-        </Badge>
-        {#if result?.expiresOn}
-          <TokenStatusBadge expiresOn={result.expiresOn} class="h-6 gap-1.5 px-2.5 font-normal text-muted-foreground" />
-        {/if}
-      </div>
+      <Separator orientation="vertical" class="h-8 hidden md:block" />
     </div>
 
-    <div class="flex items-center gap-2">
-      <Button variant="outline" size="sm" class="gap-2" onclick={copyToken}>
+    <div class="flex flex-wrap items-center justify-end gap-2">
+      <Button
+        variant="secondary"
+        size="sm"
+        class="gap-2"
+        onclick={copyToken}
+        disabled={!hasToken}
+        title="Copy access token"
+      >
         {#if copiedToken}
           <Check class="h-4 w-4 text-green-500" />
           Copied
         {:else}
           <Copy class="h-4 w-4" />
-          Copy Token
+          Copy
         {/if}
       </Button>
-      <Separator orientation="vertical" class="h-6" />
+      <Button
+        size="sm"
+        variant={currentStatus?.label === 'Expired' || currentStatus?.label === 'Expiring' ? 'default' : 'ghost'}
+        class={`gap-2 ${currentStatus?.label === 'Expired' || currentStatus?.label === 'Expiring' ? 'shadow-[0_0_15px_-3px_oklch(var(--primary)/0.6)] hover:shadow-[0_0_20px_-3px_oklch(var(--primary)/0.7)] transition-all' : ''}`}
+        onclick={reissueCurrent}
+        disabled={!activeToken}
+        title="Reissue this token"
+      >
+        <Play class="h-4 w-4" />
+        Reissue
+      </Button>
+      <Button
+        size="sm"
+        variant={currentFavorited ? 'secondary' : 'ghost'}
+        class="gap-2"
+        onclick={() => (currentFavorited ? removeFavorite() : startFavorite())}
+        disabled={!activeToken}
+        title={currentFavorited ? 'Remove from favorites' : 'Add to favorites'}
+      >
+        {#if currentFavorited}
+          <StarOff class="h-4 w-4" />
+          Remove Favorite
+        {:else}
+          <Star class="h-4 w-4" />
+          Favorite
+        {/if}
+      </Button>
+      <Button
+        size="sm"
+        variant="ghost"
+        class="gap-2"
+        onclick={toggleVisibility}
+        disabled={!hasToken}
+        title={showRawToken ? 'Hide token' : 'Show token'}
+      >
+        {#if showRawToken}
+          <EyeOff class="h-4 w-4" />
+          Hide
+        {:else}
+          <Eye class="h-4 w-4" />
+          Show
+        {/if}
+      </Button>
+      <Separator orientation="vertical" class="hidden h-6 md:block" />
       <Button variant="ghost" size="icon" class="h-9 w-9" onclick={onClose} title="Exit full screen (Esc)">
         <X class="h-5 w-5" />
       </Button>
@@ -92,90 +230,167 @@
 
   <!-- Main Content -->
   <div class="flex-1 overflow-hidden p-6">
-    <div class="grid h-full gap-6 lg:grid-cols-[350px_1fr] xl:grid-cols-[400px_1fr]">
+    <div class="flex flex-col h-full gap-6">
       
-      <!-- Left Column: Raw Token & Meta -->
-      <div class="flex flex-col gap-6 overflow-hidden" transition:fly={{ x: -20, duration: 300, delay: 100 }}>
-        <!-- Raw Token Card -->
-        <Card.Root class="flex flex-col overflow-hidden border-primary/20 shadow-md flex-1">
-          <Card.Header class="bg-muted/30 px-4 py-3">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <FileJson class="h-4 w-4 text-muted-foreground" />
-                <h3 class="text-sm font-medium">Raw Access Token</h3>
-              </div>
-              <span class="text-[10px] text-muted-foreground font-mono">
-                {result?.accessToken?.length || 0} chars
-              </span>
-            </div>
-          </Card.Header>
-          <div class="flex-1 overflow-hidden bg-muted/10 relative group">
-            <ScrollArea class="h-full w-full p-4">
-              <pre class="whitespace-pre-wrap break-all font-mono text-xs leading-relaxed text-muted-foreground transition-colors group-hover:text-foreground/90">{result?.accessToken}</pre>
-            </ScrollArea>
+      <!-- Top Section: Summary Cards -->
+      <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4 shrink-0">
+        <div class="rounded-lg border bg-muted/25 p-4">
+          <p class="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Type</p>
+          <div class="text-sm font-semibold text-foreground">{resultKind || 'Token'}</div>
+          <p class="text-xs text-muted-foreground">{result?.tokenType || 'Bearer'}</p>
+        </div>
+        <div class="rounded-lg border bg-muted/25 p-4">
+          <p class="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Issued</p>
+          <div class="text-sm font-semibold text-foreground">
+            {#if issuedAtDate}
+              {issuedAtDate.toLocaleString()}
+            {:else}
+              Unknown
+            {/if}
           </div>
-        </Card.Root>
-
-        <!-- Scopes / Audience Card -->
-        <Card.Root class="overflow-hidden border-border/60 shadow-sm shrink-0">
-          <Card.Header class="bg-muted/30 px-4 py-3">
-             <div class="flex items-center gap-2">
-                <User class="h-4 w-4 text-muted-foreground" />
-                <h3 class="text-sm font-medium">Scopes & Audience</h3>
+          <p class="text-xs text-muted-foreground">{issuedAtDate ? 'Derived from iat claim' : 'No iat claim'}</p>
+        </div>
+        <div class="rounded-lg border bg-muted/25 p-4">
+          <p class="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Expiry</p>
+          <div class="text-sm font-semibold text-foreground">
+            {#if result?.expiresOn}
+              {new Date(result.expiresOn).toLocaleString()}
+            {:else}
+              Unknown
+            {/if}
+          </div>
+          <div class="mt-1">
+            {#if result?.expiresOn}
+              <TokenStatusBadge expiresOn={result.expiresOn} />
+            {:else}
+              <p class="text-xs text-muted-foreground">Lifetime not provided</p>
+            {/if}
+          </div>
+        </div>
+        
+        <!-- Scopes / Audience (Merged into top grid for efficiency) -->
+         {#if showResultScopes}
+            <div class="rounded-lg border bg-muted/25 p-4">
+               <div class="flex items-center justify-between">
+                <p class="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Scopes</p>
+                <Badge variant="outline" class="text-[10px] h-5 px-1.5 font-normal text-muted-foreground">{scopeCount}</Badge>
               </div>
-          </Card.Header>
-          <Card.Content class="p-4">
-            <div class="space-y-4">
-              {#if result?.scopes?.length}
-                <div class="space-y-2">
-                  <span class="text-xs font-medium text-muted-foreground uppercase tracking-wider">Scopes ({result.scopes.length})</span>
-                  <div class="flex flex-wrap gap-1.5">
-                    {#each result.scopes as scope}
-                      <Badge variant="secondary" class="font-mono text-[10px]">{scope}</Badge>
-                    {/each}
-                  </div>
+              <ScrollArea class="mt-2 h-[42px] rounded-md border bg-background/50 px-2 py-1">
+                <div class="flex flex-wrap gap-1.5">
+                  {#each resultScopes as scope}
+                    <Badge variant="secondary" class="font-mono text-[10px] leading-4 break-all hover:bg-secondary/80 transition-colors" title={scope}>{scope}</Badge>
+                  {/each}
                 </div>
-              {:else if resultKind === 'App Token'}
-                <div class="space-y-2">
-                  <span class="text-xs font-medium text-muted-foreground uppercase tracking-wider">Scopes</span>
-                  <div class="text-xs text-muted-foreground italic">
-                    Scopes are not applicable for app token based flows.
-                  </div>
-                </div>
-              {/if}
-              
-              {#if decodedClaims?.aud}
-                <div class="space-y-2">
-                  <span class="text-xs font-medium text-muted-foreground uppercase tracking-wider">Audience</span>
-                  <div class="font-mono text-xs text-foreground/90 break-all bg-muted/30 p-2 rounded border">
-                    {decodedClaims.aud}
-                  </div>
-                </div>
-              {/if}
+              </ScrollArea>
             </div>
-          </Card.Content>
-        </Card.Root>
+         {:else if audienceClaim}
+            <div class="rounded-lg border bg-muted/25 p-4">
+              <p class="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Audience</p>
+              <div class="mt-2 flex items-start gap-2">
+                <div class="rounded-md border bg-background/50 px-3 py-1 font-mono text-xs text-foreground/90 break-all w-full truncate">
+                  {audienceClaim}
+                </div>
+                <Button variant="ghost" size="icon" class="h-6 w-6 shrink-0" onclick={() => copyToClipboard(audienceClaim)} title="Copy audience">
+                  <Copy class="h-3 w-3" />
+                </Button>
+              </div>
+            </div>
+         {:else}
+            <!-- Spacer if neither scopes nor audience -->
+            <div class="hidden xl:block"></div>
+         {/if}
       </div>
 
-      <!-- Right Column: Decoded Claims -->
-      <div class="flex flex-col overflow-hidden rounded-xl border bg-card shadow-lg" transition:fly={{ y: 20, duration: 300, delay: 200 }}>
-        <div class="flex-1 overflow-hidden p-1">
-           <!-- We wrap DecodedClaims in a container that provides the scrolling context if needed, 
-                though DecodedClaims has its own internal structure. 
-                We might want to customize DecodedClaims to be more "full screen friendly" 
-                or just let it expand. -->
-           <div class="h-full overflow-y-auto p-4 custom-scrollbar">
-             <DecodedClaims claims={decodedClaims} />
+      <!-- Bottom Section: Token & Claims -->
+      <div class="grid gap-6 lg:grid-cols-2 flex-1 min-h-0">
+        
+        <!-- Raw Token -->
+        <div class="flex flex-col overflow-hidden rounded-xl border bg-muted/15 p-4">
+          <div class="flex flex-wrap items-center justify-between gap-3 mb-3 shrink-0">
+            <div>
+              <p class="text-sm font-semibold">Access token</p>
+              <p class="text-xs text-muted-foreground">Raw token is kept client-side for inspection and copy.</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <Button variant="ghost" size="sm" class="gap-2" onclick={toggleVisibility} title={showRawToken ? 'Hide token' : 'Show token'}>
+                {#if showRawToken}
+                  <EyeOff class="h-4 w-4" />
+                  Hide
+                {:else}
+                  <Eye class="h-4 w-4" />
+                  Show
+                {/if}
+              </Button>
+              <Button variant="secondary" size="sm" class="gap-2" onclick={copyToken} title="Copy access token">
+                <Copy class="h-4 w-4" />
+                {copiedToken ? 'Copied' : 'Copy'}
+              </Button>
+            </div>
+          </div>
+          <div class="flex-1 overflow-hidden rounded-lg border bg-muted/40 relative">
+             {#if showRawToken}
+              <ScrollArea class="h-full w-full p-4">
+                <pre class="whitespace-pre-wrap break-all font-mono text-xs leading-relaxed text-foreground/90">{result?.accessToken}</pre>
+              </ScrollArea>
+            {:else}
+              <div class="flex h-full flex-col items-center justify-center gap-3 p-6 text-sm text-muted-foreground">
+                <EyeOff class="h-5 w-5" />
+                <div class="text-center leading-relaxed">
+                  Token is hidden. Use the Show action to reveal it again.
+                </div>
+                <Button size="sm" variant="secondary" class="gap-2" onclick={toggleVisibility}>
+                  <Eye class="h-4 w-4" />
+                  Show token
+                </Button>
+              </div>
+            {/if}
+          </div>
+        </div>
+
+        <!-- Decoded Claims -->
+        <div class="flex flex-col overflow-hidden rounded-xl border bg-muted/10 p-4">
+           <div class="mb-3 shrink-0">
+             <p class="text-sm font-semibold">Decoded Claims</p>
+             <p class="text-xs text-muted-foreground">JWT claims parsed from the access token.</p>
+           </div>
+           <div class="flex-1 overflow-hidden rounded-lg border bg-background/50">
+             <!-- DecodedClaims component handles its own scrolling usually, but we want to constrain it -->
+             <div class="h-full overflow-y-auto custom-scrollbar p-4">
+                <DecodedClaims claims={decodedClaims} />
+             </div>
            </div>
         </div>
+
       </div>
 
     </div>
   </div>
+
+  <FavoriteFormSheet
+    bind:open={favoriteOpen}
+    mode="create"
+    title="Save to favorites"
+    favorite={favoriteDraft
+      ? {
+          id: 'draft',
+          type: favoriteDraft.type,
+          target: favoriteDraft.target,
+          timestamp: favoriteDraft.timestamp,
+          tokenData: favoriteDraft.tokenData,
+          createdAt: favoriteDraft.timestamp,
+          useCount: 1
+        }
+      : undefined}
+    existingTags={favoriteTags}
+    onSave={saveFavorite}
+    onClose={() => {
+      favoriteOpen = false;
+      favoriteDraft = null;
+    }}
+  />
 </div>
 
 <style>
-  /* Custom scrollbar for the claims area if needed */
   .custom-scrollbar::-webkit-scrollbar {
     width: 8px;
   }
