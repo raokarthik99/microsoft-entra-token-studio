@@ -754,7 +754,7 @@
                   </div>
                   
                   <!-- Identity Indicator -->
-                  <div class="flex items-center justify-between rounded-lg border bg-background px-3 py-2.5">
+                  <div class="flex items-center justify-between rounded-lg border px-3 py-2.5 {activeAccount ? 'bg-background border-border' : 'bg-amber-500/10 border-amber-500/20'}">
                     {#if activeAccount}
                       <div class="flex items-center gap-2 text-sm">
                         <User class="h-4 w-4 text-muted-foreground" />
@@ -771,9 +771,9 @@
                         Switch account
                       </button>
                     {:else}
-                      <div class="flex items-center gap-2 text-sm">
-                        <LogIn class="h-4 w-4 text-muted-foreground" />
-                        <span class="text-muted-foreground">Click Issue token — we'll help you sign in</span>
+                      <div class="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400">
+                        <Info class="h-4 w-4" />
+                        <span class="font-medium">No active session—clicking <span class="font-bold">Issue token</span> will launch sign-in</span>
                       </div>
                     {/if}
                   </div>
