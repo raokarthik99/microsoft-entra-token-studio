@@ -1,5 +1,5 @@
 import { json } from '@sveltejs/kit';
-import { clientApp, asResourceScope, missingEnvKeys } from '$lib/server/msal';
+import { acquireAppToken, asResourceScope, missingEnvKeys, getAuthMethod } from '$lib/server/msal';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ url }) => {
@@ -10,21 +10,24 @@ export const GET: RequestHandler = async ({ url }) => {
   }
 
   const missing = missingEnvKeys();
-  if (missing.length || !clientApp) {
+  if (missing.length) {
     return json(
       {
         error: 'Configuration incomplete',
         code: 'missing_env',
         missing,
-        hint: 'Set TENANT_ID, CLIENT_ID, CLIENT_SECRET and restart the dev server.',
+        setupRequired: true,
+        hint: 'Set TENANT_ID, CLIENT_ID, and either CLIENT_SECRET or AZURE_KEYVAULT_URI+AZURE_KEYVAULT_CERT_NAME, then restart the dev server.',
       },
       { status: 500 },
     );
   }
 
   const scope = asResourceScope(resource);
+  const authMethod = getAuthMethod();
+
   try {
-    const token = await clientApp.acquireTokenByClientCredential({ scopes: [scope] });
+    const token = await acquireAppToken([scope]);
     if (!token) {
       throw new Error('Failed to acquire token');
     }
@@ -33,16 +36,25 @@ export const GET: RequestHandler = async ({ url }) => {
       tokenType: token.tokenType,
       expiresOn: token.expiresOn ? token.expiresOn.toISOString() : undefined,
       accessToken: token.accessToken,
+      authMethod, // Include auth method in response for transparency
     });
   } catch (err: any) {
     console.error('Failed to acquire app token', err);
     const message = err.errorMessage || err.message || 'Unknown error';
     const code = err.errorCode || 'token_acquisition_failed';
+    
+    // Provide more helpful error messages based on auth method
+    let details = message;
+    if (authMethod === 'certificate' && message.includes('certificate')) {
+      details = `Certificate authentication error: ${message}. Check Key Vault configuration and permissions.`;
+    }
+    
     return json(
       {
         error: 'Failed to acquire app token',
-        details: message,
+        details,
         code,
+        authMethod,
       },
       { status: 500 },
     );

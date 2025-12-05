@@ -20,6 +20,7 @@
   import { Badge } from "$lib/shadcn/components/ui/badge";
   import { Separator } from "$lib/shadcn/components/ui/separator";
   import { ScrollArea } from "$lib/shadcn/components/ui/scroll-area";
+  import { goto } from '$app/navigation';
   
   import { 
     User,
@@ -266,6 +267,7 @@
   }
 
   async function handleAppSubmit() {
+    if (!ensureSetupReady()) return;
     loading = true;
     error = null;
     result = null;
@@ -293,6 +295,9 @@
         error = errorMsg;
         tokenDockState.setError(errorMsg);
         toast.error(errorMsg);
+        if (data.setupRequired) {
+          await goto('/setup?from=playground');
+        }
       }
     } catch (err: any) {
       error = err.message;
@@ -303,6 +308,7 @@
   }
 
   async function handleUserSubmit(forceSwitch: boolean = false) {
+    if (!ensureSetupReady()) return;
     if (!scopes) return;
     localStorage.setItem('last_scopes', scopes);
     localStorage.setItem('active_tab', 'user-token');
@@ -518,8 +524,25 @@
     }, 1800);
   }
 
+  function ensureSetupReady() {
+    if (healthLoading) {
+      toast.info('Checking Setup status... please wait');
+      return false;
+    }
+    if (configReady) return true;
+    toast.warning('Complete Setup before issuing tokens', {
+      description: 'Open Setup to add tenant, client, and credentials.',
+    });
+    goto('/setup?from=playground');
+    return false;
+  }
+
   async function scrollToFlows(options: { highlight?: boolean; targetTab?: FlowTab } = {}) {
     const { highlight = false, targetTab } = options;
+    if (!configReady) {
+      ensureSetupReady();
+      return;
+    }
 
     if (targetTab && targetTab !== activeTab) {
       switchTab(targetTab);
@@ -538,6 +561,7 @@
   }
 
   function refreshCurrent() {
+    if (!ensureSetupReady()) return;
     if (activeTab === 'app-token') {
       handleAppSubmit();
     } else {
@@ -570,11 +594,19 @@
         <Badge variant={configStatusTone} class="gap-2">
           {#if healthLoading}
             <Loader2 class="h-3.5 w-3.5 animate-spin" />
-          {:else}
+          {:else if configReady}
             <ListChecks class="h-3.5 w-3.5" />
+          {:else}
+            <AlertTriangle class="h-3.5 w-3.5 text-amber-600" />
           {/if}
           {configStatusLabel}
         </Badge>
+        {#if !configReady && !healthLoading}
+          <span class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-800 ring-1 ring-amber-200">
+            <AlertTriangle class="h-3.5 w-3.5" />
+            Complete Setup to issue tokens
+          </span>
+        {/if}
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <a href="/setup" class="text-xs font-semibold text-primary hover:underline inline-flex items-center gap-1">

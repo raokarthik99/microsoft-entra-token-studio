@@ -9,7 +9,7 @@ Playground for generating and inspecting Microsoft Entra access tokens. Built wi
 
 ## Features
 
-- **App tokens** via confidential client credentials at `/api/token/app`; resources are normalized to `/.default`.
+- **App tokens** via confidential client credentials at `/api/token/app`; resources are normalized to `/.default`. Supports both client secrets and **certificates from Azure Key Vault**.
 - **User tokens** through the authorization code + PKCE flow with silent acquisition and popup fallback.
 - **Token status tracking** with real-time indicators (expired, expiring, valid) and color-coded badges.
 - **Full-screen token inspector** for immersive token analysis with ESC key support.
@@ -20,7 +20,7 @@ Playground for generating and inspecting Microsoft Entra access tokens. Built wi
 - **One-click token reissue** from favorites with automatic parameter population.
 - **Visual prominence** for expired/expiring tokens with highlighted reissue buttons.
 - **Local-only storage** in IndexedDB for history and preferences; clear data anytime from Settings.
-- **Built-in readiness check** powered by `/api/health`, surfaced on the home page Setup card.
+- **Guided setup** experience and readiness check powered by `/api/health`, surfaced on the home page Setup card and `/setup` page.
 - **Server-only secret handling** with `@azure/msal-node`; tokens stay in the browser unless you copy them.
 
 ## Quick Start
@@ -64,7 +64,9 @@ Playground for generating and inspecting Microsoft Entra access tokens. Built wi
 4. After creation:
    - Copy **Directory (tenant) ID** → `TENANT_ID`.
    - Copy **Application (client) ID** → `CLIENT_ID`.
-5. Create a secret under **Certificates & secrets** → **New client secret** → value → `CLIENT_SECRET`.
+5. Create credentials under **Certificates & secrets**:
+   - **Option A (Secret)**: Click **New client secret** → copy the value → `CLIENT_SECRET`.
+   - **Option B (Certificate)**: Upload a certificate (`.cer` or `.pem`) for production use. Store the full certificate with private key in Azure Key Vault.
 6. Permissions:
    - App token flow: add application permissions for the API you want (e.g., Graph `Application` perms).
    - User token flow: add delegated scopes (e.g., `User.Read`, `openid`, `profile`, `offline_access`) and grant admin consent if required.
@@ -74,21 +76,85 @@ References: Azure portal https://portal.azure.com and registration guide https:/
 
 ## Configuration (.env)
 
-Copy `.env.example` and set:
+Copy `.env.example` and set the core values:
 
-```
+```bash
+# Core Configuration
 TENANT_ID=your-tenant-guid
 CLIENT_ID=your-client-id
-CLIENT_SECRET=your-client-secret
 PORT=5173
 REDIRECT_URI=http://localhost:5173/auth/callback
+
+# Authentication Method (choose one)
+# Option 1: Client Secret
+CLIENT_SECRET=your-client-secret
+
+# Option 2: Certificate from Azure Key Vault (recommended for production)
+# AZURE_KEYVAULT_URI=https://your-vault.vault.azure.net
+# AZURE_KEYVAULT_CERT_NAME=your-certificate-name
 ```
+
+### Core Variables
 
 - `TENANT_ID`: Directory ID for your tenant.
 - `CLIENT_ID`: App registration client ID.
-- `CLIENT_SECRET`: Confidential client secret (used server-side only for App tokens).
 - `PORT`: Port for `pnpm dev` (defaults to 5173).
 - `REDIRECT_URI`: Must match the Entra redirect and `/auth/callback`; falls back to `${origin}/auth/callback` if unset.
+
+### Authentication Methods
+
+For App tokens (client credentials flow), the application supports **4 authentication methods**. They are attempted in the following priority order:
+
+| Priority | Method | Source | Variables | Use Case |
+|----------|--------|--------|-----------|----------|
+| **1** | **Certificate** | Key Vault | `AZURE_KEYVAULT_URI` + `AZURE_KEYVAULT_CERT_NAME` | **Production (Recommended)** |
+| **2** | **Certificate** | Local File | `CERTIFICATE_PATH` | Local Dev with Certs |
+| **3** | **Client Secret** | Key Vault | `AZURE_KEYVAULT_URI` + `AZURE_KEYVAULT_SECRET_NAME` | Centralized Secrets |
+| **4** | **Client Secret** | Environment | `CLIENT_SECRET` | Quick Start / Simple Dev |
+
+> **Note**: The application will use the highest priority method that is fully configured.
+
+### Certificate Authentication Setup
+
+#### Option A: Azure Key Vault (Recommended)
+1. **Create a certificate** in Azure Key Vault (or import an existing one with private key).
+2. **Upload the public key** (`.cer`) to your App Registration under **Certificates & secrets**.
+3. **Grant access** to Key Vault for your identity:
+   - Assign **Key Vault Administrator** (simplest) OR
+   - Assign **Key Vault Certificate User** AND **Key Vault Secrets User**.
+4. **Set environment variables**:
+   ```bash
+   AZURE_KEYVAULT_URI=https://my-vault.vault.azure.net
+   AZURE_KEYVAULT_CERT_NAME=my-app-cert
+   ```
+
+#### Option B: Local Certificate File
+1. **Obtain a certificate** with private key (PEM or PFX format).
+2. **Upload the public key** to your App Registration.
+3. **Set environment variable**:
+   ```bash
+   CERTIFICATE_PATH=/absolute/path/to/certificate.pem
+   ```
+
+### Client Secret Setup
+
+#### Option C: Azure Key Vault
+1. **Create a secret** in Azure Key Vault containing your client secret.
+2. **Grant access**: Assign **Key Vault Secrets User** role.
+3. **Set environment variables**:
+   ```bash
+   AZURE_KEYVAULT_URI=https://my-vault.vault.azure.net
+   AZURE_KEYVAULT_SECRET_NAME=my-client-secret
+   ```
+
+#### Option D: Environment Variable
+1. **Create a client secret** in App Registration.
+2. **Set environment variable**:
+   ```bash
+   CLIENT_SECRET=your-client-secret
+   ```
+
+The app uses `DefaultAzureCredential` from `@azure/identity` for Key Vault access, which automatically uses Azure CLI, VS Code, or Managed Identity credentials.
 
 Never commit `.env` or real secrets.
 
@@ -146,12 +212,13 @@ Never commit `.env` or real secrets.
 
 ### Setup and health
 
-- The home page Setup card reads `/api/health` to confirm `TENANT_ID`, `CLIENT_ID`, `CLIENT_SECRET`, and `REDIRECT_URI`.
-- The same endpoint can be polled directly for JSON readiness data.
+- The home page Setup card and `/setup` page read `/api/health` to confirm `TENANT_ID`, `CLIENT_ID`, redirect URI, and the active authentication path (Key Vault certificate, local certificate, Key Vault secret, or `CLIENT_SECRET`).
+- `/api/health` surfaces `authMethod`/`authSource`, Key Vault status (`connected`/`error`), and local certificate status to help debug configuration.
 
 ## Project Structure
 
 - `src/routes/+page.svelte` — Playground dashboard (flows, setup check, output, history peek).
+- `src/routes/setup/+page.svelte` — Guided setup and credential selection UI backed by `/api/health`.
 - `src/routes/api/token/app/+server.ts` — client-credential token issuer (server-side).
 - `src/routes/auth/callback/+page.svelte` — Client-side redirect handler for MSAL.js.
 - `src/lib/services/auth.ts` — Client-side authentication service (MSAL.js wrapper).
@@ -167,14 +234,17 @@ Never commit `.env` or real secrets.
   - `FavoritesList.svelte` — Favorites management component with advanced filtering, bulk operations, and usage tracking.
   - `FavoriteFormSheet.svelte` — Form for creating and editing favorites with name, tags, color, and description support.
   - `history-table/data-table-actions.svelte` — Action dropdown for history rows (copy/load/reissue/delete).
+  - Setup components: `setup/setup-step.svelte`, `setup/setup-progress.svelte`, `setup/credentials-sheet.svelte`, `setup/credentials-selector.svelte`.
   - Layout components: `app-header.svelte`, `app-sidebar.svelte`, `app-footer.svelte`.
 - `src/lib/states/history.svelte.ts` — Svelte 5 runes-based history state management.
 - `src/lib/states/favorites.svelte.ts` — Svelte 5 runes-based favorites state management.
 - `src/lib/services/favorites.ts` — Favorites service for IndexedDB persistence with CRUD operations.
 - `src/lib/shadcn/` — shadcn-svelte UI primitives and components (includes table primitives under `components/ui/table`).
 - `src/lib/utils.ts` — helpers for JWT decoding, expiry calculations, and token status.
-- `src/lib/types.ts` — TypeScript interfaces for HistoryItem, TokenData, and FavoriteItem.
-- `src/lib/server/msal.ts` — server-only MSAL configuration.
+- `src/lib/types.ts` — TypeScript interfaces for HistoryItem, TokenData, FavoriteItem, HealthStatus, and shared config helpers.
+- `src/lib/server/msal.ts` — server-only MSAL configuration with certificate/secret priority handling.
+- `src/lib/server/keyvault.ts` — Key Vault helpers for certificates and secrets.
+- `src/lib/server/certificate.ts` — Local certificate loader and status helpers.
 - `static/` and `src/app.css`/`src/app.html` — assets and global styles.
 
 ## Manual Validation Checklist
@@ -187,7 +257,9 @@ Never commit `.env` or real secrets.
 - History table search/filter/sort works; Load displays token details; Reissue issues a fresh token; Delete removes items.
 - Real-time expiry updates occur every minute; expired/expiring tokens show prominent reissue buttons.
 - Floating token dock remains visible and accessible.
-- Setup card shows ready with a valid `.env`; `/api/health` matches the expected redirect URI.
+- Setup card and `/setup` show ready with a valid `.env`; `/api/health` matches the expected redirect URI and reports the correct `authMethod`/`authSource`.
+- Key Vault flows: `/api/health` returns `keyVault.status: connected` when `AZURE_KEYVAULT_URI` is configured with either `AZURE_KEYVAULT_CERT_NAME` or `AZURE_KEYVAULT_SECRET_NAME`.
+- Local certificate flows: `/api/health` returns `localCert.status: loaded` when `CERTIFICATE_PATH` is valid.
 - Favorites can be created, edited, and deleted from both the main page and favorites page.
 - Favorites filtering by type, status, tags, and colors works correctly.
 - Favorites usage tracking shows accurate counts and timestamps.

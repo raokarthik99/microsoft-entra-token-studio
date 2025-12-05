@@ -38,11 +38,28 @@ export interface HealthStatus {
     clientId: string | null;
     authority: string | null;
     redirectUri: string;
+    authMethod: 'certificate' | 'secret' | 'none';
+    authSource: 'keyvault' | 'local' | 'none';
     checks: {
         tenantId: boolean;
         clientId: boolean;
         clientSecret: boolean;
+        keyVault: boolean;
+        keyVaultSecret: boolean;
+        localCert: boolean;
         redirectUri: boolean;
+    };
+    keyVault?: {
+        uri: string | null;
+        certName: string | null;
+        secretName: string | null;
+        status: 'connected' | 'error' | 'not_configured';
+        error?: string;
+    };
+    localCert?: {
+        path: string | null;
+        status: 'loaded' | 'error' | 'not_configured';
+        error?: string;
     };
     missing: string[];
 }

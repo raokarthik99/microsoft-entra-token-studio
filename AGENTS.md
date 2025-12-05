@@ -3,13 +3,13 @@
 ## Context
 
 - SvelteKit 2 app using Svelte 5 runes and TypeScript. UI is built from shadcn components plus custom layout pieces and feature-specific components.
-- **App tokens**: Server-side client credentials flow via `/api/token/app`.
+- **App tokens**: Server-side client credentials flow via `/api/token/app`. Supports both **client secrets** and **certificates from Azure Key Vault** (recommended for production).
 - **User tokens**: Client-side Authorization Code + PKCE flow via MSAL.js (`@azure/msal-browser`). Supports silent acquisition and popup fallback.
 - **Authentication**: Users can explore the app without signing in. Sign-in is triggered as part of the user token flow when issuing tokens. A "Sign In" button in the header is available for manual sign-in.
 - **Token status tracking**: Real-time expiry monitoring with color-coded badges (expired, expiring, valid).
 - **Full-screen token inspector**: Immersive token analysis view with ESC key support.
 - **Favorites system**: Save frequently used targets with names, tags, colors, and descriptions for quick access and reissue.
-- Readiness is surfaced through `/api/health` and mirrored on the home page Setup card.
+- Readiness is surfaced through `/api/health` and mirrored on the home page Setup card and `/setup` walkthrough.
 - Tokens and history live only in `IndexedDB` (via `idb-keyval`); secrets stay server-side. Avoid logging tokens or secrets in client or server code.
 
 ## Project Structure & Module Organization
@@ -17,7 +17,7 @@
 - `src/routes/+page.svelte` is the Playground dashboard (setup checks, flows, decoded output, floating panel, history preview).
 - **Client-side Auth**: `src/lib/services/auth.ts` (MSAL wrapper), `src/lib/stores/auth.ts` (auth state), `src/routes/auth/callback/+page.svelte` (redirect handler).
 - **Server routes**: `src/routes/api/token/app/+server.ts` (confidential client tokens), `src/routes/api/health/+server.ts` (config check).
-- Supporting pages: `src/routes/history/+page.svelte` (local history), `src/routes/settings/+page.svelte` (theme, profile, data clearing), and `src/routes/favorites/+page.svelte` (favorites management).
+- Supporting pages: `src/routes/history/+page.svelte` (local history), `src/routes/settings/+page.svelte` (theme, profile, data clearing), `src/routes/favorites/+page.svelte` (favorites management), and `src/routes/setup/+page.svelte` (guided readiness check).
 - **History management**: `src/lib/states/history.svelte.ts` manages state via a shared `HistoryState` class (Svelte 5 runes). `src/lib/services/history.ts` handles `idb-keyval` persistence. `src/lib/components/HistoryList.svelte` is the shared UI component used across main page and history page.
 - **Favorites management**: `src/lib/states/favorites.svelte.ts` manages favorites state via a shared `FavoritesState` class (Svelte 5 runes). `src/lib/services/favorites.ts` handles `idb-keyval` persistence with CRUD operations. `src/lib/components/FavoritesList.svelte` is the main UI component for favorites management with advanced filtering and bulk operations.
 - **UI Components** (`src/lib/components/`):
@@ -28,9 +28,10 @@
   - `FavoritesList.svelte` — Favorites management with advanced filtering by type, status, tags, and colors, plus bulk operations and usage tracking.
   - `FavoriteFormSheet.svelte` — Form for creating and editing favorites with name, tags, color, and description support.
   - `history-table/data-table-actions.svelte` — Row action menu for copy/load/reissue/delete.
+  - Setup UI: `setup/setup-step.svelte`, `setup/setup-progress.svelte`, `setup/credentials-sheet.svelte`, `setup/credentials-selector.svelte`.
   - Layout: `app-header.svelte`, `app-sidebar.svelte`, `app-footer.svelte`, `UserMenu.svelte`.
 - **State management**: Svelte 5 runes-based state in `src/lib/states/`; reactive time store in `src/lib/stores/time.ts` for real-time expiry updates.
-- Shared logic/UI in `src/lib` (`shadcn/` for shadcn-svelte primitives, including table components under `components/ui/table`; `utils.ts` for JWT/expiry/status helpers, `types.ts` for TypeScript interfaces, server-only MSAL helpers in `server/msal.ts`). Keep server imports out of client modules.
+- Shared logic/UI in `src/lib` (`shadcn/` for shadcn-svelte primitives, including table components under `components/ui/table`; `utils.ts` for JWT/expiry/status helpers, `types.ts` for TypeScript interfaces, server-only MSAL helpers in `server/msal.ts`, Key Vault integration in `server/keyvault.ts`, local certificate helpers in `server/certificate.ts`). Keep server imports out of client modules.
 - Global shell and styles: `src/app.html`, `src/app.css`; static assets live in `static/`.
 - Type configuration extends SvelteKit defaults via `tsconfig.json`; use the `$lib` alias.
 
@@ -61,6 +62,8 @@
 - **Favorites management**: Test creating, editing, and deleting favorites from both the main page and favorites page. Verify filtering by type, status, tags, and colors works. Test bulk operations and usage tracking.
 - **Real-time updates**: Confirm token expiry status updates every minute; expired/expiring tokens show prominent reissue buttons.
 - Validate readiness with `/api/health` and the Setup card once `.env` is populated (tenant/client/redirect).
+- **Certificate auth**: When testing Key Vault integration, verify `/api/health` shows `authMethod: "certificate"` and `keyVault.status: "connected"`.
+- **Local certificate**: When using `CERTIFICATE_PATH`, ensure `/api/health` surfaces `authMethod: "certificate"` and `localCert.status: "loaded"`.
 - Sanity check theme and data clearing under `/settings` when touching local storage logic.
 
 ## Commit & Pull Request Guidelines
@@ -71,9 +74,15 @@
 
 ## Security & Configuration Tips
 
-- Copy `.env.example` to `.env` and fill `TENANT_ID`, `CLIENT_ID`, `CLIENT_SECRET`, `REDIRECT_URI`; do not commit `.env` or real secrets.
+- Copy `.env.example` to `.env` and fill `TENANT_ID`, `CLIENT_ID`, and choose an authentication method (priority: Key Vault certificate > local certificate > Key Vault secret > `CLIENT_SECRET`).
+  - **Client Secret**: Set `CLIENT_SECRET` for development/simple setups.
+  - **Client Secret via Key Vault**: Set `AZURE_KEYVAULT_URI` and `AZURE_KEYVAULT_SECRET_NAME`.
+  - **Certificate (recommended)**: Set `AZURE_KEYVAULT_URI` and `AZURE_KEYVAULT_CERT_NAME`; Key Vault is preferred in production.
+  - **Local certificate**: Point `CERTIFICATE_PATH` to a PEM/PFX with private key; upload the public key to the App Registration.
 - `REDIRECT_URI` should match the Entra registration; if omitted, the app falls back to `${origin}/auth/callback`.
+- Do not commit `.env` or real secrets.
 - Treat access tokens as sensitive: avoid logging them.
-- **App Tokens**: Keep token exchange logic server-side (see `src/lib/server/msal.ts`).
+- **App Tokens**: Keep token exchange logic server-side (see `src/lib/server/msal.ts`, `src/lib/server/keyvault.ts`, and `src/lib/server/certificate.ts`).
 - **User Tokens**: MSAL.js handles storage (localStorage/sessionStorage). Ensure no XSS vulnerabilities as tokens are accessible to client-side scripts.
+- **Key Vault Access**: When using certificate auth, ensure the app identity has `Certificates: Get` and `Secrets: Get` permissions on the Key Vault.
 - Local history/preferences stay in the browser (IndexedDB); remind users to clear data on shared machines when changing those flows.

@@ -4,6 +4,7 @@
   import { SidebarProvider, SidebarInset } from "$lib/shadcn/components/ui/sidebar";
   import { ModeWatcher } from "mode-watcher";
   import { Toaster } from "$lib/shadcn/components/ui/sonner";
+  import { Button } from "$lib/shadcn/components/ui/button";
   import AppSidebar from "$lib/components/app-sidebar.svelte";
   import AppHeader from "$lib/components/app-header.svelte";
   import AppFooter from "$lib/components/app-footer.svelte";
@@ -13,6 +14,7 @@
   import type { LayoutData } from './$types';
   import type { ClientConfig } from '$lib/types';
   import TokenDock from "$lib/components/TokenDock.svelte";
+  import { AlertTriangle } from "@lucide/svelte";
 
   let { children, data } = $props<{ children: any, data: LayoutData }>();
   let authService: AuthService;
@@ -32,6 +34,7 @@
     } else {
       // No auth config, mark loading as complete
       auth.setUser(null);
+      authServiceStore.set(null);
     }
   });
 
@@ -75,6 +78,21 @@
     <AppSidebar />
     <SidebarInset class="min-h-screen bg-background/80">
       <AppHeader user={$auth.user} onLogout={handleLogout} onLogin={handleLogin} photoUrl={$auth.photoUrl} />
+      {#if !data.authConfig}
+        <div class="p-6 pt-3">
+          <div class="mx-auto w-full max-w-6xl">
+            <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
+              <div class="flex items-center gap-2 text-sm font-semibold">
+                <AlertTriangle class="h-4 w-4" />
+                Finish Setup to issue tokens
+              </div>
+              <Button variant="secondary" size="sm" class="bg-amber-600 text-white hover:bg-amber-700" href="/setup">
+                Go to Setup
+              </Button>
+            </div>
+          </div>
+        </div>
+      {/if}
       <div class="flex flex-1 flex-col gap-6 p-6 pt-2">
         <div class="mx-auto w-full max-w-6xl space-y-6">
           {@render children()}
@@ -85,4 +103,3 @@
     <TokenDock />
   </SidebarProvider>
 {/if}
-
