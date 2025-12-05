@@ -222,12 +222,12 @@ export async function fetchSecretFromKeyVault(): Promise<string> {
 }
 
 /**
- * Get the current Key Vault status for health checks
+ * Get the current Key Vault certificate status for health checks
  */
-export async function getKeyVaultStatus(): Promise<KeyVaultStatus> {
+export async function getKeyVaultCertificateStatus(): Promise<KeyVaultStatus> {
   const config = getKeyVaultConfig();
   
-  if (!isKeyVaultConfigured() && !isKeyVaultSecretConfigured()) {
+  if (!env.AZURE_KEYVAULT_URI && !env.AZURE_KEYVAULT_CERT_NAME) {
     return {
       configured: false,
       uri: config.uri,
@@ -237,25 +237,19 @@ export async function getKeyVaultStatus(): Promise<KeyVaultStatus> {
     };
   }
 
-  // Check for partial configuration
-  const validationError = validateKeyVaultConfig();
-  if (validationError) {
+  if (!env.AZURE_KEYVAULT_URI || !env.AZURE_KEYVAULT_CERT_NAME) {
     return {
       configured: false,
       uri: config.uri,
       certName: config.certName,
       secretName: config.secretName,
       status: 'error',
-      error: validationError,
+      error: 'Set both AZURE_KEYVAULT_URI and AZURE_KEYVAULT_CERT_NAME for certificate authentication.',
     };
   }
 
   try {
-    if (isKeyVaultConfigured()) {
-      await fetchCertificateFromKeyVault();
-    } else if (isKeyVaultSecretConfigured()) {
-      await fetchSecretFromKeyVault();
-    }
+    await fetchCertificateFromKeyVault();
     
     return {
       configured: true,
@@ -274,6 +268,77 @@ export async function getKeyVaultStatus(): Promise<KeyVaultStatus> {
       error: err.message,
     };
   }
+}
+
+/**
+ * Get the current Key Vault secret status for health checks
+ */
+export async function getKeyVaultSecretStatus(): Promise<KeyVaultStatus> {
+  const config = getKeyVaultConfig();
+  
+  if (!env.AZURE_KEYVAULT_URI && !env.AZURE_KEYVAULT_SECRET_NAME) {
+    return {
+      configured: false,
+      uri: config.uri,
+      certName: config.certName,
+      secretName: config.secretName,
+      status: 'not_configured',
+    };
+  }
+
+  if (!env.AZURE_KEYVAULT_URI || !env.AZURE_KEYVAULT_SECRET_NAME) {
+    return {
+      configured: false,
+      uri: config.uri,
+      certName: config.certName,
+      secretName: config.secretName,
+      status: 'error',
+      error: 'Set both AZURE_KEYVAULT_URI and AZURE_KEYVAULT_SECRET_NAME for secret-based authentication.',
+    };
+  }
+
+  try {
+    await fetchSecretFromKeyVault();
+    
+    return {
+      configured: true,
+      uri: config.uri,
+      certName: config.certName,
+      secretName: config.secretName,
+      status: 'connected',
+    };
+  } catch (err: any) {
+    return {
+      configured: true,
+      uri: config.uri,
+      certName: config.certName,
+      secretName: config.secretName,
+      status: 'error',
+      error: err.message,
+    };
+  }
+}
+
+/**
+ * Get the current Key Vault status for health checks (auto-detected)
+ */
+export async function getKeyVaultStatus(): Promise<KeyVaultStatus> {
+  if (isKeyVaultConfigured()) {
+    return getKeyVaultCertificateStatus();
+  }
+
+  if (isKeyVaultSecretConfigured()) {
+    return getKeyVaultSecretStatus();
+  }
+
+  const config = getKeyVaultConfig();
+  return {
+    configured: false,
+    uri: config.uri,
+    certName: config.certName,
+    secretName: config.secretName,
+    status: 'not_configured',
+  };
 }
 
 /**

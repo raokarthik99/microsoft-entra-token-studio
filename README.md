@@ -22,6 +22,7 @@ Playground for generating and inspecting Microsoft Entra access tokens. Built wi
 - **Local-only storage** in IndexedDB for history and preferences; clear data anytime from Settings.
 - **Guided setup** experience and readiness check powered by `/api/health`, surfaced on the home page Setup card and `/setup` page.
 - **Server-only secret handling** with `@azure/msal-node`; tokens stay in the browser unless you copy them.
+- **Credential preference + validation** with per-path status (ready/issues/not set) and a saved selection (cookie) that drives both `/api/health` and `/api/token/app`.
 
 ## Quick Start
 
@@ -112,7 +113,7 @@ For App tokens (client credentials flow), the application supports **4 authentic
 | **3** | **Client Secret** | Key Vault | `AZURE_KEYVAULT_URI` + `AZURE_KEYVAULT_SECRET_NAME` | Centralized Secrets |
 | **4** | **Client Secret** | Environment | `CLIENT_SECRET` | Quick Start / Simple Dev |
 
-> **Note**: The application will use the highest priority method that is fully configured.
+> **Note**: The application auto-detects using the highest priority configured method, but you can override with a saved preference in the Setup → Credentials sheet. The cookie `auth_pref=method:source` (e.g., `certificate:keyvault`) is honored by `/api/health` and `/api/token/app` as long as that path remains valid.
 
 ### Certificate Authentication Setup
 
@@ -212,8 +213,9 @@ Never commit `.env` or real secrets.
 
 ### Setup and health
 
-- The home page Setup card and `/setup` page read `/api/health` to confirm `TENANT_ID`, `CLIENT_ID`, redirect URI, and the active authentication path (Key Vault certificate, local certificate, Key Vault secret, or `CLIENT_SECRET`).
-- `/api/health` surfaces `authMethod`/`authSource`, Key Vault status (`connected`/`error`), and local certificate status to help debug configuration.
+- The home page Setup card and `/setup` page read `/api/health` to confirm tenant/client/redirect plus credential validation per path (ready, issues, or not configured).
+- `/api/health` returns `authMethod`/`authSource` based on either your saved preference (`auth_pref` cookie) or auto-detection, along with a `validation` map for certificate/secret paths and specific Key Vault/local status + errors.
+- `/api/token/app` echoes the resolved `authMethod`/`authSource` used to issue the token.
 
 ## Project Structure
 

@@ -10,6 +10,7 @@
 - **Full-screen token inspector**: Immersive token analysis view with ESC key support.
 - **Favorites system**: Save frequently used targets with names, tags, colors, and descriptions for quick access and reissue.
 - Readiness is surfaced through `/api/health` and mirrored on the home page Setup card and `/setup` walkthrough.
+- Credential selection can be auto-detected or set via a saved preference cookie (`auth_pref=method:source`), with per-path validation surfaced to the UI.
 - Tokens and history live only in `IndexedDB` (via `idb-keyval`); secrets stay server-side. Avoid logging tokens or secrets in client or server code.
 
 ## Project Structure & Module Organization
@@ -29,6 +30,7 @@
   - `FavoriteFormSheet.svelte` — Form for creating and editing favorites with name, tags, color, and description support.
   - `history-table/data-table-actions.svelte` — Row action menu for copy/load/reissue/delete.
   - Setup UI: `setup/setup-step.svelte`, `setup/setup-progress.svelte`, `setup/credentials-sheet.svelte`, `setup/credentials-selector.svelte`.
+  - Collapsible primitives: `shadcn/components/ui/collapsible/{collapsible.svelte,collapsible-content.svelte,collapsible-trigger.svelte}`.
   - Layout: `app-header.svelte`, `app-sidebar.svelte`, `app-footer.svelte`, `UserMenu.svelte`.
 - **State management**: Svelte 5 runes-based state in `src/lib/states/`; reactive time store in `src/lib/stores/time.ts` for real-time expiry updates.
 - Shared logic/UI in `src/lib` (`shadcn/` for shadcn-svelte primitives, including table components under `components/ui/table`; `utils.ts` for JWT/expiry/status helpers, `types.ts` for TypeScript interfaces, server-only MSAL helpers in `server/msal.ts`, Key Vault integration in `server/keyvault.ts`, local certificate helpers in `server/certificate.ts`). Keep server imports out of client modules.
@@ -61,9 +63,11 @@
 - **History management**: Verify Load displays full token details, Reissue issues new tokens, Delete removes items, and the history toolbar search/filter/sort behave correctly.
 - **Favorites management**: Test creating, editing, and deleting favorites from both the main page and favorites page. Verify filtering by type, status, tags, and colors works. Test bulk operations and usage tracking.
 - **Real-time updates**: Confirm token expiry status updates every minute; expired/expiring tokens show prominent reissue buttons.
-- Validate readiness with `/api/health` and the Setup card once `.env` is populated (tenant/client/redirect).
-- **Certificate auth**: When testing Key Vault integration, verify `/api/health` shows `authMethod: "certificate"` and `keyVault.status: "connected"`.
-- **Local certificate**: When using `CERTIFICATE_PATH`, ensure `/api/health` surfaces `authMethod: "certificate"` and `localCert.status: "loaded"`.
+- Validate readiness with `/api/health` and the Setup card once `.env` is populated (tenant/client/redirect) and credential validation shows `ready` for the chosen path.
+- **Certificate auth**: When testing Key Vault integration, verify `/api/health` shows `authMethod: "certificate"`, `authSource: "keyvault"`, and `validation.certificate.keyvault.status: "ready"` (or surfaced errors when not ready).
+- **Local certificate**: When using `CERTIFICATE_PATH`, ensure `/api/health` surfaces `authMethod: "certificate"`, `authSource: "local"`, and `validation.certificate.local.status: "ready"`.
+- **Client secret**: For Key Vault and local secrets, check `validation.secret.keyvault/local` status and errors; `authMethod`/`authSource` should match the selected or auto-detected path.
+- Credential preference: Saving a path in the credentials sheet should set the `auth_pref` cookie and drive `/api/token/app`/`/api/health` unless that path becomes invalid.
 - Sanity check theme and data clearing under `/settings` when touching local storage logic.
 
 ## Commit & Pull Request Guidelines
@@ -85,4 +89,5 @@
 - **App Tokens**: Keep token exchange logic server-side (see `src/lib/server/msal.ts`, `src/lib/server/keyvault.ts`, and `src/lib/server/certificate.ts`).
 - **User Tokens**: MSAL.js handles storage (localStorage/sessionStorage). Ensure no XSS vulnerabilities as tokens are accessible to client-side scripts.
 - **Key Vault Access**: When using certificate auth, ensure the app identity has `Certificates: Get` and `Secrets: Get` permissions on the Key Vault.
+- Credential preference cookie is client-side only (`auth_pref=method:source`); clearing cookies returns to auto-detection.
 - Local history/preferences stay in the browser (IndexedDB); remind users to clear data on shared machines when changing those flows.

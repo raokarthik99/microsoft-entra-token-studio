@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
-  import type { HistoryItem, TokenData, FavoriteItem, HealthStatus } from '$lib/types';
+  import type { HistoryItem, TokenData, FavoriteItem, HealthStatus, CredentialValidationStatus } from '$lib/types';
   import { parseJwt, getTokenStatus } from '$lib/utils';
   import { historyState } from '$lib/states/history.svelte';
   import { favoritesState } from '$lib/states/favorites.svelte';
@@ -108,9 +108,35 @@
   const scopeCount = $derived(resultScopes.length);
   const configReady = $derived(health?.status === 'ok');
   const configStatusLabel = $derived(
-    healthLoading ? 'Checking config' : configReady ? 'Config ready' : 'Configuration incomplete'
+    healthLoading ? 'Checking config' : configReady ? 'Setup complete' : 'Configuration incomplete'
   );
   const configStatusTone: 'secondary' | 'outline' = $derived(configReady ? 'secondary' : 'outline');
+  const credentialValidation = $derived((() => {
+    if (!health) return null;
+    if (health.authMethod === 'certificate') {
+      return health.validation.certificate[health.authSource === 'keyvault' ? 'keyvault' : 'local'];
+    }
+    if (health.authMethod === 'secret') {
+      return health.validation.secret[health.authSource === 'keyvault' ? 'keyvault' : 'local'];
+    }
+    return null;
+  })());
+  const credentialStatus = $derived<CredentialValidationStatus>(credentialValidation?.status ?? 'not_configured');
+  const credentialStatusLabel = $derived(
+    credentialStatus === 'ready' ? 'Ready' : credentialStatus === 'issues' ? 'Issues' : 'Not set'
+  );
+  const credentialBadgeClass = $derived(() => {
+    if (credentialStatus === 'ready') return 'h-5 text-[10px] px-2 bg-emerald-500/10 text-emerald-700 border-emerald-500/30';
+    if (credentialStatus === 'issues') return 'h-5 text-[10px] px-2 bg-amber-500/10 text-amber-700 border-amber-500/40';
+    return 'h-5 text-[10px] px-2 bg-muted text-muted-foreground border-border/60';
+  });
+  const credentialPathLabel = $derived(() => {
+    if (!health) return 'Credential not configured';
+    if (health.authMethod === 'certificate') return `Certificate · ${health.authSource === 'keyvault' ? 'Key Vault' : 'Local'}`;
+    if (health.authMethod === 'secret') return `Secret · ${health.authSource === 'keyvault' ? 'Key Vault' : 'Local'}`;
+    return 'Credential not configured';
+  });
+  const credentialErrors = $derived(credentialValidation?.errors ?? []);
 
   $effect(() => {
     if (typeof window === 'undefined') return;
@@ -531,7 +557,10 @@
     }
     if (configReady) return true;
     toast.warning('Complete Setup before issuing tokens', {
-      description: 'Open Setup to add tenant, client, and credentials.',
+      description:
+        credentialStatus !== 'ready'
+          ? `Credential path ${credentialPathLabel} is ${credentialStatusLabel}.`
+          : 'Open Setup to add tenant, client, and credentials.',
     });
     goto('/setup?from=playground');
     return false;
@@ -591,6 +620,20 @@
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="flex flex-wrap items-center gap-3">
         <h3 class="text-lg font-semibold text-foreground">Issue tokens</h3>
+        {#if lastRun}
+          <Badge variant="outline" class="gap-2">
+            <Clock3 class="h-4 w-4" />
+            Last run: {formatTimestamp(lastRun.timestamp)}
+          </Badge>
+        {/if}
+      </div>
+      <div class="flex flex-wrap items-center gap-3">
+        {#if !configReady && !healthLoading}
+          <span class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-800 ring-1 ring-amber-200">
+            <AlertTriangle class="h-3.5 w-3.5" />
+            Complete Setup to issue tokens
+          </span>
+        {/if}
         <Badge variant={configStatusTone} class="gap-2">
           {#if healthLoading}
             <Loader2 class="h-3.5 w-3.5 animate-spin" />
@@ -601,24 +644,10 @@
           {/if}
           {configStatusLabel}
         </Badge>
-        {#if !configReady && !healthLoading}
-          <span class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-800 ring-1 ring-amber-200">
-            <AlertTriangle class="h-3.5 w-3.5" />
-            Complete Setup to issue tokens
-          </span>
-        {/if}
-      </div>
-      <div class="flex flex-wrap items-center gap-2">
-        <a href="/setup" class="text-xs font-semibold text-primary hover:underline inline-flex items-center gap-1">
+        <Button variant="default" size="sm" href="/setup" class="gap-2 h-8">
           Open setup
-          <ArrowRight class="h-3 w-3" />
-        </a>
-        {#if lastRun}
-          <Badge variant="outline" class="gap-2">
-            <Clock3 class="h-4 w-4" />
-            Last run: {formatTimestamp(lastRun.timestamp)}
-          </Badge>
-        {/if}
+          <ArrowRight class="h-3.5 w-3.5" />
+        </Button>
       </div>
     </div>
 
@@ -778,6 +807,30 @@
                 </div>
               </Card.Header>
               <Card.Content class="space-y-4">
+                {#if health}
+                  <div class="flex flex-col gap-1.5 rounded-lg border bg-muted/40 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div class="flex items-center gap-2">
+                      <ShieldHalf class="h-4 w-4 text-muted-foreground" />
+                      <span class="text-sm font-medium text-foreground">{credentialPathLabel}</span>
+                      <Badge variant="outline" class={credentialBadgeClass}>{credentialStatusLabel}</Badge>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant={credentialStatus === 'ready' ? 'ghost' : 'secondary'}
+                      class="h-8"
+                      onclick={() => goto('/setup?from=playground')}
+                      type="button"
+                    >
+                      {credentialStatus === 'ready' ? 'Change' : 'Fix in Setup'}
+                    </Button>
+                  </div>
+                  {#if credentialStatus !== 'ready'}
+                    <p class="text-[11px] text-amber-700 flex items-center gap-1">
+                      <AlertTriangle class="h-3.5 w-3.5" />
+                      {credentialErrors[0] ?? 'Finish configuring credentials to issue app tokens.'}
+                    </p>
+                  {/if}
+                {/if}
                 <form onsubmit={(e) => { e.preventDefault(); handleAppSubmit(); }} class="space-y-4">
                   <div class="space-y-3">
                     <div class="space-y-2">
@@ -927,6 +980,30 @@
                   </div>
                 </div>
                 <p class="text-sm leading-relaxed break-all">{error}</p>
+                {#if credentialStatus !== 'ready'}
+                  <div class="rounded-lg border border-dashed bg-destructive/5 p-3 space-y-2">
+                    <div class="flex items-center gap-2">
+                      <ShieldHalf class="h-4 w-4 text-destructive" />
+                      <span class="font-semibold">Credential status: {credentialPathLabel}</span>
+                      <Badge variant="outline" class={credentialBadgeClass}>{credentialStatusLabel}</Badge>
+                    </div>
+                    {#if credentialErrors.length}
+                      <ul class="list-disc list-inside text-destructive/90 space-y-1">
+                        {#each credentialErrors as err}
+                          <li>{err}</li>
+                        {/each}
+                      </ul>
+                    {/if}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      class="h-8 gap-2 text-destructive border-destructive/30"
+                      onclick={() => goto('/setup?from=playground')}
+                    >
+                      Open Setup
+                    </Button>
+                  </div>
+                {/if}
                 <div class="grid gap-2 text-xs text-destructive/80">
                   <div class="flex items-center gap-2">
                     <Info class="h-3.5 w-3.5" />

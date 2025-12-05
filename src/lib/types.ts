@@ -32,6 +32,24 @@ export interface FavoriteItem {
     color?: string;
 }
 
+export type CredentialValidationStatus = 'ready' | 'issues' | 'not_configured';
+
+export interface CredentialValidation {
+    status: CredentialValidationStatus;
+    errors?: string[];
+}
+
+export interface CredentialValidationMap {
+    secret: {
+        local: CredentialValidation;
+        keyvault: CredentialValidation;
+    };
+    certificate: {
+        local: CredentialValidation;
+        keyvault: CredentialValidation;
+    };
+}
+
 export interface HealthStatus {
     status: 'ok' | 'incomplete';
     tenant: string | null;
@@ -40,6 +58,7 @@ export interface HealthStatus {
     redirectUri: string;
     authMethod: 'certificate' | 'secret' | 'none';
     authSource: 'keyvault' | 'local' | 'none';
+    validation: CredentialValidationMap;
     checks: {
         tenantId: boolean;
         clientId: boolean;

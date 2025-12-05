@@ -12,7 +12,8 @@
     RefreshCw,
     Key,
     Lock,
-    Settings2
+    Settings2,
+    Play
   } from "@lucide/svelte";
   import SetupStep from "$lib/components/setup/setup-step.svelte";
   import SetupProgress from "$lib/components/setup/setup-progress.svelte";
@@ -22,10 +23,38 @@
   let healthLoading = $state(false);
   let credentialsOpen = $state(false);
 
+  const credentialValidation = $derived((() => {
+    if (!health) return null;
+    if (health.authMethod === 'certificate') {
+      return health.validation.certificate[health.authSource === 'keyvault' ? 'keyvault' : 'local'];
+    }
+    if (health.authMethod === 'secret') {
+      return health.validation.secret[health.authSource === 'keyvault' ? 'keyvault' : 'local'];
+    }
+    return null;
+  })());
+  const credentialStatusLabel = $derived((() => {
+    if (!credentialValidation) return 'Not configured';
+    if (credentialValidation.status === 'ready') return 'Ready';
+    if (credentialValidation.status === 'issues') return 'Issues';
+    return 'Not set';
+  })());
+  const credentialStatusClass = $derived((() => {
+    if (!credentialValidation) return 'bg-muted text-muted-foreground border-border/60';
+    if (credentialValidation.status === 'ready') return 'bg-emerald-500/10 text-emerald-700 border-emerald-500/30';
+    if (credentialValidation.status === 'issues') return 'bg-amber-500/10 text-amber-700 border-amber-500/40';
+    return 'bg-muted text-muted-foreground border-border/60';
+  })());
+
   // Derived status for each step
   const stepStatuses = $derived({
     identity: (health?.checks?.tenantId && health?.checks?.clientId ? 'complete' : 'pending') as 'pending' | 'complete' | 'error',
-    credentials: (health?.authMethod !== 'none' ? 'complete' : 'pending') as 'pending' | 'complete' | 'error',
+    credentials: (() => {
+      if (!credentialValidation) return 'pending';
+      if (credentialValidation.status === 'ready') return 'complete';
+      if (credentialValidation.status === 'issues') return 'error';
+      return 'pending';
+    })() as 'pending' | 'complete' | 'error',
     redirect: (health?.redirectUri ? 'complete' : 'pending') as 'pending' | 'complete' | 'error',
   });
 
@@ -96,7 +125,8 @@
 
 <div class="mx-auto max-w-2xl space-y-8">
   <!-- Header -->
-  <div class="space-y-2">
+  <!-- Header -->
+  <div class="flex items-center justify-between gap-4">
     <div class="flex items-center gap-3">
       <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
         <Settings2 class="h-5 w-5 text-primary" />
@@ -105,6 +135,24 @@
         <h1 class="text-xl font-semibold">Setup</h1>
         <p class="text-sm text-muted-foreground">Configure your app to issue tokens</p>
       </div>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <Button variant="outline" onclick={refreshHealth} disabled={healthLoading} class="gap-2">
+        {#if healthLoading}
+          <Loader2 class="h-4 w-4 animate-spin" />
+        {:else}
+          <RefreshCw class="h-4 w-4" />
+        {/if}
+        Refresh
+      </Button>
+
+      {#if allComplete}
+        <Button href="/?cta=start-generating" class="gap-2">
+          <Play class="h-4 w-4" />
+          Start generating
+        </Button>
+      {/if}
     </div>
   </div>
 
@@ -182,7 +230,7 @@
                 <div class="space-y-1">
                   <div class="flex items-center gap-2">
                     <span class="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Active path</span>
-                    <Badge variant="secondary" class="h-5 text-[10px] bg-emerald-500/10 text-emerald-600 border-0">Active</Badge>
+                    <Badge variant="outline" class={`h-5 text-[10px] ${credentialStatusClass}`}>{credentialStatusLabel}</Badge>
                   </div>
                   <div class="flex flex-wrap items-center gap-2">
                     <p class="text-sm font-semibold text-foreground">Certificate · {health.authSource === 'keyvault' ? 'Key Vault' : 'Local'}</p>
@@ -197,7 +245,7 @@
                 <div class="space-y-1">
                   <div class="flex items-center gap-2">
                     <span class="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Active path</span>
-                    <Badge variant="secondary" class="h-5 text-[10px] bg-blue-500/10 text-blue-600 border-0">Active</Badge>
+                    <Badge variant="outline" class={`h-5 text-[10px] ${credentialStatusClass}`}>{credentialStatusLabel}</Badge>
                   </div>
                   <div class="flex flex-wrap items-center gap-2">
                     <p class="text-sm font-semibold text-foreground">Secret · {health.authSource === 'keyvault' ? 'Key Vault' : 'Local'}</p>
@@ -285,25 +333,7 @@
   </div>
 
   <!-- Actions -->
-  <div class="flex items-center justify-between pt-4">
-    <Button variant="outline" onclick={refreshHealth} disabled={healthLoading} class="gap-2">
-      {#if healthLoading}
-        <Loader2 class="h-4 w-4 animate-spin" />
-      {:else}
-        <RefreshCw class="h-4 w-4" />
-      {/if}
-      Refresh
-    </Button>
 
-    <Button href="/" disabled={!allComplete} class="gap-2">
-      {#if allComplete}
-        Go to Playground
-      {:else}
-        Complete setup to continue
-      {/if}
-      <ArrowRight class="h-4 w-4" />
-    </Button>
-  </div>
 </div>
 
 <!-- Credentials Sheet -->

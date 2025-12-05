@@ -1,6 +1,13 @@
 import * as msal from '@azure/msal-node';
+import type { Cookies } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
-import { isKeyVaultConfigured, fetchCertificateFromKeyVault, getKeyVaultConfig, isKeyVaultSecretConfigured, fetchSecretFromKeyVault } from './keyvault';
+import {
+  isKeyVaultConfigured,
+  fetchCertificateFromKeyVault,
+  getKeyVaultConfig,
+  isKeyVaultSecretConfigured,
+  fetchSecretFromKeyVault
+} from './keyvault';
 import { isLocalCertificateConfigured, loadLocalCertificate, getLocalCertificateStatus } from './certificate';
 
 // Auth State Management
@@ -23,17 +30,23 @@ setInterval(() => {
 }, STATE_TTL_MS);
 
 // Auth method tracking
-export type AuthMethod = 'certificate' | 'secret' | 'none';
+export type AuthKind = 'certificate' | 'secret' | 'none';
+export type AuthSource = 'keyvault' | 'local' | 'none';
 
-let authMethod: AuthMethod = 'none';
-let useCertificateAuth = false;
-
-/**
- * Get the current authentication method
- */
-export function getAuthMethod(): AuthMethod {
-  return authMethod;
+export interface AuthResolution {
+  method: AuthKind;
+  source: AuthSource;
 }
+
+interface ClientAppState {
+  app: msal.ConfidentialClientApplication | null;
+  initialized: boolean;
+  error: string | null;
+  useCertificate: boolean;
+}
+
+const clientApps = new Map<string, ClientAppState>();
+let lastResolvedAuth: AuthResolution = { method: 'none', source: 'none' };
 
 // Config + status helpers
 export const configChecks = {
@@ -59,230 +72,230 @@ export const missingEnvKeys = (): string[] => {
   return missing;
 };
 
-// MSAL Configuration - will be initialized lazily
-let clientApp: msal.ConfidentialClientApplication | null = null;
-let clientAppInitialized = false;
-let clientAppError: string | null = null;
-
-/**
- * Initialize the MSAL client application.
- * Uses certificate auth if Key Vault is configured, otherwise falls back to client secret.
- */
-async function initializeClientApp(): Promise<msal.ConfidentialClientApplication | null> {
-  if (clientAppInitialized) {
-    if (clientAppError) {
-      throw new Error(clientAppError);
+const loggerOptions = {
+  loggerCallback(_loglevel: msal.LogLevel, message: string) {
+    const quiet = ['acquireTokenByCode', 'acquireTokenByClientCredential'];
+    if (!quiet.some((q) => message.includes(q))) {
+      console.log(message);
     }
-    return clientApp;
+  },
+  piiLoggingEnabled: false,
+  logLevel: msal.LogLevel.Info,
+};
+
+const resolutionKey = (resolution: AuthResolution) => `${resolution.method}:${resolution.source}`;
+
+export function detectAuthMethod(): AuthResolution {
+  if (isKeyVaultConfigured()) {
+    return { method: 'certificate', source: 'keyvault' };
   }
-
-  try {
-    if (!env.CLIENT_ID) {
-      clientAppError = 'CLIENT_ID is not configured';
-      clientAppInitialized = true;
-      return null;
-    }
-
-    const authority = `https://login.microsoftonline.com/${env.TENANT_ID || 'organizations'}`;
-
-    // Priority 1: Certificate from Key Vault
-    if (isKeyVaultConfigured()) {
-      console.log('[MSAL] Attempting certificate authentication from Key Vault...');
-      try {
-        const certCredential = await fetchCertificateFromKeyVault();
-        const kvConfig = getKeyVaultConfig();
-        
-        const config: msal.Configuration = {
-          auth: {
-            clientId: env.CLIENT_ID,
-            authority,
-            clientCertificate: {
-              thumbprint: certCredential.thumbprint,
-              privateKey: certCredential.privateKey,
-            },
-          },
-          system: {
-            loggerOptions: {
-              loggerCallback(_loglevel: msal.LogLevel, message: string) {
-                const quiet = ['acquireTokenByCode', 'acquireTokenByClientCredential'];
-                if (!quiet.some((q) => message.includes(q))) {
-                  console.log(message);
-                }
-              },
-              piiLoggingEnabled: false,
-              logLevel: msal.LogLevel.Info,
-            },
-          },
-        };
-
-        clientApp = new msal.ConfidentialClientApplication(config);
-        authMethod = 'certificate';
-        useCertificateAuth = true;
-        clientAppInitialized = true;
-        console.log(`[MSAL] Configured with certificate from Key Vault (${kvConfig.certName})`);
-        return clientApp;
-      } catch (err: any) {
-        clientAppError = `Key Vault certificate authentication failed: ${err.message}`;
-        clientAppInitialized = true;
-        console.error(`[MSAL] ${clientAppError}`);
-        throw new Error(clientAppError);
-      }
-    }
-
-    // Priority 2: Local Certificate File
-    if (isLocalCertificateConfigured()) {
-      console.log('[MSAL] Attempting local certificate authentication...');
-      try {
-        const certCredential = await loadLocalCertificate();
-        const localCertStatus = await getLocalCertificateStatus();
-        
-        const config: msal.Configuration = {
-          auth: {
-            clientId: env.CLIENT_ID,
-            authority,
-            clientCertificate: {
-              thumbprint: certCredential.thumbprint,
-              privateKey: certCredential.privateKey,
-            },
-          },
-          system: {
-            loggerOptions: {
-              loggerCallback(_loglevel: msal.LogLevel, message: string) {
-                const quiet = ['acquireTokenByCode', 'acquireTokenByClientCredential'];
-                if (!quiet.some((q) => message.includes(q))) {
-                  console.log(message);
-                }
-              },
-              piiLoggingEnabled: false,
-              logLevel: msal.LogLevel.Info,
-            },
-          },
-        };
-
-        clientApp = new msal.ConfidentialClientApplication(config);
-        authMethod = 'certificate';
-        useCertificateAuth = true;
-        clientAppInitialized = true;
-        console.log(`[MSAL] Configured with local certificate (${localCertStatus.path})`);
-        return clientApp;
-      } catch (err: any) {
-        clientAppError = `Local certificate authentication failed: ${err.message}`;
-        clientAppInitialized = true;
-        console.error(`[MSAL] ${clientAppError}`);
-        throw new Error(clientAppError);
-      }
-    }
-
-    // Priority 3: Client Secret from Key Vault
-    if (isKeyVaultSecretConfigured()) {
-      console.log('[MSAL] Attempting client secret authentication from Key Vault...');
-      try {
-        const secretValue = await fetchSecretFromKeyVault();
-        const kvConfig = getKeyVaultConfig();
-
-        const config: msal.Configuration = {
-          auth: {
-            clientId: env.CLIENT_ID,
-            authority,
-            clientSecret: secretValue,
-          },
-          system: {
-            loggerOptions: {
-              loggerCallback(_loglevel: msal.LogLevel, message: string) {
-                const quiet = ['acquireTokenByCode', 'acquireTokenByClientCredential'];
-                if (!quiet.some((q) => message.includes(q))) {
-                  console.log(message);
-                }
-              },
-              piiLoggingEnabled: false,
-              logLevel: msal.LogLevel.Info,
-            },
-          },
-        };
-
-        clientApp = new msal.ConfidentialClientApplication(config);
-        authMethod = 'secret';
-        useCertificateAuth = false;
-        clientAppInitialized = true;
-        console.log(`[MSAL] Configured with client secret from Key Vault (${kvConfig.secretName})`);
-        return clientApp;
-      } catch (err: any) {
-        clientAppError = `Key Vault secret authentication failed: ${err.message}`;
-        clientAppInitialized = true;
-        console.error(`[MSAL] ${clientAppError}`);
-        throw new Error(clientAppError);
-      }
-    }
-
-    // Priority 4: Client Secret from Environment
-    if (env.CLIENT_SECRET) {
-      console.log('[MSAL] Using client secret authentication from environment');
-      const config: msal.Configuration = {
-        auth: {
-          clientId: env.CLIENT_ID,
-          authority,
-          clientSecret: env.CLIENT_SECRET,
-        },
-        system: {
-          loggerOptions: {
-            loggerCallback(_loglevel: msal.LogLevel, message: string) {
-              const quiet = ['acquireTokenByCode', 'acquireTokenByClientCredential'];
-              if (!quiet.some((q) => message.includes(q))) {
-                console.log(message);
-              }
-            },
-            piiLoggingEnabled: false,
-            logLevel: msal.LogLevel.Info,
-          },
-        },
-      };
-
-      clientApp = new msal.ConfidentialClientApplication(config);
-      authMethod = 'secret';
-      useCertificateAuth = false;
-      clientAppInitialized = true;
-      console.log('[MSAL] Configured with client secret');
-      return clientApp;
-    }
-
-    clientAppError = 'No authentication method configured. Set CLIENT_SECRET, CERTIFICATE_PATH, or configure Key Vault.';
-    clientAppInitialized = true;
-    return null;
-  } catch (err: any) {
-    clientAppError = err.message || 'Failed to initialize MSAL client';
-    clientAppInitialized = true;
-    throw new Error(clientAppError ?? 'Failed to initialize MSAL client');
+  if (isLocalCertificateConfigured()) {
+    return { method: 'certificate', source: 'local' };
   }
+  if (isKeyVaultSecretConfigured()) {
+    return { method: 'secret', source: 'keyvault' };
+  }
+  if (env.CLIENT_SECRET) {
+    return { method: 'secret', source: 'local' };
+  }
+  return { method: 'none', source: 'none' };
 }
 
-/**
- * Get the MSAL client application (initializes if needed)
- */
-export async function getClientApp(): Promise<msal.ConfidentialClientApplication | null> {
-  return initializeClientApp();
+export function isMethodConfigured(method: AuthKind, source: AuthSource): boolean {
+  if (method === 'certificate' && source === 'keyvault') return isKeyVaultConfigured();
+  if (method === 'certificate' && source === 'local') return isLocalCertificateConfigured();
+  if (method === 'secret' && source === 'keyvault') return isKeyVaultSecretConfigured();
+  if (method === 'secret' && source === 'local') return Boolean(env.CLIENT_SECRET);
+  return false;
+}
+
+export function getAuthMethod(cookies?: Cookies): AuthResolution {
+  const pref = cookies?.get('auth_pref');
+  if (pref) {
+    const [method, source] = pref.split(':') as [AuthKind | undefined, AuthSource | undefined];
+    const isValidMethod = method === 'certificate' || method === 'secret';
+    const isValidSource = source === 'keyvault' || source === 'local';
+    if (isValidMethod && isValidSource && isMethodConfigured(method, source)) {
+      return { method, source };
+    }
+  }
+
+  return detectAuthMethod();
 }
 
 /**
  * Check if certificate authentication is being used
  */
 export function isCertificateAuth(): boolean {
-  return useCertificateAuth;
+  return lastResolvedAuth.method === 'certificate';
+}
+
+/**
+ * Initialize the MSAL client application for a specific resolution.
+ */
+async function initializeClientApp(resolution: AuthResolution): Promise<ClientAppState> {
+  const key = resolutionKey(resolution);
+  const existing = clientApps.get(key);
+
+  if (existing?.initialized) {
+    if (existing.error) {
+      throw new Error(existing.error);
+    }
+    return existing;
+  }
+
+  const state: ClientAppState = existing ?? {
+    app: null,
+    initialized: false,
+    error: null,
+    useCertificate: false,
+  };
+
+  clientApps.set(key, state);
+
+  const fail = (message: string) => {
+    state.initialized = true;
+    state.error = message;
+    clientApps.set(key, state);
+    throw new Error(message);
+  };
+
+  if (!env.CLIENT_ID) {
+    return fail('CLIENT_ID is not configured');
+  }
+
+  if (resolution.method === 'none' || resolution.source === 'none') {
+    return fail('No authentication method configured. Set CLIENT_SECRET, CERTIFICATE_PATH, or configure Key Vault.');
+  }
+
+  const authority = `https://login.microsoftonline.com/${env.TENANT_ID || 'organizations'}`;
+
+  try {
+    if (resolution.method === 'certificate' && resolution.source === 'keyvault') {
+      console.log('[MSAL] Attempting certificate authentication from Key Vault...');
+      const certCredential = await fetchCertificateFromKeyVault();
+      const kvConfig = getKeyVaultConfig();
+
+      state.app = new msal.ConfidentialClientApplication({
+        auth: {
+          clientId: env.CLIENT_ID,
+          authority,
+          clientCertificate: {
+            thumbprint: certCredential.thumbprint,
+            privateKey: certCredential.privateKey,
+          },
+        },
+        system: { loggerOptions },
+      });
+      state.useCertificate = true;
+      state.initialized = true;
+      state.error = null;
+      clientApps.set(key, state);
+      lastResolvedAuth = resolution;
+      console.log(`[MSAL] Configured with certificate from Key Vault (${kvConfig.certName})`);
+      return state;
+    }
+
+    if (resolution.method === 'certificate' && resolution.source === 'local') {
+      console.log('[MSAL] Attempting local certificate authentication...');
+      const certCredential = await loadLocalCertificate();
+      const localCertStatus = await getLocalCertificateStatus();
+      
+      state.app = new msal.ConfidentialClientApplication({
+        auth: {
+          clientId: env.CLIENT_ID,
+          authority,
+          clientCertificate: {
+            thumbprint: certCredential.thumbprint,
+            privateKey: certCredential.privateKey,
+          },
+        },
+        system: { loggerOptions },
+      });
+      state.useCertificate = true;
+      state.initialized = true;
+      state.error = null;
+      clientApps.set(key, state);
+      lastResolvedAuth = resolution;
+      console.log(`[MSAL] Configured with local certificate (${localCertStatus.path})`);
+      return state;
+    }
+
+    if (resolution.method === 'secret' && resolution.source === 'keyvault') {
+      console.log('[MSAL] Attempting client secret authentication from Key Vault...');
+      const secretValue = await fetchSecretFromKeyVault();
+      const kvConfig = getKeyVaultConfig();
+
+      state.app = new msal.ConfidentialClientApplication({
+        auth: {
+          clientId: env.CLIENT_ID,
+          authority,
+          clientSecret: secretValue,
+        },
+        system: { loggerOptions },
+      });
+      state.useCertificate = false;
+      state.initialized = true;
+      state.error = null;
+      clientApps.set(key, state);
+      lastResolvedAuth = resolution;
+      console.log(`[MSAL] Configured with client secret from Key Vault (${kvConfig.secretName})`);
+      return state;
+    }
+
+    if (resolution.method === 'secret' && resolution.source === 'local') {
+      if (!env.CLIENT_SECRET) {
+        return fail('CLIENT_SECRET is not configured');
+      }
+
+      console.log('[MSAL] Using client secret authentication from environment');
+      state.app = new msal.ConfidentialClientApplication({
+        auth: {
+          clientId: env.CLIENT_ID,
+          authority,
+          clientSecret: env.CLIENT_SECRET,
+        },
+        system: { loggerOptions },
+      });
+      state.useCertificate = false;
+      state.initialized = true;
+      state.error = null;
+      clientApps.set(key, state);
+      lastResolvedAuth = resolution;
+      return state;
+    }
+
+    return fail('No authentication method configured. Set CLIENT_SECRET, CERTIFICATE_PATH, or configure Key Vault.');
+  } catch (err: any) {
+    const message = err.message || 'Failed to initialize MSAL client';
+    return fail(message);
+  }
+}
+
+/**
+ * Get the MSAL client application (initializes if needed)
+ */
+export async function getClientApp(resolution?: AuthResolution): Promise<msal.ConfidentialClientApplication | null> {
+  const targetResolution = resolution ?? detectAuthMethod();
+  const state = await initializeClientApp(targetResolution);
+  return state.app;
 }
 
 /**
  * Acquire token by client credential with proper sendX5C handling
  */
-export async function acquireAppToken(scopes: string[]): Promise<msal.AuthenticationResult | null> {
-  const app = await getClientApp();
+export async function acquireAppToken(scopes: string[], cookies?: Cookies): Promise<msal.AuthenticationResult | null> {
+  const resolution = getAuthMethod(cookies);
+  const state = await initializeClientApp(resolution);
+  const app = state.app;
+
   if (!app) {
-    throw new Error('MSAL client not initialized');
+    throw new Error(state.error ?? 'MSAL client not initialized');
   }
 
   const request: msal.ClientCredentialRequest = {
     scopes,
-    // sendX5C is required for certificate authentication
-    // It includes the X.509 certificate chain in the JWT header
-    ...(useCertificateAuth && { sendX5C: true }),
+    ...(state.useCertificate && { sendX5C: true }),
   };
 
   return app.acquireTokenByClientCredential(request);
@@ -303,8 +316,3 @@ export const asResourceScope = (resource: string) => {
 export const getRedirectUri = (origin: string) => {
   return env.REDIRECT_URI || `${origin}/auth/callback`;
 };
-
-// Legacy export for backward compatibility
-// Components should migrate to getClientApp() for async initialization
-export { clientApp };
-

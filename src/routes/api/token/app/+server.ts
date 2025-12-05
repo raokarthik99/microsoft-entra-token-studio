@@ -2,7 +2,7 @@ import { json } from '@sveltejs/kit';
 import { acquireAppToken, asResourceScope, missingEnvKeys, getAuthMethod } from '$lib/server/msal';
 import type { RequestHandler } from './$types';
 
-export const GET: RequestHandler = async ({ url }) => {
+export const GET: RequestHandler = async ({ url, cookies }) => {
   const resource = url.searchParams.get('resource')?.trim();
   
   if (!resource) {
@@ -24,10 +24,10 @@ export const GET: RequestHandler = async ({ url }) => {
   }
 
   const scope = asResourceScope(resource);
-  const authMethod = getAuthMethod();
+  const authResolution = getAuthMethod(cookies);
 
   try {
-    const token = await acquireAppToken([scope]);
+    const token = await acquireAppToken([scope], cookies);
     if (!token) {
       throw new Error('Failed to acquire token');
     }
@@ -36,7 +36,8 @@ export const GET: RequestHandler = async ({ url }) => {
       tokenType: token.tokenType,
       expiresOn: token.expiresOn ? token.expiresOn.toISOString() : undefined,
       accessToken: token.accessToken,
-      authMethod, // Include auth method in response for transparency
+      authMethod: authResolution.method,
+      authSource: authResolution.source,
     });
   } catch (err: any) {
     console.error('Failed to acquire app token', err);
@@ -45,7 +46,7 @@ export const GET: RequestHandler = async ({ url }) => {
     
     // Provide more helpful error messages based on auth method
     let details = message;
-    if (authMethod === 'certificate' && message.includes('certificate')) {
+    if (authResolution.method === 'certificate' && message.includes('certificate')) {
       details = `Certificate authentication error: ${message}. Check Key Vault configuration and permissions.`;
     }
     
@@ -54,7 +55,8 @@ export const GET: RequestHandler = async ({ url }) => {
         error: 'Failed to acquire app token',
         details,
         code,
-        authMethod,
+        authMethod: authResolution.method,
+        authSource: authResolution.source,
       },
       { status: 500 },
     );

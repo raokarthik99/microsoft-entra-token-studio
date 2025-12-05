@@ -1,66 +1,104 @@
 import { json } from '@sveltejs/kit';
-import { configChecks, getRedirectUri, missingEnvKeys } from '$lib/server/msal';
-import { getKeyVaultStatus, isKeyVaultConfigured, isKeyVaultSecretConfigured } from '$lib/server/keyvault';
-import { getLocalCertificateStatus, isLocalCertificateConfigured } from '$lib/server/certificate';
+import { configChecks, getAuthMethod, getRedirectUri, missingEnvKeys } from '$lib/server/msal';
+import { getKeyVaultCertificateStatus, getKeyVaultSecretStatus } from '$lib/server/keyvault';
+import { getLocalCertificateStatus } from '$lib/server/certificate';
 import type { RequestHandler } from './$types';
 import { env } from '$env/dynamic/private';
 
-export const GET: RequestHandler = async ({ url }) => {
+type ValidationStatus = 'ready' | 'issues' | 'not_configured';
+
+const asValidation = (status: ValidationStatus, errors: string[] = []) => ({
+  status,
+  ...(errors.length ? { errors } : {}),
+});
+
+export const GET: RequestHandler = async ({ url, cookies }) => {
   const redirectUri = getRedirectUri(url.origin);
   const missing = missingEnvKeys();
   const authority = `https://login.microsoftonline.com/${env.TENANT_ID || 'organizations'}`;
+  const authResolution = getAuthMethod(cookies);
 
-  // Determine auth method from configuration (not runtime state)
-  // Priority: KV Cert > Local Cert > KV Secret > Secret
-  let authMethod: 'certificate' | 'secret' | 'none' = 'none';
-  let authSource: 'keyvault' | 'local' | 'none' = 'none';
+  const [kvCertStatus, kvSecretStatus, localCertStatus] = await Promise.all([
+    getKeyVaultCertificateStatus(),
+    getKeyVaultSecretStatus(),
+    getLocalCertificateStatus(),
+  ]);
 
-  if (isKeyVaultConfigured()) {
-    authMethod = 'certificate';
-    authSource = 'keyvault';
-  } else if (isLocalCertificateConfigured()) {
-    authMethod = 'certificate';
-    authSource = 'local';
-  } else if (isKeyVaultSecretConfigured()) {
-    authMethod = 'secret';
-    authSource = 'keyvault';
-  } else if (env.CLIENT_SECRET) {
-    authMethod = 'secret';
-    authSource = 'local';
-  }
+  const validation = {
+    secret: {
+      local: env.CLIENT_SECRET
+        ? asValidation('ready')
+        : asValidation('not_configured', ['Set CLIENT_SECRET in your .env file.']),
+      keyvault: (() => {
+        if (kvSecretStatus.status === 'connected') return asValidation('ready');
+        if (kvSecretStatus.status === 'error') {
+          return asValidation('issues', kvSecretStatus.error ? [kvSecretStatus.error] : ['Unable to read secret from Key Vault.']);
+        }
+        return asValidation(
+          'not_configured',
+          ['Set AZURE_KEYVAULT_URI and AZURE_KEYVAULT_SECRET_NAME to use a Key Vault secret.']
+        );
+      })(),
+    },
+    certificate: {
+      local: (() => {
+        if (localCertStatus.status === 'loaded') return asValidation('ready');
+        if (localCertStatus.status === 'error') {
+          return asValidation('issues', localCertStatus.error ? [localCertStatus.error] : ['Failed to load certificate from CERTIFICATE_PATH.']);
+        }
+        return asValidation('not_configured', ['Set CERTIFICATE_PATH to a PEM/PFX file with the private key.']);
+      })(),
+      keyvault: (() => {
+        if (kvCertStatus.status === 'connected') return asValidation('ready');
+        if (kvCertStatus.status === 'error') {
+          return asValidation('issues', kvCertStatus.error ? [kvCertStatus.error] : ['Unable to read certificate from Key Vault.']);
+        }
+        return asValidation(
+          'not_configured',
+          ['Set AZURE_KEYVAULT_URI and AZURE_KEYVAULT_CERT_NAME to use a Key Vault certificate.']
+        );
+      })(),
+    },
+  };
 
-  // Get Key Vault status if configured (for either cert or secret)
-  let keyVault = null;
-  if (isKeyVaultConfigured() || isKeyVaultSecretConfigured()) {
-    const kvStatus = await getKeyVaultStatus();
-    keyVault = {
-      uri: kvStatus.uri,
-      certName: kvStatus.certName,
-      secretName: kvStatus.secretName,
-      status: kvStatus.status,
-      ...(kvStatus.error && { error: kvStatus.error }),
-    };
-  }
+  const activeValidation =
+    authResolution.method === 'certificate'
+      ? validation.certificate[authResolution.source === 'keyvault' ? 'keyvault' : 'local']
+      : authResolution.method === 'secret'
+        ? validation.secret[authResolution.source === 'keyvault' ? 'keyvault' : 'local']
+        : asValidation('not_configured', ['No credential path selected.']);
 
-  // Get Local Cert status if configured
-  let localCert = null;
-  if (isLocalCertificateConfigured()) {
-    const lcStatus = await getLocalCertificateStatus();
-    localCert = {
-      path: lcStatus.path,
-      status: lcStatus.status,
-      ...(lcStatus.error && { error: lcStatus.error }),
-    };
-  }
+  const status = missing.length === 0 && activeValidation.status === 'ready' ? 'ok' : 'incomplete';
+
+  const keyVault =
+    authResolution.source === 'keyvault'
+      ? {
+          uri: authResolution.method === 'certificate' ? kvCertStatus.uri : kvSecretStatus.uri,
+          certName: kvCertStatus.certName,
+          secretName: kvSecretStatus.secretName,
+          status: authResolution.method === 'certificate' ? kvCertStatus.status : kvSecretStatus.status,
+          ...(authResolution.method === 'certificate' && kvCertStatus.error ? { error: kvCertStatus.error } : {}),
+          ...(authResolution.method === 'secret' && kvSecretStatus.error ? { error: kvSecretStatus.error } : {}),
+        }
+      : undefined;
+
+  const localCert = localCertStatus.configured
+    ? {
+        path: localCertStatus.path,
+        status: localCertStatus.status,
+        ...(localCertStatus.error && { error: localCertStatus.error }),
+      }
+    : undefined;
 
   return json({
-    status: missing.length ? 'incomplete' : 'ok',
+    status,
     tenant: env.TENANT_ID || null,
     clientId: env.CLIENT_ID || null,
     authority,
     redirectUri,
-    authMethod,
-    authSource,
+    authMethod: authResolution.method,
+    authSource: authResolution.source,
+    validation,
     checks: {
       tenantId: configChecks.tenantId,
       clientId: configChecks.clientId,
