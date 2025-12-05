@@ -1,3 +1,7 @@
+# ⚠️ Local-Only Security Tool — Read Before Using
+
+This project is deliberately built for **local, developer-supervised use only**. It handles access tokens, client secrets, and certificate-based credentials that grant real authorization to Entra-protected resources. Running it on shared, hosted, or unattended environments increases the risk of credential leakage, misuse of tokens with live scopes, and accidental exposure of sensitive configuration (tenant IDs, client IDs, redirects, Key Vault paths, certificates, and secrets). Always run it on your own machine, with your own credentials, and keep the `.env`, browser storage, and any copied tokens under your direct control. Do not deploy this tool as a multi-user service; it is a personal playground for testing and debugging token flows.
+
 # Entra Token Client
 
 Playground for generating and inspecting Microsoft Entra access tokens. Built with SvelteKit 2, Svelte 5 runes, and TypeScript.
@@ -46,7 +50,7 @@ Playground for generating and inspecting Microsoft Entra access tokens. Built wi
    cp .env.example .env
    ```
 
-   Fill in the values below, then restart the dev server after edits.
+   Fill in the values below, then restart the dev server after edits. Keep `.env` local and out of source control; never commit real secrets, certificates, or tenant-specific values.
 
 4. **Run**
    ```bash
