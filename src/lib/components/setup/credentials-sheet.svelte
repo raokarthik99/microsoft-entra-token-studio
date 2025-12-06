@@ -21,6 +21,10 @@
     issues: 'bg-amber-500/15 text-amber-700 border-amber-500/40',
     not_configured: 'bg-muted text-muted-foreground border-border/60',
   };
+  const validationErrorClasses =
+    'rounded-lg border border-amber-500/40 bg-amber-50 dark:bg-amber-500/15 p-2.5 text-xs text-amber-900 dark:text-amber-50 space-y-1';
+  const validationErrorIconClasses =
+    'h-3.5 w-3.5 mt-[1px] text-amber-800 dark:text-amber-100 shrink-0';
 
   const validationLabels: Record<CredentialValidationStatus, string> = {
     ready: 'Ready',
@@ -347,10 +351,10 @@
 
                 <!-- Validation Errors -->
                 {#if status.secret[activeSource].validation.status !== 'ready' && status.secret[activeSource].validation.errors?.length}
-                  <div class="rounded-lg border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs text-amber-900 space-y-1">
+                  <div class={validationErrorClasses}>
                     {#each status.secret[activeSource].validation.errors as err}
                       <div class="flex items-start gap-2">
-                        <Info class="h-3.5 w-3.5 mt-[1px] text-amber-800 shrink-0" />
+                        <Info class={validationErrorIconClasses} />
                         <span>{err}</span>
                       </div>
                     {/each}
@@ -530,10 +534,10 @@
 
                 <!-- Validation Errors -->
                 {#if status.certificate[activeSource].validation.status !== 'ready' && status.certificate[activeSource].validation.errors?.length}
-                  <div class="rounded-lg border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs text-amber-900 space-y-1">
+                  <div class={validationErrorClasses}>
                     {#each status.certificate[activeSource].validation.errors as err}
                       <div class="flex items-start gap-2">
-                        <Info class="h-3.5 w-3.5 mt-[1px] text-amber-800 shrink-0" />
+                        <Info class={validationErrorIconClasses} />
                         <span>{err}</span>
                       </div>
                     {/each}
