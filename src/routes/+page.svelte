@@ -5,6 +5,7 @@
   import { historyState } from '$lib/states/history.svelte';
   import { favoritesState } from '$lib/states/favorites.svelte';
   import { tokenDockState } from '$lib/states/token-dock.svelte';
+  import { appRegistry, APP_COLORS } from '$lib/states/app-registry.svelte';
   import HistoryList from '$lib/components/HistoryList.svelte';
   import FavoriteFormSheet from '$lib/components/FavoriteFormSheet.svelte';
   import DecodedClaims from '$lib/components/DecodedClaims.svelte';
@@ -17,6 +18,8 @@
   import { Label } from "$lib/shadcn/components/ui/label";
   import * as Card from "$lib/shadcn/components/ui/card";
   import * as Tabs from "$lib/shadcn/components/ui/tabs";
+  import * as DropdownMenu from "$lib/shadcn/components/ui/dropdown-menu";
+  import * as Collapsible from "$lib/shadcn/components/ui/collapsible";
   import { Badge } from "$lib/shadcn/components/ui/badge";
   import { Separator } from "$lib/shadcn/components/ui/separator";
   import { ScrollArea } from "$lib/shadcn/components/ui/scroll-area";
@@ -43,7 +46,16 @@
     Home,
     Star,
     StarOff,
-    RefreshCw
+    RefreshCw,
+    ChevronDown,
+    Plus,
+    Settings,
+    Check,
+    Cloud,
+    BookOpen,
+    Zap,
+    ExternalLink,
+    ShieldAlert,
   } from "@lucide/svelte";
   import { auth, authServiceStore } from '$lib/stores/auth';
 
@@ -56,10 +68,6 @@
   let result = $state<TokenData | null>(null);
   let error = $state<string | null>(null);
   let loading = $state(false);
-  let clientId = $state<string | null>(null);
-  let tenantId = $state<string | null>(null);
-  let health = $state<HealthStatus | null>(null);
-  let healthLoading = $state(false);
   let copied = $state(false);
   let favoriteOpen = $state(false);
   let favoriteDraft: HistoryItem | null = $state(null);
@@ -69,6 +77,9 @@
   let highlightTarget: 'scopes' | 'resource' | null = $state(null);
   let highlightTimeout: number | null = null;
   let switchingAccount = $state(false);
+  let scopeHelpOpen = $state(false);
+  let appHelpOpen = $state(false);
+  let lastErrorSource: 'user-token' | 'app-token' | 'external' | null = $state(null);
 
   // Derived state for active account
   const activeAccount = $derived($auth.user);
@@ -107,65 +118,81 @@
   const showResultScopes = $derived(resultKind !== 'App Token' && resultScopes.length > 0);
   const currentStatus = $derived(result?.expiresOn ? getTokenStatus(new Date(result.expiresOn), $time) : null);
   const scopeCount = $derived(resultScopes.length);
-  const configReady = $derived(health?.status === 'ok');
-  const configStatusLabel = $derived(
-    healthLoading ? 'Checking config' : configReady ? 'Setup complete' : 'Configuration incomplete'
+  const activeClientId = $derived(appRegistry.activeApp?.clientId ?? null);
+  const portalAppPermissionsUrl = $derived(activeClientId
+    ? `https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/CallAnAPI/appId/${activeClientId}`
+    : null);
+  const portalExposeApiUrl = $derived(activeClientId
+    ? `https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/ExposeAnAPI/appId/${activeClientId}`
+    : null);
+
+  const isConsentLikeError = $derived(
+    error && lastErrorSource === 'user-token' && (() => {
+      const lower = error.toLowerCase();
+      return (
+        lower.includes('consent') ||
+        lower.includes('admin approval') ||
+        lower.includes('admin_consent') ||
+        lower.includes('insufficient privileges') ||
+        lower.includes('aadsts65001') ||
+        lower.includes('needs admin approval')
+      );
+    })()
   );
-  const configStatusTone: 'secondary' | 'outline' = $derived(configReady ? 'secondary' : 'outline');
-  const credentialValidation = $derived((() => {
-    if (!health) return null;
-    if (health.authMethod === 'certificate') {
-      return health.validation.certificate[health.authSource === 'keyvault' ? 'keyvault' : 'local'];
-    }
-    if (health.authMethod === 'secret') {
-      return health.validation.secret[health.authSource === 'keyvault' ? 'keyvault' : 'local'];
-    }
-    return null;
-  })());
-  const credentialStatus = $derived<CredentialValidationStatus>(credentialValidation?.status ?? 'not_configured');
-  const credentialStatusLabel = $derived(
-    credentialStatus === 'ready' ? 'Ready' : credentialStatus === 'issues' ? 'Issues' : 'Not set'
+
+  const isAppPermissionError = $derived(
+    error && lastErrorSource === 'app-token' && (() => {
+      const lower = error.toLowerCase();
+      return (
+        lower.includes('unauthorized') ||
+        lower.includes('forbidden') ||
+        lower.includes('insufficient privileges') ||
+        lower.includes('aadsts700016') || // Application not found
+        lower.includes('aadsts7000215') || // Invalid client secret
+        lower.includes('aadsts700027') || // Client assertion contains an invalid signature
+        lower.includes('aadsts70011') || // Invalid scope
+        lower.includes('access denied') ||
+        lower.includes('does not have permissions') ||
+        lower.includes('role') ||
+        lower.includes('permission')
+      );
+    })()
   );
-  const credentialBadgeClass = $derived(() => {
-    if (credentialStatus === 'ready') return 'h-5 text-[10px] px-2 bg-emerald-500/10 text-emerald-700 border-emerald-500/30';
-    if (credentialStatus === 'issues') return 'h-5 text-[10px] px-2 bg-amber-500/10 text-amber-700 border-amber-500/40';
-    return 'h-5 text-[10px] px-2 bg-muted text-muted-foreground border-border/60';
+  
+  // App readiness now comes from the app registry
+  const hasActiveApp = $derived(appRegistry.hasApps && !!appRegistry.activeApp);
+  const configReady = $derived(hasActiveApp);
+
+  // Dynamic routing: redirect to Setup when no apps are configured
+  $effect(() => {
+    if (typeof window === 'undefined') return;
+    if (!appRegistry.ready) return; // Wait for registry to load from IndexedDB
+    
+    // Check URL params - don't redirect if user explicitly came here with intent
+    const urlParams = new URLSearchParams(window.location.search);
+    const hasIntent = urlParams.has('tab') || urlParams.has('autorun') || urlParams.has('cta');
+    
+    // If no apps and no explicit intent, redirect to setup
+    if (!appRegistry.hasApps && !hasIntent) {
+      goto('/apps', { replaceState: true });
+    }
   });
-  const credentialPathLabel = $derived((() => {
-    if (!health) return 'Credential not configured';
-    if (health.authMethod === 'certificate') {
-      return `Certificate · ${health.authSource === 'keyvault' ? 'Key Vault' : 'Local'}`;
+
+  // When consent-related errors occur on the user-token tab, surface the scopes help panel
+  $effect(() => {
+    if (activeTab === 'user-token' && isConsentLikeError && lastErrorSource === 'user-token') {
+      scopeHelpOpen = true;
+      highlightTarget = 'scopes';
     }
-    if (health.authMethod === 'secret') {
-      return `Secret · ${health.authSource === 'keyvault' ? 'Key Vault' : 'Local'}`;
+  });
+
+  // When permission-related errors occur on the app-token tab, surface the app help panel
+  $effect(() => {
+    if (activeTab === 'app-token' && isAppPermissionError && lastErrorSource === 'app-token') {
+      appHelpOpen = true;
+      highlightTarget = 'resource';
     }
-    return 'Credential not configured';
-  })());
-  const credentialContextLabel = $derived((() => {
-    if (!health) return '';
-    if (health.authMethod === 'certificate') {
-      if (health.authSource === 'keyvault') {
-        const name = health.keyVault?.certName;
-        const vault = health.keyVault?.uri;
-        return `Using a private key stored in Azure Key Vault${name ? ` (${name})` : ''}${vault ? ` at ${vault}` : ''}.`;
-      }
-      if (health.authSource === 'local') {
-        return 'Using a local certificate with private key on this machine.';
-      }
-    }
-    if (health.authMethod === 'secret') {
-      if (health.authSource === 'keyvault') {
-        const name = health.keyVault?.secretName;
-        const vault = health.keyVault?.uri;
-        return `Using a client secret stored in Azure Key Vault${name ? ` (${name})` : ''}${vault ? ` at ${vault}` : ''}.`;
-      }
-      if (health.authSource === 'local') {
-        return 'Using a client secret loaded from local environment variables.';
-      }
-    }
-    return '';
-  })());
-  const credentialErrors = $derived(credentialValidation?.errors ?? []);
+  });
 
   $effect(() => {
     if (typeof window === 'undefined') return;
@@ -228,7 +255,6 @@
 
       // historyState.load() is called in constructor, but we can call it again if needed, or rely on it being singleton
       await checkUrlForToken();
-      refreshHealth();
 
       const autorun = urlParams.get('autorun');
       if (autorun === 'true') {
@@ -269,21 +295,6 @@
 
   // Removed clearHistory function - use historyState.clear()
 
-  async function refreshHealth() {
-    healthLoading = true;
-    try {
-      const res = await fetch('/api/health');
-      const data: HealthStatus = await res.json();
-      health = data;
-      clientId = data.clientId;
-      tenantId = data.tenant;
-    } catch (err) {
-      console.error('Failed to fetch config', err);
-    } finally {
-      healthLoading = false;
-    }
-  }
-
   async function checkUrlForToken() {
     const hash = window.location.hash;
     if (hash && hash.includes('token=')) {
@@ -311,6 +322,7 @@
       } catch (e) {
         console.error('Failed to parse token', e);
         error = 'Failed to parse token from URL';
+        lastErrorSource = 'external';
         tokenDockState.setError('Failed to parse token from URL');
       }
     }
@@ -318,6 +330,7 @@
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.has('error')) {
       error = `${urlParams.get('error')}: ${urlParams.get('error_description') || ''}`;
+      lastErrorSource = 'external';
       tokenDockState.setError(error);
     }
   }
@@ -326,6 +339,7 @@
     if (!ensureSetupReady()) return;
     loading = true;
     error = null;
+    lastErrorSource = null;
     result = null;
     tokenDockState.setLoading({ type: 'App Token', target: resource });
     await clientStorage.set(CLIENT_STORAGE_KEYS.lastResource, resource);
@@ -341,7 +355,11 @@
           type: 'App Token',
           target: resource,
           timestamp: issuedAt,
-          tokenData: JSON.parse(JSON.stringify(data))
+          tokenData: JSON.parse(JSON.stringify(data)),
+          // App context for multi-app support
+          appId: appRegistry.activeApp?.id,
+          appName: appRegistry.activeApp?.name,
+          appColor: appRegistry.activeApp?.color,
         };
         await addToHistory(historyItem);
         tokenDockState.setToken(historyItem);
@@ -349,14 +367,16 @@
       } else {
         const errorMsg = data.details ? `${data.error}: ${data.details}` : data.error || 'Failed to fetch token';
         error = errorMsg;
+        lastErrorSource = 'app-token';
         tokenDockState.setError(errorMsg);
         toast.error(errorMsg);
         if (data.setupRequired) {
-          await goto('/setup?from=playground');
+          await goto('/apps?from=playground');
         }
       }
     } catch (err: any) {
       error = err.message;
+      lastErrorSource = 'app-token';
       tokenDockState.setError(err.message);
     } finally {
       loading = false;
@@ -370,6 +390,7 @@
     await clientStorage.set(CLIENT_STORAGE_KEYS.activeTab, 'user-token');
     loading = true;
     error = null;
+    lastErrorSource = null;
     result = null;
     tokenDockState.setLoading({ type: 'User Token', target: scopes });
 
@@ -397,7 +418,11 @@
         type: 'User Token',
         target: scopes,
         timestamp: issuedAt,
-        tokenData: JSON.parse(JSON.stringify(result!))
+        tokenData: JSON.parse(JSON.stringify(result!)),
+        // App context for multi-app support
+        appId: appRegistry.activeApp?.id,
+        appName: appRegistry.activeApp?.name,
+        appColor: appRegistry.activeApp?.color,
       };
 
       await addToHistory(historyItem);
@@ -409,6 +434,7 @@
       // Don't show error toast for cancelled sign-in
       if (message !== 'Sign-in was cancelled') {
         error = message;
+        lastErrorSource = 'user-token';
         tokenDockState.setError(message);
         toast.error(message);
       } else {
@@ -555,6 +581,14 @@
     scopes = value;
   }
 
+  async function handleSelectApp(appId: string) {
+    await appRegistry.setActive(appId);
+  }
+
+  function navigateToApps() {
+    goto('/apps');
+  }
+
 
 
   function formatTimestamp(ts: number) {
@@ -562,7 +596,11 @@
   }
 
   function highlightRequiredInput(tab: FlowTab) {
-    const targetField = tab === 'app-token' ? 'resource' : 'scopes';
+    // Only use the guided highlight for the app-token resource field.
+    // The user-token scopes field should only highlight in response to errors.
+    if (tab !== 'app-token') return;
+
+    const targetField = 'resource';
     highlightTarget = targetField;
 
     const inputEl = document.getElementById(targetField) as HTMLInputElement | null;
@@ -581,18 +619,10 @@
   }
 
   function ensureSetupReady() {
-    if (healthLoading) {
-      toast.info('Checking Setup status... please wait');
-      return false;
-    }
     if (configReady) return true;
-    toast.warning('Complete Setup before issuing tokens', {
-      description:
-        credentialStatus !== 'ready'
-          ? `Credential path ${credentialPathLabel} is ${credentialStatusLabel}.`
-          : 'Open Setup to add tenant, client, and credentials.',
+    toast.warning('Add an app to start issuing tokens', {
+      description: 'Click "Add App" in the header to configure your first Entra app registration.',
     });
-    goto('/setup?from=playground');
     return false;
   }
 
@@ -630,8 +660,10 @@
 </script>
 
 <svelte:head>
-  <title>Playground | Entra Token Client</title>
+  <title>Playground | Entra Token Studio</title>
 </svelte:head>
+
+
 
 <div class="space-y-8">
   <div class="flex flex-wrap items-center justify-between gap-3">
@@ -647,71 +679,76 @@
   </div>
 
   <div class="space-y-6">
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <div class="flex flex-wrap items-center gap-3">
-        <h3 class="text-lg font-semibold text-foreground">Issue tokens</h3>
-        {#if lastRun}
-          <Badge variant="outline" class="gap-2">
-            <Clock3 class="h-4 w-4" />
-            Last run: {formatTimestamp(lastRun.timestamp)}
-          </Badge>
-        {/if}
-      </div>
-      <div class="flex flex-wrap items-center gap-3">
-        {#if !configReady && !healthLoading}
-          <span class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-800 ring-1 ring-amber-200">
-            <AlertTriangle class="h-3.5 w-3.5" />
-            Complete Setup to issue tokens
-          </span>
-        {/if}
-        <Badge variant={configStatusTone} class="gap-2">
-          {#if healthLoading}
-            <Loader2 class="h-3.5 w-3.5 animate-spin" />
-          {:else if configReady}
-            <ListChecks class="h-3.5 w-3.5" />
-          {:else}
-            <AlertTriangle class="h-3.5 w-3.5 text-amber-600" />
-          {/if}
-          {configStatusLabel}
-        </Badge>
-        <Button variant="default" size="sm" href="/setup" class="gap-2 h-8">
-          Open setup
-          <ArrowRight class="h-3.5 w-3.5" />
-        </Button>
-      </div>
-    </div>
-
-    <div class="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-      <div class="flex items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2">
-        <span class="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Tenant</span>
-        <code class="font-mono text-xs text-foreground/90">{tenantId || 'Not set'}</code>
-        {#if tenantId}
-          <Button
-            variant="ghost"
-            size="icon"
-            class="h-7 w-7"
-            onclick={() => copyToClipboard(tenantId || '')}
-            title="Copy tenant ID"
-          >
-            <Copy class="h-3.5 w-3.5" />
-          </Button>
-        {/if}
-      </div>
-      <div class="flex items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2">
-        <span class="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Client</span>
-        <code class="font-mono text-xs text-foreground/90 break-all">{clientId || 'Not set'}</code>
-        {#if clientId}
-          <Button
-            variant="ghost"
-            size="icon"
-            class="h-7 w-7"
-            onclick={() => copyToClipboard(clientId || '')}
-            title="Copy client ID"
-          >
-            <Copy class="h-3.5 w-3.5" />
-          </Button>
-        {/if}
-      </div>
+    <div class="space-y-3">
+      {#if appRegistry.hasApps && appRegistry.activeApp}
+        <div class="space-y-1">
+          <Label class="text-sm font-medium text-foreground">Active application</Label>
+          <p class="text-xs text-muted-foreground">Select the client application to use for generating tokens to access other apps and resources.</p>
+        </div>
+        <!-- Interactive App Selector Dropdown -->
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger>
+            <button 
+              type="button"
+              class="inline-flex items-center gap-3 rounded-lg border bg-gradient-to-r from-primary/5 to-transparent px-3 py-2 hover:bg-muted/50 transition-colors cursor-pointer"
+            >
+              <div 
+                class="w-2.5 h-2.5 rounded-full shrink-0"
+                style="background-color: {appRegistry.activeApp.color || APP_COLORS[0]}"
+              ></div>
+              <div class="flex items-center gap-2">
+                <span class="font-medium text-foreground">{appRegistry.activeApp.name}</span>
+                <span class="text-muted-foreground">·</span>
+                <code class="font-mono text-[10px] text-muted-foreground">{appRegistry.activeApp.clientId.slice(0, 8)}...</code>
+              </div>
+              <div class="flex items-center gap-1.5 text-muted-foreground">
+                <Cloud class="h-3 w-3" />
+                <span class="text-[10px]">{appRegistry.activeApp.keyVault.uri.replace('https://', '').replace('.vault.azure.net', '')}</span>
+              </div>
+              <ChevronDown class="h-3.5 w-3.5 shrink-0 opacity-50" />
+            </button>
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Content align="start" class="w-[220px]">
+            <DropdownMenu.Group>
+              <DropdownMenu.Label class="text-xs text-muted-foreground">Switch app</DropdownMenu.Label>
+              {#each appRegistry.apps as app (app.id)}
+                <DropdownMenu.Item 
+                  class="flex items-center justify-between gap-2 cursor-pointer"
+                  onclick={() => handleSelectApp(app.id)}
+                >
+                  <div class="flex items-center gap-2 min-w-0">
+                    <div 
+                      class="w-2.5 h-2.5 rounded-full shrink-0" 
+                      style="background-color: {app.color || APP_COLORS[0]}"
+                    ></div>
+                    <span class="truncate">{app.name}</span>
+                  </div>
+                  {#if app.id === appRegistry.activeAppId}
+                    <Check class="h-4 w-4 shrink-0 text-primary" />
+                  {/if}
+                </DropdownMenu.Item>
+              {/each}
+            </DropdownMenu.Group>
+            <DropdownMenu.Separator />
+            <DropdownMenu.Item class="cursor-pointer gap-2" onclick={navigateToApps}>
+              <Plus class="h-4 w-4" />
+              Add app...
+            </DropdownMenu.Item>
+            <DropdownMenu.Item class="cursor-pointer gap-2" onclick={navigateToApps}>
+              <Settings class="h-4 w-4" />
+              Manage apps
+            </DropdownMenu.Item>
+          </DropdownMenu.Content>
+        </DropdownMenu.Root>
+      {:else if !appRegistry.hasApps}
+        <!-- Compact Empty State -->
+        <div class="w-full rounded-lg border border-dashed border-muted-foreground/30 bg-muted/30 px-4 py-3">
+          <div class="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+            <Info class="h-4 w-4" />
+            <span>Click <strong>"Add App"</strong> in the header to configure your first Entra app registration.</span>
+          </div>
+        </div>
+      {/if}
     </div>
     <div class="space-y-3">
       <div class="flex flex-wrap items-center justify-between gap-2">
@@ -721,11 +758,11 @@
         <Tabs.List class="grid w-full grid-cols-2 rounded-full bg-muted/60 p-1">
           <Tabs.Trigger value="user-token" class="gap-2 rounded-full">
             <User class="h-4 w-4" />
-            User token
+            User token (delegated)
           </Tabs.Trigger>
           <Tabs.Trigger value="app-token" class="gap-2 rounded-full">
             <ShieldHalf class="h-4 w-4" />
-            App token
+            App token (daemon)
           </Tabs.Trigger>
         </Tabs.List>
 
@@ -736,7 +773,9 @@
                 <div class="flex items-center justify-between gap-3">
                   <div class="space-y-1">
                     <Card.Title>User token</Card.Title>
-                    <Card.Description>Interactive sign-in for delegated scopes.</Card.Description>
+                    <Card.Description>
+                      Best when testing what a signed-in user can do in an app or Microsoft 365 (for example, reading their profile, mail, or calendar).
+                    </Card.Description>
                   </div>
                   <Badge variant="secondary" class="gap-2 font-semibold text-foreground">
                     <LogIn class="h-4 w-4" />
@@ -762,6 +801,183 @@
                       <p class="text-[10px] text-muted-foreground">
                         Tip: You can request multiple scopes by separating them with spaces or commas.
                       </p>
+                      <Collapsible.Root bind:open={scopeHelpOpen} class="mt-2">
+                        <Collapsible.Trigger
+                          class={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
+                            isConsentLikeError
+                              ? 'border-amber-500/50 bg-gradient-to-r from-amber-500/15 to-amber-500/5 text-amber-200 hover:from-amber-500/20 hover:to-amber-500/10 shadow-sm shadow-amber-500/10'
+                              : 'border-border/50 bg-muted/30 text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                          }`}
+                        >
+                          {#if isConsentLikeError}
+                            <span class="flex h-5 w-5 items-center justify-center rounded-full bg-amber-500/25">
+                              <AlertTriangle class="h-3.5 w-3.5 text-amber-400" />
+                            </span>
+                            <span>Troubleshoot consent error</span>
+                            <Badge variant="outline" class="h-5 border-amber-500/40 bg-amber-500/20 text-[10px] text-amber-300 font-semibold">
+                              Fix required
+                            </Badge>
+                          {:else}
+                            <span class="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10">
+                              <BookOpen class="h-3.5 w-3.5 text-primary" />
+                            </span>
+                            <span>Scope & consent guide</span>
+                          {/if}
+                          <ChevronDown class="h-3.5 w-3.5 ml-auto transition-transform duration-200 data-[state=open]:rotate-180" />
+                        </Collapsible.Trigger>
+                        <Collapsible.Content>
+                          <div class={`mt-3 rounded-xl border overflow-hidden ${
+                            isConsentLikeError
+                              ? 'border-amber-500/40 bg-gradient-to-b from-amber-950/40 to-background'
+                              : 'border-border/60 bg-muted/20'
+                          }`}>
+                            <!-- Header -->
+                            {#if isConsentLikeError}
+                              <div class="px-4 py-3 border-b border-amber-500/20 bg-amber-500/10">
+                                <div class="flex items-start gap-3">
+                                  <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-500/20">
+                                    <AlertTriangle class="h-4 w-4 text-amber-400" />
+                                  </div>
+                                  <div class="space-y-1">
+                                    <p class="text-sm font-semibold text-amber-200">Consent or permission error detected</p>
+                                    <p class="text-xs text-amber-300/80">Your token request failed because the required permissions aren't configured. Follow the steps below to fix it.</p>
+                                  </div>
+                                </div>
+                              </div>
+                            {/if}
+                            
+                            <!-- Content -->
+                            <div class="p-4 space-y-4">
+                              <!-- Step 1: Understand the scope -->
+                              <div class="space-y-2">
+                                <div class="flex items-center gap-2">
+                                  <span class={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${isConsentLikeError ? 'bg-amber-500/20 text-amber-300' : 'bg-primary/15 text-primary'}`}>1</span>
+                                  <p class={`text-xs font-semibold ${isConsentLikeError ? 'text-amber-100' : 'text-foreground'}`}>Understand what you're requesting</p>
+                                </div>
+                                <div class={`ml-7 text-xs leading-relaxed ${isConsentLikeError ? 'text-amber-200/80' : 'text-muted-foreground'}`}>
+                                  <p>Each scope (like <code class="px-1 py-0.5 rounded bg-muted/50 font-mono text-[11px]">User.Read</code> or <code class="px-1 py-0.5 rounded bg-muted/50 font-mono text-[11px]">api://your-api/access</code>) represents a permission your app needs to access a resource.</p>
+                                </div>
+                              </div>
+
+                              <!-- Step 2: Configure permissions -->
+                              <div class="space-y-2">
+                                <div class="flex items-center gap-2">
+                                  <span class={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${isConsentLikeError ? 'bg-amber-500/20 text-amber-300' : 'bg-primary/15 text-primary'}`}>2</span>
+                                  <p class={`text-xs font-semibold ${isConsentLikeError ? 'text-amber-100' : 'text-foreground'}`}>Configure the permission</p>
+                                </div>
+                                <div class={`ml-7 space-y-2 text-xs leading-relaxed ${isConsentLikeError ? 'text-amber-200/80' : 'text-muted-foreground'}`}>
+                                  <div class={`rounded-lg border p-3 space-y-1.5 ${isConsentLikeError ? 'border-amber-500/20 bg-amber-500/5' : 'border-border/40 bg-muted/30'}`}>
+                                    <p class="font-medium flex items-center gap-1.5">
+                                      <span class={`inline-block w-1.5 h-1.5 rounded-full ${isConsentLikeError ? 'bg-amber-400' : 'bg-primary'}`}></span>
+                                      For Microsoft APIs (Graph, ARM, etc.)
+                                    </p>
+                                    <p class="ml-3">Add the scope as an <span class="font-medium">API permission</span> in your app registration's "API permissions" blade in the Azure portal.</p>
+                                  </div>
+                                  <div class={`rounded-lg border p-3 space-y-1.5 ${isConsentLikeError ? 'border-amber-500/20 bg-amber-500/5' : 'border-border/40 bg-muted/30'}`}>
+                                    <p class="font-medium flex items-center gap-1.5">
+                                      <span class={`inline-block w-1.5 h-1.5 rounded-full ${isConsentLikeError ? 'bg-amber-400' : 'bg-primary'}`}></span>
+                                      For custom/internal APIs
+                                    </p>
+                                    <p class="ml-3">Ask the API owner to add your app under <span class="font-medium">Authorized client applications</span> in their "Expose an API" settings.</p>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <!-- Step 3: Get admin consent if needed -->
+                              <div class="space-y-2">
+                                <div class="flex items-center gap-2">
+                                  <span class={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${isConsentLikeError ? 'bg-amber-500/20 text-amber-300' : 'bg-primary/15 text-primary'}`}>3</span>
+                                  <p class={`text-xs font-semibold ${isConsentLikeError ? 'text-amber-100' : 'text-foreground'}`}>Get admin consent (if required)</p>
+                                </div>
+                                <div class={`ml-7 text-xs leading-relaxed ${isConsentLikeError ? 'text-amber-200/80' : 'text-muted-foreground'}`}>
+                                  <p>Some organizations require an Entra ID admin to approve permissions. If you see an "admin approval required" error, contact your IT admin to grant consent for your app.</p>
+                                </div>
+                              </div>
+
+                              <!-- Note: API-specific authorization -->
+                              <div class={`rounded-lg border p-3 space-y-1.5 ${isConsentLikeError ? 'border-amber-500/20 bg-amber-900/20' : 'border-muted-foreground/20 bg-muted/30'}`}>
+                                <div class="flex items-start gap-2">
+                                  <ShieldAlert class={`h-3.5 w-3.5 mt-0.5 shrink-0 ${isConsentLikeError ? 'text-amber-400/70' : 'text-muted-foreground'}`} />
+                                  <div class="space-y-1">
+                                    <p class={`text-[11px] font-medium ${isConsentLikeError ? 'text-amber-200/90' : 'text-foreground/80'}`}>Good to know</p>
+                                    <p class={`text-[11px] leading-relaxed ${isConsentLikeError ? 'text-amber-300/70' : 'text-muted-foreground'}`}>
+                                      The above steps are <span class="font-medium">Entra ID prerequisites</span> for obtaining a token. However, some APIs perform additional internal authorization checks (e.g., whitelisting, role-based access). If you receive a <code class="px-1 py-0.5 rounded bg-muted/50 font-mono text-[10px]">401</code> or <code class="px-1 py-0.5 rounded bg-muted/50 font-mono text-[10px]">403</code> error when <span class="italic">calling</span> the API, contact the API owner or check API-specific documentation.
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <!-- Quick Actions -->
+                              {#if activeClientId}
+                                <div class={`rounded-lg border p-3 space-y-3 ${isConsentLikeError ? 'border-amber-500/30 bg-amber-500/5' : 'border-primary/20 bg-primary/5'}`}>
+                                  <div class="flex items-center gap-2">
+                                    <Zap class={`h-3.5 w-3.5 ${isConsentLikeError ? 'text-amber-400' : 'text-primary'}`} />
+                                    <p class={`text-xs font-semibold ${isConsentLikeError ? 'text-amber-200' : 'text-foreground'}`}>Quick actions</p>
+                                  </div>
+                                  <div class="flex flex-wrap gap-2">
+                                    {#if portalAppPermissionsUrl}
+                                      <a
+                                        href={portalAppPermissionsUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        class={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] font-medium transition-colors ${
+                                          isConsentLikeError 
+                                            ? 'border-amber-500/40 bg-amber-500/10 text-amber-200 hover:bg-amber-500/20' 
+                                            : 'border-primary/30 bg-primary/10 text-primary hover:bg-primary/20'
+                                        }`}
+                                      >
+                                        <ExternalLink class="h-3 w-3" />
+                                        Open API permissions
+                                      </a>
+                                    {/if}
+                                    {#if portalExposeApiUrl}
+                                      <a
+                                        href={portalExposeApiUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        class={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] font-medium transition-colors ${
+                                          isConsentLikeError 
+                                            ? 'border-amber-500/40 bg-amber-500/10 text-amber-200 hover:bg-amber-500/20' 
+                                            : 'border-primary/30 bg-primary/10 text-primary hover:bg-primary/20'
+                                        }`}
+                                      >
+                                        <ExternalLink class="h-3 w-3" />
+                                        Open Expose an API
+                                      </a>
+                                    {/if}
+                                  </div>
+                                  <p class={`text-[10px] ${isConsentLikeError ? 'text-amber-300/60' : 'text-muted-foreground'}`}>
+                                    Client ID: <code class="font-mono">{activeClientId}</code>
+                                  </p>
+                                </div>
+                              {/if}
+
+                              <!-- Learn more -->
+                              <div class={`flex items-center gap-1.5 pt-1 text-[11px] ${isConsentLikeError ? 'text-amber-300/70' : 'text-muted-foreground'}`}>
+                                <BookOpen class="h-3 w-3" />
+                                <span>Learn more:</span>
+                                <a
+                                  href="https://learn.microsoft.com/azure/active-directory/develop/v2-permissions-and-consent"
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  class={`font-medium underline underline-offset-2 hover:no-underline ${isConsentLikeError ? 'text-amber-200 hover:text-amber-100' : 'text-primary hover:text-primary/80'}`}
+                                >
+                                  Permissions and consent
+                                </a>
+                                <span>·</span>
+                                <a
+                                  href="https://learn.microsoft.com/azure/active-directory/develop/howto-add-app-roles-in-azure-ad-apps#configure-a-client-application-to-access-a-web-api"
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  class={`font-medium underline underline-offset-2 hover:no-underline ${isConsentLikeError ? 'text-amber-200 hover:text-amber-100' : 'text-primary hover:text-primary/80'}`}
+                                >
+                                  Configure client apps
+                                </a>
+                              </div>
+                            </div>
+                          </div>
+                        </Collapsible.Content>
+                      </Collapsible.Root>
                     </div>
                     
                     <div class="space-y-1.5">
@@ -828,7 +1044,9 @@
                 <div class="flex items-center justify-between gap-3">
                   <div>
                     <Card.Title>App token</Card.Title>
-                    <Card.Description>Daemon/service-to-API calls using your confidential client.</Card.Description>
+                    <Card.Description>
+                      Best for service accounts, background jobs, and APIs where user context isn't relevant—permissions are assigned to the app itself.
+                    </Card.Description>
                   </div>
                   <Badge variant="secondary" class="gap-2 font-semibold text-foreground">
                     <ShieldHalf class="h-4 w-4" />
@@ -837,36 +1055,6 @@
                 </div>
               </Card.Header>
               <Card.Content class="space-y-4">
-                {#if health}
-                  <div class="flex flex-col gap-1.5 rounded-lg border bg-muted/40 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div class="flex items-center gap-2">
-                      <ShieldHalf class="h-4 w-4 text-muted-foreground" />
-                      <span class="text-sm font-medium text-foreground">{credentialPathLabel}</span>
-                      <Badge variant="outline" class={credentialBadgeClass}>{credentialStatusLabel}</Badge>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant={credentialStatus === 'ready' ? 'ghost' : 'secondary'}
-                      class="h-8"
-                      onclick={() => goto('/setup?from=playground')}
-                      type="button"
-                    >
-                      {credentialStatus === 'ready' ? 'Change' : 'Fix in Setup'}
-                    </Button>
-                  </div>
-                  {#if credentialContextLabel}
-                    <p class="text-xs text-muted-foreground flex items-start gap-2">
-                      <Info class="h-3.5 w-3.5 mt-0.5 text-muted-foreground" />
-                      <span>{credentialContextLabel}</span>
-                    </p>
-                  {/if}
-                  {#if credentialStatus !== 'ready'}
-                    <p class="text-[11px] text-amber-700 flex items-center gap-1">
-                      <AlertTriangle class="h-3.5 w-3.5" />
-                      {credentialErrors[0] ?? 'Finish configuring credentials to issue app tokens.'}
-                    </p>
-                  {/if}
-                {/if}
                 <form onsubmit={(e) => { e.preventDefault(); handleAppSubmit(); }} class="space-y-4">
                   <div class="space-y-3">
                     <div class="space-y-2">
@@ -898,9 +1086,197 @@
                             {preset.label}
                           </button>
                         {/each}
-                      </div>
                     </div>
                   </div>
+
+                  <!-- App Permissions Guide -->
+                  <Collapsible.Root bind:open={appHelpOpen} class="mt-1">
+                    <Collapsible.Trigger
+                      class={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
+                        isAppPermissionError
+                          ? 'border-amber-500/50 bg-gradient-to-r from-amber-500/15 to-amber-500/5 text-amber-200 hover:from-amber-500/20 hover:to-amber-500/10 shadow-sm shadow-amber-500/10'
+                          : 'border-border/50 bg-muted/30 text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                      }`}
+                    >
+                      {#if isAppPermissionError}
+                        <span class="flex h-5 w-5 items-center justify-center rounded-full bg-amber-500/25">
+                          <AlertTriangle class="h-3.5 w-3.5 text-amber-400" />
+                        </span>
+                        <span>Troubleshoot permission error</span>
+                        <Badge variant="outline" class="h-5 border-amber-500/40 bg-amber-500/20 text-[10px] text-amber-300 font-semibold">
+                          Fix required
+                        </Badge>
+                      {:else}
+                        <span class="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10">
+                          <BookOpen class="h-3.5 w-3.5 text-primary" />
+                        </span>
+                        <span>Application permissions guide</span>
+                      {/if}
+                      <ChevronDown class="h-3.5 w-3.5 ml-auto transition-transform duration-200 data-[state=open]:rotate-180" />
+                    </Collapsible.Trigger>
+                    <Collapsible.Content>
+                      <div class={`mt-3 rounded-xl border overflow-hidden ${
+                        isAppPermissionError
+                          ? 'border-amber-500/40 bg-gradient-to-b from-amber-950/40 to-background'
+                          : 'border-border/60 bg-muted/20'
+                      }`}>
+                        <!-- Header -->
+                        {#if isAppPermissionError}
+                          <div class="px-4 py-3 border-b border-amber-500/20 bg-amber-500/10">
+                            <div class="flex items-start gap-3">
+                              <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-500/20">
+                                <AlertTriangle class="h-4 w-4 text-amber-400" />
+                              </div>
+                              <div class="space-y-1">
+                                <p class="text-sm font-semibold text-amber-200">Permission or credential error detected</p>
+                                <p class="text-xs text-amber-300/80">Your app token request failed. This is usually due to missing application permissions or credential issues. Follow the steps below to diagnose and fix.</p>
+                              </div>
+                            </div>
+                          </div>
+                        {/if}
+                        
+                        <!-- Content -->
+                        <div class="p-4 space-y-4">
+                          <!-- Step 1: Understand the flow -->
+                          <div class="space-y-2">
+                            <div class="flex items-center gap-2">
+                              <span class={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${isAppPermissionError ? 'bg-amber-500/20 text-amber-300' : 'bg-primary/15 text-primary'}`}>1</span>
+                              <p class={`text-xs font-semibold ${isAppPermissionError ? 'text-amber-100' : 'text-foreground'}`}>Understand client credentials flow</p>
+                            </div>
+                            <div class={`ml-7 text-xs leading-relaxed ${isAppPermissionError ? 'text-amber-200/80' : 'text-muted-foreground'}`}>
+                              <p>App tokens use the <span class="font-medium">client credentials</span> flow—user context and permissions aren't relevant. There's no interactive sign-in; the app authenticates using a secret or certificate and receives permissions assigned directly to the application.</p>
+                            </div>
+                          </div>
+
+                          <!-- Step 2: Configure application permissions -->
+                          <div class="space-y-2">
+                            <div class="flex items-center gap-2">
+                              <span class={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${isAppPermissionError ? 'bg-amber-500/20 text-amber-300' : 'bg-primary/15 text-primary'}`}>2</span>
+                              <p class={`text-xs font-semibold ${isAppPermissionError ? 'text-amber-100' : 'text-foreground'}`}>Add application permissions (not delegated)</p>
+                            </div>
+                            <div class={`ml-7 space-y-2 text-xs leading-relaxed ${isAppPermissionError ? 'text-amber-200/80' : 'text-muted-foreground'}`}>
+                              <div class={`rounded-lg border p-3 space-y-1.5 ${isAppPermissionError ? 'border-amber-500/20 bg-amber-500/5' : 'border-border/40 bg-muted/30'}`}>
+                                <p class="font-medium flex items-center gap-1.5">
+                                  <span class={`inline-block w-1.5 h-1.5 rounded-full ${isAppPermissionError ? 'bg-amber-400' : 'bg-primary'}`}></span>
+                                  For Microsoft APIs
+                                </p>
+                                <p class="ml-3">In your app registration, go to <span class="font-medium">API permissions</span> → <span class="font-medium">Add a permission</span> → select the API → choose <span class="font-medium">Application permissions</span> (not Delegated).</p>
+                              </div>
+                              <div class={`rounded-lg border p-3 space-y-1.5 ${isAppPermissionError ? 'border-amber-500/20 bg-amber-500/5' : 'border-border/40 bg-muted/30'}`}>
+                                <p class="font-medium flex items-center gap-1.5">
+                                  <span class={`inline-block w-1.5 h-1.5 rounded-full ${isAppPermissionError ? 'bg-amber-400' : 'bg-primary'}`}></span>
+                                  For custom APIs
+                                </p>
+                                <p class="ml-3">You can request a token for any valid resource URI (e.g., <code class="px-1 py-0.5 rounded bg-muted/50 font-mono text-[10px]">api://&lt;client-id&gt;</code>). If the API enforces <span class="font-medium">App roles</span>, you'll need to add those roles as Application permissions.</p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <!-- Step 3: Grant admin consent -->
+                          <div class="space-y-2">
+                            <div class="flex items-center gap-2">
+                              <span class={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${isAppPermissionError ? 'bg-amber-500/20 text-amber-300' : 'bg-primary/15 text-primary'}`}>3</span>
+                              <p class={`text-xs font-semibold ${isAppPermissionError ? 'text-amber-100' : 'text-foreground'}`}>Grant admin consent (required)</p>
+                            </div>
+                            <div class={`ml-7 text-xs leading-relaxed ${isAppPermissionError ? 'text-amber-200/80' : 'text-muted-foreground'}`}>
+                              <p><span class="font-medium">Application permissions always require admin consent</span>—there's no user to consent on behalf of. An Entra ID admin must click "Grant admin consent" on the API permissions page for your app.</p>
+                            </div>
+                          </div>
+
+                          <!-- Step 4: Verify credentials -->
+                          <div class="space-y-2">
+                            <div class="flex items-center gap-2">
+                              <span class={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${isAppPermissionError ? 'bg-amber-500/20 text-amber-300' : 'bg-primary/15 text-primary'}`}>4</span>
+                              <p class={`text-xs font-semibold ${isAppPermissionError ? 'text-amber-100' : 'text-foreground'}`}>Verify your credentials</p>
+                            </div>
+                            <div class={`ml-7 text-xs leading-relaxed ${isAppPermissionError ? 'text-amber-200/80' : 'text-muted-foreground'}`}>
+                              <p>Ensure your client secret or certificate is valid and not expired. Check that the credential in Key Vault matches what's configured in your Entra app registration.</p>
+                            </div>
+                          </div>
+
+                          <!-- Note: API-specific authorization -->
+                          <div class={`rounded-lg border p-3 space-y-1.5 ${isAppPermissionError ? 'border-amber-500/20 bg-amber-900/20' : 'border-muted-foreground/20 bg-muted/30'}`}>
+                            <div class="flex items-start gap-2">
+                              <ShieldAlert class={`h-3.5 w-3.5 mt-0.5 shrink-0 ${isAppPermissionError ? 'text-amber-400/70' : 'text-muted-foreground'}`} />
+                              <div class="space-y-1">
+                                <p class={`text-[11px] font-medium ${isAppPermissionError ? 'text-amber-200/90' : 'text-foreground/80'}`}>Good to know</p>
+                                <p class={`text-[11px] leading-relaxed ${isAppPermissionError ? 'text-amber-300/70' : 'text-muted-foreground'}`}>
+                                  The above steps configure <span class="font-medium">Entra ID authorization</span>. Some APIs also perform internal authorization checks (e.g., subscription validation, IP whitelisting, custom role checks). If you receive a <code class="px-1 py-0.5 rounded bg-muted/50 font-mono text-[10px]">401</code> or <code class="px-1 py-0.5 rounded bg-muted/50 font-mono text-[10px]">403</code> when <span class="italic">calling</span> the API, contact the API owner or consult API-specific documentation.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <!-- Quick Actions -->
+                          {#if activeClientId}
+                            <div class={`rounded-lg border p-3 space-y-3 ${isAppPermissionError ? 'border-amber-500/30 bg-amber-500/5' : 'border-primary/20 bg-primary/5'}`}>
+                              <div class="flex items-center gap-2">
+                                <Zap class={`h-3.5 w-3.5 ${isAppPermissionError ? 'text-amber-400' : 'text-primary'}`} />
+                                <p class={`text-xs font-semibold ${isAppPermissionError ? 'text-amber-200' : 'text-foreground'}`}>Quick actions</p>
+                              </div>
+                              <div class="flex flex-wrap gap-2">
+                                {#if portalAppPermissionsUrl}
+                                  <a
+                                    href={portalAppPermissionsUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    class={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] font-medium transition-colors ${
+                                      isAppPermissionError 
+                                        ? 'border-amber-500/40 bg-amber-500/10 text-amber-200 hover:bg-amber-500/20' 
+                                        : 'border-primary/30 bg-primary/10 text-primary hover:bg-primary/20'
+                                    }`}
+                                  >
+                                    <ExternalLink class="h-3 w-3" />
+                                    Open API permissions
+                                  </a>
+                                {/if}
+                                <a
+                                  href={`https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/Credentials/appId/${activeClientId}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  class={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] font-medium transition-colors ${
+                                    isAppPermissionError 
+                                      ? 'border-amber-500/40 bg-amber-500/10 text-amber-200 hover:bg-amber-500/20' 
+                                      : 'border-primary/30 bg-primary/10 text-primary hover:bg-primary/20'
+                                  }`}
+                                >
+                                  <ExternalLink class="h-3 w-3" />
+                                  Check credentials
+                                </a>
+                              </div>
+                              <p class={`text-[10px] ${isAppPermissionError ? 'text-amber-300/60' : 'text-muted-foreground'}`}>
+                                Client ID: <code class="font-mono">{activeClientId}</code>
+                              </p>
+                            </div>
+                          {/if}
+
+                          <!-- Learn more -->
+                          <div class={`flex items-center gap-1.5 pt-1 text-[11px] ${isAppPermissionError ? 'text-amber-300/70' : 'text-muted-foreground'}`}>
+                            <BookOpen class="h-3 w-3" />
+                            <span>Learn more:</span>
+                            <a
+                              href="https://learn.microsoft.com/azure/active-directory/develop/v2-oauth2-client-creds-grant-flow"
+                              target="_blank"
+                              rel="noreferrer"
+                              class={`font-medium underline underline-offset-2 hover:no-underline ${isAppPermissionError ? 'text-amber-200 hover:text-amber-100' : 'text-primary hover:text-primary/80'}`}
+                            >
+                              Client credentials flow
+                            </a>
+                            <span>·</span>
+                            <a
+                              href="https://learn.microsoft.com/azure/active-directory/develop/howto-add-app-roles-in-azure-ad-apps"
+                              target="_blank"
+                              rel="noreferrer"
+                              class={`font-medium underline underline-offset-2 hover:no-underline ${isAppPermissionError ? 'text-amber-200 hover:text-amber-100' : 'text-primary hover:text-primary/80'}`}
+                            >
+                              App roles
+                            </a>
+                          </div>
+                        </div>
+                      </div>
+                    </Collapsible.Content>
+                  </Collapsible.Root>
+
                   <div class="rounded-lg border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
                     Tokens are issued via your confidential client credentials and stay in the browser unless you copy them.
                   </div>
@@ -1016,30 +1392,6 @@
                   </div>
                 </div>
                 <p class="text-sm leading-relaxed break-all">{error}</p>
-                {#if credentialStatus !== 'ready'}
-                  <div class="rounded-lg border border-dashed bg-destructive/5 p-3 space-y-2">
-                    <div class="flex items-center gap-2">
-                      <ShieldHalf class="h-4 w-4 text-destructive" />
-                      <span class="font-semibold">Credential status: {credentialPathLabel}</span>
-                      <Badge variant="outline" class={credentialBadgeClass}>{credentialStatusLabel}</Badge>
-                    </div>
-                    {#if credentialErrors.length}
-                      <ul class="list-disc list-inside text-destructive/90 space-y-1">
-                        {#each credentialErrors as err}
-                          <li>{err}</li>
-                        {/each}
-                      </ul>
-                    {/if}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      class="h-8 gap-2 text-destructive border-destructive/30"
-                      onclick={() => goto('/setup?from=playground')}
-                    >
-                      Open Setup
-                    </Button>
-                  </div>
-                {/if}
                 <div class="grid gap-2 text-xs text-destructive/80">
                   <div class="flex items-center gap-2">
                     <Info class="h-3.5 w-3.5" />

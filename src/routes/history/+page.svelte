@@ -2,6 +2,7 @@
   import type { HistoryItem } from '$lib/types';
   import { historyState } from '$lib/states/history.svelte';
   import { favoritesState } from '$lib/states/favorites.svelte';
+  import { appRegistry } from '$lib/states/app-registry.svelte';
   import type { FavoriteItem } from '$lib/types';
   import HistoryList from '$lib/components/HistoryList.svelte';
   import FavoriteFormSheet from '$lib/components/FavoriteFormSheet.svelte';
@@ -24,7 +25,12 @@
     timestamp?: number;
   };
 
-  function restoreHistoryItem(item: HistoryItem) {
+  async function restoreHistoryItem(item: HistoryItem) {
+    // Auto-switch to the app that was used for this token
+    if (item.appId && appRegistry.getById(item.appId)) {
+      await appRegistry.setActive(item.appId);
+    }
+    
     const params = new URLSearchParams();
     if (item.type === 'App Token') {
       params.set('tab', 'app-token');
@@ -39,6 +45,10 @@
 
   async function loadHistoryItem(item: HistoryItem) {
     if (item.tokenData) {
+      // Auto-switch to the app that was used for this token
+      if (item.appId && appRegistry.getById(item.appId)) {
+        await appRegistry.setActive(item.appId);
+      }
       await clientStorage.set(CLIENT_STORAGE_KEYS.pendingTokenLoad, item);
       window.location.href = '/';
     }

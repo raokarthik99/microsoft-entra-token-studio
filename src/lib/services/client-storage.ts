@@ -5,7 +5,10 @@ export const CLIENT_STORAGE_KEYS = {
   lastScopes: 'last_scopes',
   activeTab: 'active_tab',
   pendingTokenLoad: 'pending_token_load',
-  identityPreference: 'identity_preference'
+  identityPreference: 'identity_preference',
+  // Multi-app support
+  appRegistry: 'app_registry',
+  activeAppId: 'active_app_id',
 } as const;
 
 export type ClientStorageKey = (typeof CLIENT_STORAGE_KEYS)[keyof typeof CLIENT_STORAGE_KEYS];

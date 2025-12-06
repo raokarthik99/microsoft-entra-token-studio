@@ -3,6 +3,10 @@ export interface HistoryItem {
     target: string;
     timestamp: number;
     tokenData?: TokenData;
+    // App context (added for multi-app support)
+    appId?: string;
+    appName?: string;
+    appColor?: string;
 }
 
 export interface TokenData {
@@ -20,6 +24,10 @@ export interface FavoriteItem {
     target: string;
     timestamp: number;
     tokenData?: TokenData;
+    // App context (added for multi-app support)
+    appId?: string;
+    appName?: string;
+    appColor?: string;
 
     // Favorites metadata
     id: string;
@@ -84,12 +92,56 @@ export interface HealthStatus {
 }
 
 /**
- * Configuration for an Entra app registration.
- * Supports future multi-app scenarios where users can switch between different app configurations.
+ * Key Vault configuration for an app.
+ * Each app references a single Key Vault for its credentials.
+ */
+export interface KeyVaultConfig {
+    uri: string;                           // https://my-vault.vault.azure.net
+    credentialType: 'secret' | 'certificate';
+    secretName?: string;                   // For client secret
+    certName?: string;                     // For certificate
+}
+
+/**
+ * Credential status for an app's Key Vault configuration.
+ */
+export type AppCredentialStatus = 'valid' | 'error' | 'unknown' | 'validating';
+
+/**
+ * Configuration for an Entra app registration with Azure Key Vault credentials.
+ * Supports multi-app scenarios where users can switch between different app configurations.
+ */
+export interface AppConfig {
+    // Identity
+    id: string;                            // UUID
+    name: string;                          // Display name (e.g., "Production")
+    color?: string;                        // Visual tag (hex color)
+    tags?: string[];                       // Optional search/filter tags
+    description?: string;                  // Optional notes shown in listings
+    
+    // Entra App Registration
+    clientId: string;
+    tenantId: string;
+    redirectUri: string;
+    
+    // Key Vault Configuration (REQUIRED for app tokens)
+    keyVault: KeyVaultConfig;
+    
+    // Metadata
+    createdAt: number;
+    lastUsedAt?: number;
+    
+    // Credential status (runtime, not persisted)
+    credentialStatus?: AppCredentialStatus;
+    credentialError?: string;
+}
+
+/**
+ * @deprecated Use AppConfig instead. This is kept for backwards compatibility during migration.
  */
 export interface ClientConfig {
-    id: string;           // Unique identifier for UI purposes
-    name: string;         // Display name (e.g., "Production", "Dev Tenant")
+    id: string;
+    name: string;
     clientId: string;
     tenantId: string;
     redirectUri: string;

@@ -23,9 +23,19 @@ export class AuthService {
   private msalInstance: PublicClientApplication | null = null;
   private isInitialized = false;
   private config: ClientConfig;
+  /** The app ID this service was initialized for */
+  private appId: string;
 
   constructor(config: ClientConfig) {
     this.config = config;
+    this.appId = config.id;
+  }
+
+  /**
+   * Get the app ID this service was initialized for.
+   */
+  getAppId(): string {
+    return this.appId;
   }
 
   async initialize() {
@@ -155,7 +165,7 @@ export class AuthService {
     }
   }
 
-  async logout() {
+  async logout(configToClear: ClientConfig = this.config) {
     if (!this.msalInstance) return;
 
     try {
@@ -167,7 +177,7 @@ export class AuthService {
       const localKeysToRemove: string[] = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && (key.startsWith('msal.') || key.includes(this.config.clientId))) {
+        if (key && (key.startsWith('msal.') || key.includes(configToClear.clientId))) {
           localKeysToRemove.push(key);
         }
       }
@@ -176,7 +186,7 @@ export class AuthService {
       const sessionKeysToRemove: string[] = [];
       for (let i = 0; i < sessionStorage.length; i++) {
         const key = sessionStorage.key(i);
-        if (key && (key.startsWith('msal.') || key.includes(this.config.clientId))) {
+        if (key && (key.startsWith('msal.') || key.includes(configToClear.clientId))) {
           sessionKeysToRemove.push(key);
         }
       }
@@ -291,10 +301,42 @@ export class AuthService {
   private handleResponse(account: AccountInfo | null) {
     if (account) {
       this.msalInstance?.setActiveAccount(account);
-      auth.setUser(account);
+      // Pass the app ID so auth store knows which app the user signed in with
+      auth.setUser(account, this.appId);
     } else {
       auth.setUser(null);
     }
+  }
+
+  /**
+   * Reinitialize the service with a new app configuration.
+   * This clears existing tokens for the old app and sets up for the new app.
+   * @param newConfig - The new app configuration to use
+   */
+  async reinitialize(newConfig: ClientConfig): Promise<void> {
+    const previousConfig = this.config;
+    const sameCredentials =
+      previousConfig.clientId === newConfig.clientId &&
+      previousConfig.tenantId === newConfig.tenantId &&
+      previousConfig.redirectUri === newConfig.redirectUri;
+
+    // Always update metadata so the auth store tracks the correct app ID
+    this.config = newConfig;
+    this.appId = newConfig.id;
+
+    // If the credentials are identical, keep the existing MSAL instance to avoid
+    // multiple PCA instances warning and extra reauth.
+    if (sameCredentials && this.msalInstance) {
+      const active = this.msalInstance.getActiveAccount();
+      this.handleResponse(active ?? null);
+      return;
+    }
+
+    // Credentials changed—clear tokens for the prior config and reinitialize cleanly.
+    await this.logout(previousConfig);
+    this.isInitialized = false;
+    this.msalInstance = null;
+    await this.initialize();
   }
 
   async getProfilePhoto(): Promise<string | null> {

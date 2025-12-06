@@ -63,8 +63,24 @@
   let sortDirection = $state<"asc" | "desc">("desc");
   let tagFilter = $state<string | null>(null);
   let colorFilter = $state<string | null>(null);
+  let appFilter = $state<string>("all");
   let selectedIds = $state<Set<string>>(new Set());
   let selectAllRef = $state<HTMLInputElement | null>(null);
+
+  // Derive unique apps from items for filter dropdown
+  const uniqueApps = $derived((() => {
+    const appMap = new Map<string, { id: string; name: string; color?: string }>();
+    for (const item of items) {
+      if (item.appId && item.appName) {
+        appMap.set(item.appId, { 
+          id: item.appId, 
+          name: item.appName, 
+          color: item.appColor 
+        });
+      }
+    }
+    return Array.from(appMap.values());
+  })());
 
   const statusOrder: Record<StatusKey, number> = {
     expired: 0,
@@ -144,6 +160,7 @@
         (typeFilter === "user" && row.favorite.type === "User Token");
 
       const matchesStatus = statusFilter === "all" || row.statusKey === statusFilter;
+      const matchesApp = appFilter === "all" || row.favorite.appId === appFilter;
       const matchesTag = tagFilter
         ? (row.favorite.tags ?? []).some((tag: string) => tag.toLowerCase() === tagFilter)
         : true;
@@ -154,9 +171,10 @@
         row.favorite.target.toLowerCase().includes(query) ||
         (row.favorite.name ?? "").toLowerCase().includes(query) ||
         (row.favorite.description ?? "").toLowerCase().includes(query) ||
+        (row.favorite.appName ?? "").toLowerCase().includes(query) ||
         (row.favorite.tags ?? []).some((tag: string) => tag.toLowerCase().includes(query));
 
-      return matchesType && matchesStatus && matchesSearch && matchesTag && matchesColor;
+      return matchesType && matchesStatus && matchesApp && matchesSearch && matchesTag && matchesColor;
     });
 
     const sorted = [...filtered].sort((a, b) => {
@@ -189,6 +207,7 @@
     searchQuery.trim().length > 0 ||
       typeFilter !== "all" ||
       statusFilter !== "all" ||
+      appFilter !== "all" ||
       Boolean(tagFilter) ||
       Boolean(colorFilter)
   );
@@ -234,6 +253,7 @@
     searchQuery = "";
     typeFilter = "all";
     statusFilter = "all";
+    appFilter = "all";
     sortKey = "createdAt";
     sortDirection = "desc";
     tagFilter = null;
@@ -333,6 +353,29 @@
               <Select.Item value="expired">Expired</Select.Item>
             </Select.Content>
           </Select.Root>
+
+          {#if uniqueApps.length > 0}
+            <Select.Root
+              type="single"
+              value={appFilter}
+              onValueChange={(value) => (appFilter = value)}
+            >
+              <Select.Trigger class="w-[150px]">
+                {appFilter === "all" ? "All apps" : uniqueApps.find(a => a.id === appFilter)?.name || "App"}
+              </Select.Trigger>
+              <Select.Content>
+                <Select.Item value="all">All apps</Select.Item>
+                {#each uniqueApps as app (app.id)}
+                  <Select.Item value={app.id}>
+                    <div class="flex items-center gap-2">
+                      <div class="w-2 h-2 rounded-full shrink-0" style="background-color: {app.color || '#10b981'}"></div>
+                      <span class="truncate">{app.name}</span>
+                    </div>
+                  </Select.Item>
+                {/each}
+              </Select.Content>
+            </Select.Root>
+          {/if}
 
           {#if availableTags.length}
             <Select.Root
@@ -439,6 +482,9 @@
               </button>
             </TableHead>
             <TableHead class="w-[140px]">Type</TableHead>
+            <TableHead class="w-[120px]">
+              <span class="text-xs font-semibold text-muted-foreground">App</span>
+            </TableHead>
             <TableHead class="w-[180px]">Status</TableHead>
             <TableHead class="w-[180px]">
               <button
@@ -482,7 +528,7 @@
         <TableBody>
           {#if filteredRows.length === 0}
             <TableRow>
-              <TableCell colspan={enableSelection ? 7 : 6} class="p-0">
+              <TableCell colspan={enableSelection ? 8 : 7} class="p-0">
                 <div class={cn("flex items-center justify-center text-center text-sm text-muted-foreground border-t bg-muted/10", compact ? "min-h-[120px] px-4 py-8" : "min-h-[180px] px-6 py-10")}>
                   <div class="flex flex-col items-center gap-3">
                     <div class="flex h-10 w-10 items-center justify-center rounded-full bg-muted/60 text-muted-foreground">
@@ -497,6 +543,11 @@
                           ? "Save frequent targets for quick access."
                           : "Adjust search or filters to find an entry."}
                       </p>
+                      {#if items.length === 0}
+                        <p class="text-xs text-muted-foreground/80 pt-1">
+                          Add favorites from the token result window in the Playground, or from the actions menu of any entry in the History.
+                        </p>
+                      {/if}
                     </div>
                     {#if emptyCtaLabel && emptyCtaOnClick}
                       <Button size="sm" class="gap-2" onclick={emptyCtaOnClick}>
@@ -572,6 +623,21 @@
                   >
                     {row.favorite.type}
                   </Badge>
+                </TableCell>
+                <TableCell class="align-top">
+                  {#if row.favorite.appName}
+                    <div class="flex items-center gap-2">
+                      <div 
+                        class="w-2.5 h-2.5 rounded-full shrink-0" 
+                        style="background-color: {row.favorite.appColor || '#10b981'}"
+                      ></div>
+                      <span class="text-xs text-muted-foreground truncate max-w-[80px]" title={row.favorite.appName}>
+                        {row.favorite.appName}
+                      </span>
+                    </div>
+                  {:else}
+                    <span class="text-xs text-muted-foreground italic">Legacy</span>
+                  {/if}
                 </TableCell>
                 <TableCell class="align-top">
                   {#if row.expiresOn}

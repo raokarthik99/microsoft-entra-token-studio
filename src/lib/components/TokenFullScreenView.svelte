@@ -14,6 +14,7 @@
   import FavoriteFormSheet from "$lib/components/FavoriteFormSheet.svelte";
   import { favoritesState } from "$lib/states/favorites.svelte";
   import { tokenDockState } from "$lib/states/token-dock.svelte";
+  import { appRegistry } from "$lib/states/app-registry.svelte";
   import { getTokenStatus } from "$lib/utils";
   import { time } from "$lib/stores/time";
   import type { FavoriteItem, HistoryItem } from "$lib/types";
@@ -70,6 +71,11 @@
   async function reissueCurrent() {
     const context = activeToken ?? tokenDockState.context;
     if (!context?.type || !context?.target) return;
+
+    // Auto-switch to the app that was used for this token
+    if (activeToken?.appId && appRegistry.getById(activeToken.appId)) {
+      await appRegistry.setActive(activeToken.appId);
+    }
 
     const params = new URLSearchParams();
     if (context.type === 'App Token') {
@@ -238,6 +244,24 @@
           <p class="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Type</p>
           <div class="text-sm font-semibold text-foreground">{resultKind || 'Token'}</div>
           <p class="text-xs text-muted-foreground">{result?.tokenType || 'Bearer'}</p>
+        </div>
+        <div class="rounded-lg border bg-muted/25 p-4">
+          <p class="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Client App</p>
+          {#if activeToken?.appName}
+            <div class="flex items-center gap-2 mt-1">
+              <div 
+                class="w-3 h-3 rounded-full shrink-0" 
+                style="background-color: {activeToken.appColor || '#10b981'}"
+              ></div>
+              <span class="text-sm font-semibold text-foreground">{activeToken.appName}</span>
+            </div>
+            <p class="text-xs text-muted-foreground mt-1">
+              {activeToken.appId ? `ID: ${activeToken.appId.slice(0, 8)}...` : 'App context preserved'}
+            </p>
+          {:else}
+            <div class="text-sm font-semibold text-foreground">Legacy token</div>
+            <p class="text-xs text-muted-foreground">No app context available</p>
+          {/if}
         </div>
         <div class="rounded-lg border bg-muted/25 p-4">
           <p class="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Issued</p>

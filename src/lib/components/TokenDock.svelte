@@ -6,6 +6,7 @@
   import { historyState } from '$lib/states/history.svelte';
   import { favoritesState } from '$lib/states/favorites.svelte';
   import { tokenDockState } from '$lib/states/token-dock.svelte';
+  import { appRegistry } from '$lib/states/app-registry.svelte';
   import { parseJwt, getTokenStatus } from '$lib/utils';
   import { time } from '$lib/stores/time';
   import { toast } from 'svelte-sonner';
@@ -137,6 +138,12 @@
 
   async function reissueCurrent() {
     if (!activeToken) return;
+    
+    // Auto-switch to the app that was used for this token
+    if (activeToken.appId && appRegistry.getById(activeToken.appId)) {
+      await appRegistry.setActive(activeToken.appId);
+    }
+    
     const params = new URLSearchParams();
     if (activeToken.type === 'App Token') {
       params.set('tab', 'app-token');
@@ -196,8 +203,19 @@
   <div class="pointer-events-none fixed inset-x-3 bottom-3 z-50 md:inset-auto md:bottom-6 md:right-6 md:w-[420px]">
     <div class="pointer-events-auto overflow-hidden rounded-2xl border bg-background/95 shadow-2xl backdrop-blur supports-[backdrop-filter]:bg-background/90">
       <div class="flex items-center justify-between gap-3 border-b bg-muted/40 px-4 py-3">
-        <div class="flex flex-1 items-center gap-2">
+        <div class="flex flex-1 items-center gap-2 min-w-0">
           <Badge variant="secondary" class="gap-1 text-[11px] shrink-0">{headerLabel}</Badge>
+          {#if activeToken?.appName}
+            <div class="flex items-center gap-1.5 shrink-0">
+              <div 
+                class="w-2 h-2 rounded-full shrink-0" 
+                style="background-color: {activeToken.appColor || '#10b981'}"
+              ></div>
+              <span class="text-[11px] text-muted-foreground truncate max-w-[60px]" title={activeToken.appName}>
+                {activeToken.appName}
+              </span>
+            </div>
+          {/if}
           <div class={`min-w-0 text-xs text-muted-foreground ${marqueeActive ? 'marquee-mask' : ''}`} title={statusText}>
             {#if marqueeActive}
               <div class="marquee-track">

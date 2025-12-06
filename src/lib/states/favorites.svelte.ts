@@ -30,6 +30,11 @@ export class FavoritesState {
             target: item.target,
             timestamp: item.timestamp ?? now,
             tokenData: item.tokenData,
+            // Preserve app context from history item
+            appId: item.appId,
+            appName: item.appName,
+            appColor: item.appColor,
+            // Favorites metadata
             createdAt: extras.createdAt ?? item.timestamp ?? now,
             lastUsedAt: extras.lastUsedAt ?? item.timestamp ?? now,
             useCount: extras.useCount ?? 1,

@@ -2,6 +2,7 @@
   import FavoritesList from '$lib/components/FavoritesList.svelte';
   import FavoriteFormSheet from '$lib/components/FavoriteFormSheet.svelte';
   import { favoritesState } from '$lib/states/favorites.svelte';
+  import { appRegistry } from '$lib/states/app-registry.svelte';
   import type { FavoriteItem } from '$lib/types';
   import { Button } from "$lib/shadcn/components/ui/button";
   import { Star, Trash2 } from "@lucide/svelte";
@@ -45,7 +46,12 @@
     editOpen = true;
   }
 
-  function useFavorite(item: FavoriteItem) {
+  async function useFavorite(item: FavoriteItem) {
+    // Auto-switch to the app that was used for this favorite
+    if (item.appId && appRegistry.getById(item.appId)) {
+      await appRegistry.setActive(item.appId);
+    }
+    
     const params = new URLSearchParams();
     if (item.type === 'App Token') {
       params.set('tab', 'app-token');
@@ -61,6 +67,10 @@
 
   async function loadFavorite(item: FavoriteItem) {
     if (!item.tokenData) return;
+    // Auto-switch to the app that was used for this favorite
+    if (item.appId && appRegistry.getById(item.appId)) {
+      await appRegistry.setActive(item.appId);
+    }
     await clientStorage.set(CLIENT_STORAGE_KEYS.pendingTokenLoad, item);
     await favoritesState.incrementUse(item.id);
     window.location.href = '/';

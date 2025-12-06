@@ -6,6 +6,7 @@
   import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "$lib/shadcn/components/ui/table";
   import { Clock3, ArrowUpDown, ArrowUp, ArrowDown, Search, Filter, Trash2, Play } from "@lucide/svelte";
   import TokenStatusBadge from "./TokenStatusBadge.svelte";
+  import ColorDot from "./color-dot.svelte";
   import DataTableActions from "./history-table/data-table-actions.svelte";
   import { getReadableExpiry, getTokenStatus, cn } from "$lib/utils";
   import { time } from "$lib/stores/time";
@@ -65,11 +66,27 @@
   let searchQuery = $state("");
   let typeFilter = $state<"all" | "app" | "user">("all");
   let statusFilter = $state<"all" | StatusKey>("all");
+  let appFilter = $state<string>("all");
   let sortKey = $state<SortKey>("timestamp");
   let sortDirection = $state<"asc" | "desc">("desc");
   let showFooterState = $state(showFooter);
   let selectedTimestamps = $state<Set<number>>(new Set());
   let selectAllRef = $state<HTMLInputElement | null>(null);
+
+  // Derive unique apps from items for filter dropdown
+  const uniqueApps = $derived((() => {
+    const appMap = new Map<string, { id: string; name: string; color?: string }>();
+    for (const item of items) {
+      if (item.appId && item.appName) {
+        appMap.set(item.appId, { 
+          id: item.appId, 
+          name: item.appName, 
+          color: item.appColor 
+        });
+      }
+    }
+    return Array.from(appMap.values());
+  })());
 
   const baseRows = $derived((() => {
     const source: HistoryItem[] = limit ? items.slice(0, limit) : items;
@@ -119,13 +136,15 @@
     const filtered = baseRows.filter((row) => {
       const matchesType = typeFilter === "all" || row.typeKey === typeFilter;
       const matchesStatus = statusFilter === "all" || row.statusKey === statusFilter;
+      const matchesApp = appFilter === "all" || row.item.appId === appFilter;
       const matchesSearch =
         !query ||
         row.item.target.toLowerCase().includes(query) ||
         row.item.type.toLowerCase().includes(query) ||
+        (row.item.appName?.toLowerCase()?.includes(query) ?? false) ||
         (row.status?.label?.toLowerCase()?.includes(query) ?? false);
 
-      return matchesType && matchesStatus && matchesSearch;
+      return matchesType && matchesStatus && matchesApp && matchesSearch;
     });
 
     const sorted = [...filtered].sort((a, b) => {
@@ -180,7 +199,7 @@
   });
 
   const isFiltered = $derived(
-    searchQuery.trim().length > 0 || typeFilter !== "all" || statusFilter !== "all"
+    searchQuery.trim().length > 0 || typeFilter !== "all" || statusFilter !== "all" || appFilter !== "all"
   );
 
   function toggleSort(key: SortKey) {
@@ -197,6 +216,7 @@
     searchQuery = "";
     typeFilter = "all";
     statusFilter = "all";
+    appFilter = "all";
     sortKey = "timestamp";
     sortDirection = "desc";
   }
@@ -284,6 +304,29 @@
               <Select.Item value="expired">Expired</Select.Item>
             </Select.Content>
           </Select.Root>
+
+          {#if uniqueApps.length > 0}
+            <Select.Root
+              type="single"
+              value={appFilter}
+              onValueChange={(value) => (appFilter = value)}
+            >
+              <Select.Trigger class="w-[150px]">
+                {appFilter === "all" ? "All apps" : uniqueApps.find(a => a.id === appFilter)?.name || "App"}
+              </Select.Trigger>
+              <Select.Content>
+                <Select.Item value="all">All apps</Select.Item>
+                {#each uniqueApps as app (app.id)}
+                  <Select.Item value={app.id}>
+                    <div class="flex items-center gap-2">
+                      <div class="w-2 h-2 rounded-full shrink-0" style="background-color: {app.color || '#10b981'}"></div>
+                      <span class="truncate">{app.name}</span>
+                    </div>
+                  </Select.Item>
+                {/each}
+              </Select.Content>
+            </Select.Root>
+          {/if}
         </div>
       </div>
 
@@ -352,6 +395,9 @@
                   {/if}
                 {/if}
               </button>
+            </TableHead>
+            <TableHead class="w-[120px]">
+              <span class="text-xs font-semibold text-muted-foreground">App</span>
             </TableHead>
             <TableHead>
               <button
@@ -443,7 +489,7 @@
         <TableBody>
           {#if filteredRows.length === 0}
             <TableRow>
-              <TableCell colspan={enableSelection ? 7 : 6} class="p-0">
+              <TableCell colspan={enableSelection ? 8 : 7} class="p-0">
                 <div class={cn("flex items-center justify-center text-center text-sm text-muted-foreground border-t bg-muted/10", compact ? "min-h-[120px] px-4 py-8" : "min-h-[160px] px-6 py-10")}>
                   <div class="flex flex-col items-center gap-3">
                     <div class="flex h-10 w-10 items-center justify-center rounded-full bg-muted/60 text-muted-foreground">
@@ -510,6 +556,18 @@
                       {row.item.type}
                     </Badge>
                   </div>
+                </TableCell>
+                <TableCell class="align-top">
+                  {#if row.item.appName}
+                    <div class="flex items-center gap-2">
+                      <ColorDot color={row.item.appColor || "#10b981"} size={10} />
+                      <span class="text-xs text-muted-foreground truncate max-w-[80px]" title={row.item.appName}>
+                        {row.item.appName}
+                      </span>
+                    </div>
+                  {:else}
+                    <span class="text-xs text-muted-foreground italic">Legacy</span>
+                  {/if}
                 </TableCell>
                 <TableCell class="align-top">
                   <p class="font-mono text-[13px] leading-5 text-foreground/90 break-all">{row.item.target}</p>

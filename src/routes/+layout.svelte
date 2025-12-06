@@ -11,15 +11,89 @@
   import { onMount } from 'svelte';
   import { AuthService } from '$lib/services/auth';
   import { auth, authServiceStore } from '$lib/stores/auth';
+  import { appRegistry } from '$lib/states/app-registry.svelte';
   import type { LayoutData } from './$types';
-  import type { ClientConfig } from '$lib/types';
+  import type { ClientConfig, AppConfig } from '$lib/types';
   import TokenDock from "$lib/components/TokenDock.svelte";
-  import { AlertTriangle } from "@lucide/svelte";
+  import AppFormDialog from "$lib/components/app-form-dialog.svelte";
 
   let { children, data } = $props<{ children: any, data: LayoutData }>();
-  let authService: AuthService;
+  let authService: AuthService | null = $state(null);
+  let addAppDialogOpen = $state(false);
+  
+  /** Track the last app ID the AuthService was initialized for */
+  let currentAuthAppId: string | null = $state(null);
+
+  /**
+   * Create a ClientConfig from an AppConfig for AuthService initialization.
+   */
+  function appConfigToClientConfig(app: AppConfig): ClientConfig {
+    return {
+      id: app.id,
+      name: app.name,
+      clientId: app.clientId,
+      tenantId: app.tenantId,
+      redirectUri: app.redirectUri,
+    };
+  }
+
+  /** Tracks whether we're currently initializing to prevent re-entry */
+  let initializingAuth = false;
+
+  /**
+   * Initialize or reinitialize the AuthService for a given app.
+   */
+  async function initializeAuthForApp(app: AppConfig) {
+    // Guard against concurrent initializations
+    if (initializingAuth) return;
+    
+    // Set immediately to prevent effect from re-triggering
+    currentAuthAppId = app.id;
+    initializingAuth = true;
+    
+    try {
+      const config = appConfigToClientConfig(app);
+      
+      if (authService) {
+        // Reinitialize existing service with new config
+        await authService.reinitialize(config);
+      } else {
+        // Create new service
+        authService = new AuthService(config);
+        await authService.initialize();
+      }
+      
+      authServiceStore.set(authService);
+    } finally {
+      initializingAuth = false;
+    }
+  }
+
+  /**
+   * Clear auth state when no apps are available.
+   */
+  function clearAuthState() {
+    if (authService) {
+      authService.logout();
+    }
+    authService = null;
+    currentAuthAppId = null;
+    authServiceStore.set(null);
+  }
 
   onMount(async () => {
+    // Ensure registry is loaded before we decide which app to initialize with.
+    if (!appRegistry.ready) {
+      await appRegistry.load();
+    }
+
+    // Prefer the saved active app when available to avoid double-initializing MSAL.
+    if (appRegistry.activeApp) {
+      await initializeAuthForApp(appRegistry.activeApp);
+      return;
+    }
+
+    // Fall back to server-side config (env vars) when no apps are stored locally.
     if (data.authConfig) {
       const config: ClientConfig = {
         id: data.authConfig.id ?? 'default',
@@ -30,11 +104,74 @@
       };
       authService = new AuthService(config);
       await authService.initialize();
+      currentAuthAppId = config.id;
       authServiceStore.set(authService);
-    } else {
-      // No auth config, mark loading as complete
-      auth.setUser(null);
-      authServiceStore.set(null);
+      return;
+    }
+    
+    // Otherwise, mark loading as complete - the $effect will handle
+    // initialization when registry becomes ready
+    auth.setUser(null);
+    authServiceStore.set(null);
+  });
+
+  /**
+   * Watch for app registry changes and reinitialize auth when needed.
+   * This handles:
+   * 1. App switches - user selects a different app
+   * 2. App deletions - signed-in app gets deleted
+   * 3. All apps deleted - clear any orphaned sign-in
+   * 4. First load when registry becomes ready
+   */
+  $effect(() => {
+    // Skip during SSR
+    if (typeof window === 'undefined') return;
+    
+    // Wait for registry to be ready
+    if (!appRegistry.ready) return;
+    
+    const activeApp = appRegistry.activeApp;
+    const signedInAppId = $auth.signedInAppId;
+    
+    // Case 1: No apps remain - ensure loading is complete and clear any stale auth
+    if (!appRegistry.hasApps) {
+      // When running purely from server-provided config, keep the auth session alive.
+      if (!data.authConfig) {
+        if ($auth.isAuthenticated || signedInAppId) {
+          console.log('[Auth] No apps configured, clearing sign-in state');
+          clearAuthState();
+        }
+      }
+      // Ensure loading is marked complete even with no apps
+      if ($auth.loading) {
+        auth.setUser(null);
+      }
+      return;
+    }
+    
+    // Case 2: Active app changed to a different app than what we initialized for
+    if (activeApp && currentAuthAppId && activeApp.id !== currentAuthAppId) {
+      console.log(`[Auth] App changed from ${currentAuthAppId} to ${activeApp.id}, reinitializing auth`);
+      initializeAuthForApp(activeApp);
+      return;
+    }
+    
+    // Case 3: We have an active app but no auth service yet (first load from registry)
+    if (activeApp && !authService) {
+      console.log(`[Auth] Initializing auth for app: ${activeApp.name}`);
+      initializeAuthForApp(activeApp);
+      return;
+    }
+    
+    // Case 4: The app we signed in with was deleted (signedInAppId no longer exists in registry)
+    if (signedInAppId && !appRegistry.getById(signedInAppId)) {
+      console.log(`[Auth] Signed-in app ${signedInAppId} was deleted, clearing sign-in state`);
+      auth.reset();
+      // Reinitialize with current active app if available
+      if (activeApp) {
+        initializeAuthForApp(activeApp);
+      }
+      return;
     }
   });
 
@@ -52,6 +189,10 @@
 
   function handleLogout() {
     authService?.logout();
+  }
+
+  function handleAddApp() {
+    addAppDialogOpen = true;
   }
 </script>
 
@@ -75,24 +216,11 @@
   </div>
 {:else}
   <SidebarProvider>
+    <AppFormDialog bind:open={addAppDialogOpen} onOpenChange={(v: boolean) => addAppDialogOpen = v} />
     <AppSidebar />
     <SidebarInset class="min-h-screen bg-background/80">
-      <AppHeader user={$auth.user} onLogout={handleLogout} onLogin={handleLogin} photoUrl={$auth.photoUrl} />
-      {#if !data.authConfig}
-        <div class="p-6 pt-3">
-          <div class="mx-auto w-full max-w-6xl">
-            <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
-              <div class="flex items-center gap-2 text-sm font-semibold">
-                <AlertTriangle class="h-4 w-4" />
-                Finish Setup to issue tokens
-              </div>
-              <Button variant="secondary" size="sm" class="bg-amber-600 text-white hover:bg-amber-700" href="/setup">
-                Go to Setup
-              </Button>
-            </div>
-          </div>
-        </div>
-      {/if}
+      <AppHeader user={$auth.user} onLogout={handleLogout} onLogin={handleLogin} onAddApp={handleAddApp} photoUrl={$auth.photoUrl} />
+
       <div class="flex flex-1 flex-col gap-6 p-6 pt-2">
         <div class="mx-auto w-full max-w-6xl space-y-6">
           {@render children()}
