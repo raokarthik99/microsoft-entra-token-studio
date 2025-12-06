@@ -104,3 +104,21 @@ export interface IdentityPreference {
     mode: IdentityPreferenceMode;
     setAt: number;
 }
+
+/**
+ * Data export envelope for generic IndexedDB backup/restore.
+ * Schema-agnostic to support future data model evolution.
+ */
+export interface ExportedData {
+  version: number;
+  exportedAt: string;
+  appVersion?: string;
+  data: Record<string, unknown>;
+}
+
+export interface ImportPreview {
+  counts: Record<string, number>;
+  exportedAt: string;
+  isValid: boolean;
+  errors?: string[];
+}

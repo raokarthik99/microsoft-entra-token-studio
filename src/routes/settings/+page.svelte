@@ -14,9 +14,91 @@
   import { clientStorage } from '$lib/services/client-storage';
   import { favoritesState } from '$lib/states/favorites.svelte';
   import { historyState } from '$lib/states/history.svelte';
+  import { dataExportService } from '$lib/services/data-export';
+  import type { ImportPreview } from '$lib/types';
+  import { Loader2, Download, Upload, FileJson, Clock3, Star } from "@lucide/svelte";
 
   function getInitials(name: string) {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  }
+
+  // Import/Export State
+  let isExporting = $state(false);
+  let isImporting = $state(false);
+  let importPreview = $state<ImportPreview | null>(null);
+
+  async function handleExport() {
+    isExporting = true;
+    try {
+      const data = await dataExportService.exportAllData();
+      dataExportService.downloadAsJson(data);
+      toast.success('Data exported successfully');
+    } catch (error) {
+      toast.error('Failed to export data');
+    } finally {
+      isExporting = false;
+    }
+  }
+
+  function resetFileInput() {
+    const input = document.getElementById('import-file') as HTMLInputElement;
+    if (input) input.value = '';
+  }
+
+  async function handleFileSelect(e: Event) {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+
+    // simplistic size check for UX (just warn in console for now, logic is robust)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.warning('Large file detected. This may take a moment.');
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      importPreview = dataExportService.parseImportFile(content);
+      
+      if (!importPreview.isValid) {
+        toast.error('Invalid backup file');
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  async function confirmImport() {
+    if (!importPreview) return;
+    
+    isImporting = true;
+    const input = document.getElementById('import-file') as HTMLInputElement;
+    const file = input.files?.[0];
+    
+    if (!file) {
+      isImporting = false;
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const content = event.target?.result as string;
+        await dataExportService.importData(content);
+        
+        // Reload all states
+        historyState.items = []; // It will auto-reload on mount often, but good to clear
+        favoritesState.items = [];
+        await identityPreference.reset(); // or reload preferences
+
+        toast.success('Data imported successfully');
+        
+        // Reload page to ensure all stores/services pick up fresh data
+        setTimeout(() => window.location.reload(), 1000);
+      } catch (error) {
+        toast.error('Failed to import data');
+        isImporting = false;
+      }
+    };
+    reader.readAsText(file);
   }
 
   async function clearAllData() {
@@ -154,12 +236,107 @@
       </Card.Content>
     </Card.Root>
 
-    <Card.Root class="border bg-card/70">
+
+
+    <Card.Root class="border bg-card/70 lg:col-span-2">
       <Card.Header class="pb-2">
         <Card.Title>Data management</Card.Title>
-        <Card.Description>These values never leave your browser.</Card.Description>
+        <Card.Description>Manage your local data.</Card.Description>
       </Card.Header>
-      <Card.Content class="space-y-5">
+      <Card.Content class="space-y-6">
+        <!-- Import/Export Section -->
+        <div class="rounded-xl border bg-muted/30 p-4">
+          <div class="flex items-center justify-between mb-4">
+            <div class="space-y-1">
+              <Label>Import / Export</Label>
+              <p class="text-sm text-muted-foreground">Backup your history, favorites, and preferences, or restore from a file.</p>
+            </div>
+          </div>
+          
+          <div class="flex flex-wrap gap-4">
+            <Button variant="outline" class="gap-2" onclick={handleExport} disabled={isExporting}>
+              {#if isExporting}
+                <Loader2 class="h-4 w-4 animate-spin" />
+                Exporting...
+              {:else}
+                <Download class="h-4 w-4" />
+                Export data
+              {/if}
+            </Button>
+            
+            <div class="relative">
+              <input 
+                type="file" 
+                id="import-file" 
+                accept=".json" 
+                class="absolute inset-0 cursor-pointer opacity-0"
+                onchange={handleFileSelect}
+                disabled={isImporting}
+              />
+              <Button variant="outline" class="gap-2" disabled={isImporting}>
+                {#if isImporting}
+                  <Loader2 class="h-4 w-4 animate-spin" />
+                  Importing...
+                {:else}
+                  <Upload class="h-4 w-4" />
+                  Import data
+                {/if}
+              </Button>
+            </div>
+          </div>
+
+          <!-- Import Preview Section -->
+          {#if importPreview}
+            <div class="mt-4 rounded-lg border border-primary/20 bg-primary/5 p-4 animate-in fade-in slide-in-from-top-2">
+              <div class="flex items-start gap-3">
+                <div class="rounded-full bg-primary/10 p-2 text-primary">
+                  <FileJson class="h-5 w-5" />
+                </div>
+                <div class="space-y-1 flex-1">
+                  <h4 class="font-medium text-foreground">Ready to import</h4>
+                  <p class="text-xs text-muted-foreground">
+                    Backup from {new Date(importPreview.exportedAt).toLocaleDateString()} at {new Date(importPreview.exportedAt).toLocaleTimeString()}
+                  </p>
+                  
+                  <div class="mt-3 flex gap-4 text-sm">
+                    <div class="flex items-center gap-1.5">
+                      <Clock3 class="h-3.5 w-3.5 text-muted-foreground" />
+                      <span class="font-medium">{importPreview.counts.token_history || 0}</span> History
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                      <Star class="h-3.5 w-3.5 text-muted-foreground" />
+                      <span class="font-medium">{importPreview.counts.token_favorites || 0}</span> Favorites
+                    </div>
+                  </div>
+
+                  {#if importPreview.errors?.length}
+                    <div class="mt-2 text-xs text-destructive">
+                      Error: {importPreview.errors.join(', ')}
+                    </div>
+                  {/if}
+
+                  <div class="mt-4 flex items-center gap-3">
+                    <Button size="sm" onclick={confirmImport} disabled={isImporting}>
+                      {#if isImporting}
+                        <Loader2 class="h-3.5 w-3.5 animate-spin mr-2" />
+                        Restoring...
+                      {:else}
+                        Replace current data
+                      {/if}
+                    </Button>
+                    <Button variant="ghost" size="sm" onclick={() => { importPreview = null; resetFileInput(); }} disabled={isImporting}>
+                      Cancel
+                    </Button>
+                  </div>
+                  <p class="mt-2 text-[10px] text-muted-foreground">
+                    <span class="font-medium text-destructive">Warning:</span> This will delete all current data and replace it with the backup.
+                  </p>
+                </div>
+              </div>
+            </div>
+          {/if}
+        </div>
+
         <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-muted/30 p-4">
           <div class="space-y-1">
             <Label>Clear data</Label>
