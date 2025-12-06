@@ -172,12 +172,9 @@
     if (typeof window === 'undefined') return;
     if (!appRegistry.ready) return; // Wait for registry to load from IndexedDB
     
-    // Check URL params - don't redirect if user explicitly came here with intent
-    const urlParams = new URLSearchParams(window.location.search);
-    const hasIntent = urlParams.has('tab') || urlParams.has('autorun') || urlParams.has('cta');
-    
-    // If no apps and no explicit intent, redirect to setup
-    if (!appRegistry.hasApps && !hasIntent) {
+    // If no apps configured, always redirect to setup - the user needs to configure
+    // an app before they can use the playground, regardless of how they got here
+    if (!appRegistry.hasApps) {
       goto('/apps', { replaceState: true });
     }
   });
@@ -1439,9 +1436,9 @@
                     {/if}
                   </Button>
                   <Separator orientation="vertical" class="h-4" />
-                  <Button size="sm" variant="outline" class="h-8 gap-2" onclick={() => tokenDockState.openFullScreen()} title="Open in full screen view">
+                  <Button size="icon-sm" variant="outline" class="h-8 w-8" onclick={() => tokenDockState.openFullScreen()} title="Open in full screen view">
                     <Maximize2 class="h-3.5 w-3.5" />
-                    Full Screen
+                    <span class="sr-only">Full Screen</span>
                   </Button>
                 </div>
               {/if}

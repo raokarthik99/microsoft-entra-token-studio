@@ -12,6 +12,7 @@
   import { toast } from 'svelte-sonner';
   import { Button } from '$lib/shadcn/components/ui/button';
   import { Badge } from '$lib/shadcn/components/ui/badge';
+  import * as Tooltip from '$lib/shadcn/components/ui/tooltip';
   import {
     Link2,
     Maximize2,
@@ -253,18 +254,7 @@
       <div class="flex items-center justify-between gap-3 border-b bg-muted/40 px-4 py-3">
         <div class="flex flex-1 items-center gap-2 min-w-0">
           <Badge variant="secondary" class="gap-1 text-[11px] shrink-0">{headerLabel}</Badge>
-          {#if activeToken?.appName}
-            <div class="flex items-center gap-1.5 shrink-0">
-              <div 
-                class="w-2 h-2 rounded-full shrink-0" 
-                style="background-color: {activeToken.appColor || '#10b981'}"
-              ></div>
-              <span class="text-[11px] text-muted-foreground truncate max-w-[60px]" title={activeToken.appName}>
-                {activeToken.appName}
-              </span>
-            </div>
-          {/if}
-          <div class={`min-w-0 text-xs text-muted-foreground ${marqueeActive ? 'marquee-mask' : ''}`} title={statusText}>
+          <div class={`flex-1 min-w-0 text-xs text-muted-foreground ${marqueeActive ? 'marquee-mask' : ''}`} title={statusText}>
             {#if marqueeActive}
               <div class="marquee-track">
                 <span class="shrink-0">{statusText}</span>
@@ -306,6 +296,29 @@
       {#if isExpanded}
         <div class="space-y-3 px-4 py-3">
           <div class="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+            {#if activeToken?.appName}
+              <Tooltip.Root delayDuration={0}>
+                <Tooltip.Trigger>
+                  <div class="flex items-center gap-1.5 rounded-full border px-2 py-1 bg-muted/50">
+                    <div
+                      class="w-2 h-2 rounded-full shrink-0"
+                      style="background-color: {activeToken.appColor || '#10b981'}"
+                    ></div>
+                    <span class="text-[11px] text-foreground truncate max-w-[88px]">
+                      {activeToken.appName}
+                    </span>
+                  </div>
+                </Tooltip.Trigger>
+                {#if activeToken.appId}
+                  <Tooltip.Content>
+                    <div class="flex flex-col gap-1 text-[11px]">
+                      <span class="font-semibold">{activeToken.appName}</span>
+                      <span class="font-mono text-muted-foreground">{activeToken.appId}</span>
+                    </div>
+                  </Tooltip.Content>
+                {/if}
+              </Tooltip.Root>
+            {/if}
             {#if hasToken && tokenData?.expiresOn}
               <TokenStatusBadge expiresOn={tokenData.expiresOn} class="px-2 py-1 font-normal" />
             {:else if tokenDockState.status === 'error'}

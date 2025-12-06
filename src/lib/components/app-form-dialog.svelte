@@ -308,14 +308,9 @@
           <div class="space-y-3">
             <Label for="clientId" class="flex items-center gap-1">
               Client ID <span class="text-destructive">*</span>
-              <Tooltip.Root>
-                <Tooltip.Trigger tabindex={-1}>
-                  <Info class="h-3.5 w-3.5 text-muted-foreground hover:text-foreground transition-colors cursor-help" />
-                </Tooltip.Trigger>
-                <Tooltip.Content class="max-w-xs">
-                  The Application (client) ID assigned to your app by Microsoft Entra ID.
-                </Tooltip.Content>
-              </Tooltip.Root>
+              <span title="The Application (client) ID assigned to your app by Microsoft Entra ID." class="inline-flex">
+                <Info class="h-3.5 w-3.5 text-muted-foreground hover:text-foreground transition-colors cursor-help" />
+              </span>
             </Label>
             <Input
               id="clientId"
