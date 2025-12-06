@@ -3,7 +3,7 @@
 ## Context
 
 - SvelteKit 2 app using Svelte 5 runes and TypeScript. UI is built from shadcn components plus custom layout pieces and feature-specific components.
-- **App tokens**: Server-side client credentials flow via `/api/token/app`. Supports both **client secrets** and **certificates from Azure Key Vault** (recommended for production).
+- **App tokens**: Server-side client credentials flow via `/api/token/app`. Supports both **client secrets** and **certificates from Azure Key Vault** (recommended for production). Certificate parsing supports both PEM and PKCS#12 formats with automatic OpenSSL fallback for modern encryption.
 - **User tokens**: Client-side Authorization Code + PKCE flow via MSAL.js (`@azure/msal-browser`). Supports silent acquisition and popup fallback.
 - **Authentication**: Users can explore the app without signing in. Sign-in is triggered as part of the user token flow when issuing tokens. A "Sign In" button in the header is available for manual sign-in.
 - **Token status tracking**: Real-time expiry monitoring with color-coded badges (expired, expiring, valid).
@@ -33,7 +33,7 @@
   - Collapsible primitives: `shadcn/components/ui/collapsible/{collapsible.svelte,collapsible-content.svelte,collapsible-trigger.svelte}`.
   - Layout: `app-header.svelte`, `app-sidebar.svelte`, `app-footer.svelte`, `UserMenu.svelte`.
 - **State management**: Svelte 5 runes-based state in `src/lib/states/`; reactive time store in `src/lib/stores/time.ts` for real-time expiry updates.
-- Shared logic/UI in `src/lib` (`shadcn/` for shadcn-svelte primitives, including table components under `components/ui/table`; `utils.ts` for JWT/expiry/status helpers, `types.ts` for TypeScript interfaces, server-only MSAL helpers in `server/msal.ts`, Key Vault integration in `server/keyvault.ts`, local certificate helpers in `server/certificate.ts`). Keep server imports out of client modules.
+- Shared logic/UI in `src/lib` (`shadcn/` for shadcn-svelte primitives, including table components under `components/ui/table`; `utils.ts` for JWT/expiry/status helpers, `types.ts` for TypeScript interfaces, server-only MSAL helpers in `server/msal.ts`, Key Vault integration in `server/keyvault.ts`, certificate parsing with OpenSSL fallback in `server/certificate.ts`). Keep server imports out of client modules.
 - Global shell and styles: `src/app.html`, `src/app.css`; static assets live in `static/`.
 - Type configuration extends SvelteKit defaults via `tsconfig.json`; use the `$lib` alias.
 
@@ -82,7 +82,8 @@
   - **Client Secret**: Set `CLIENT_SECRET` for development/simple setups.
   - **Client Secret via Key Vault**: Set `AZURE_KEYVAULT_URI` and `AZURE_KEYVAULT_SECRET_NAME`.
   - **Certificate (recommended)**: Set `AZURE_KEYVAULT_URI` and `AZURE_KEYVAULT_CERT_NAME`; Key Vault is preferred in production.
-  - **Local certificate**: Point `CERTIFICATE_PATH` to a PEM/PFX with private key; upload the public key to the App Registration.
+  - **Local certificate**: Point `CERTIFICATE_PATH` to a PEM/PFX with private key; upload the public key to the App Registration. Set `CERTIFICATE_PFX_PASSPHRASE` if the PFX is password-protected.
+- **OpenSSL requirement**: Modern PKCS#12 certificates (e.g., Azure Key Vault self-signed) use AES-256-CBC encryption. OpenSSL CLI is used as a fallback when the pure-JS parser can't handle them.
 - `REDIRECT_URI` should match the Entra registration; if omitted, the app falls back to `${origin}/auth/callback`.
 - Do not commit `.env` or real secrets.
 - Treat access tokens as sensitive: avoid logging them.

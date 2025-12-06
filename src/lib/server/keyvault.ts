@@ -2,6 +2,7 @@ import { DefaultAzureCredential } from '@azure/identity';
 import { CertificateClient } from '@azure/keyvault-certificates';
 import { SecretClient } from '@azure/keyvault-secrets';
 import { env } from '$env/dynamic/private';
+import { parseCertificateContent } from './certificate';
 
 export interface CertificateCredential {
   thumbprint: string;
@@ -130,19 +131,11 @@ export async function fetchCertificateFromKeyVault(): Promise<CertificateCredent
       throw new Error(`Certificate '${certName}' secret value is empty. It may be missing the private key.`);
     }
 
-    // The secret value is base64-encoded PKCS#12 or PEM
-    // MSAL-node expects PEM format for privateKey
-    let privateKey: string;
-    
-    // Check if it's already PEM format
-    if (secret.value.includes('-----BEGIN')) {
-      privateKey = secret.value;
-    } else {
-      // It's base64-encoded PKCS#12, we need to decode and extract
-      // For MSAL with PKCS#12, we pass the base64 content directly
-      // and MSAL handles the extraction
-      privateKey = secret.value;
-    }
+    const { privateKey } = parseCertificateContent(
+      secret.value,
+      `Key Vault certificate '${certName}'`,
+      env.CERTIFICATE_PFX_PASSPHRASE,
+    );
 
     cachedCredential = { thumbprint, privateKey };
     credentialFetched = true;

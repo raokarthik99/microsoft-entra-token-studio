@@ -34,6 +34,7 @@ Playground for generating and inspecting Microsoft Entra access tokens. Built wi
 
    - Node.js 18+ (LTS recommended).
    - pnpm (`npm i -g pnpm` if needed).
+   - **OpenSSL** (required for Azure Key Vault certificates with modern PKCS#12 encryption).
    - An Entra tenant where you can register apps.
 
 2. **Install**
@@ -122,7 +123,8 @@ For App tokens (client credentials flow), the application supports **4 authentic
 ### Certificate Authentication Setup
 
 #### Option A: Azure Key Vault (Recommended)
-1. **Create a certificate** in Azure Key Vault (or import an existing one with private key).
+1. **Create a certificate** in Azure Key Vault (or import an existing one with private key). Both PEM and PKCS#12 formats are supported.
+   - **Note**: Azure Key Vault self-signed certificates use modern AES-256-CBC encryption. OpenSSL is used automatically to handle these.
 2. **Upload the public key** (`.cer`) to your App Registration under **Certificates & secrets**.
 3. **Grant access** to Key Vault for your identity:
    - Assign **Key Vault Administrator** (simplest) OR
@@ -131,6 +133,8 @@ For App tokens (client credentials flow), the application supports **4 authentic
    ```bash
    AZURE_KEYVAULT_URI=https://my-vault.vault.azure.net
    AZURE_KEYVAULT_CERT_NAME=my-app-cert
+   # Optional if the PFX in Key Vault is password-protected
+   CERTIFICATE_PFX_PASSPHRASE=your-pfx-passphrase
    ```
 
 #### Option B: Local Certificate File
@@ -139,6 +143,8 @@ For App tokens (client credentials flow), the application supports **4 authentic
 3. **Set environment variable**:
    ```bash
    CERTIFICATE_PATH=/absolute/path/to/certificate.pem
+   # Optional if the PFX at CERTIFICATE_PATH is password-protected
+   CERTIFICATE_PFX_PASSPHRASE=your-pfx-passphrase
    ```
 
 ### Client Secret Setup
