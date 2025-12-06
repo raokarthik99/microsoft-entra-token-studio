@@ -2,7 +2,7 @@
   import type { HistoryItem } from "$lib/types";
   import { buttonVariants } from "$lib/shadcn/components/ui/button/button.svelte";
   import * as DropdownMenu from "$lib/shadcn/components/ui/dropdown-menu";
-  import { Copy, Play, Eye, Trash2, MoreHorizontal, Star, StarOff } from "@lucide/svelte";
+  import { Copy, Play, Eye, Trash2, MoreHorizontal, Star, StarOff, Pin, PinOff } from "@lucide/svelte";
   import { toast } from "svelte-sonner";
   import { cn } from "$lib/utils";
 
@@ -15,6 +15,9 @@
     onFavorite,
     onUnfavorite,
     favoriteExists = false,
+    onPin,
+    onUnpin,
+    pinnedExists = false,
     showDelete = false,
     compact = false
   } = $props<{
@@ -26,6 +29,9 @@
     onFavorite?: (item: HistoryItem) => void;
     onUnfavorite?: (item: HistoryItem) => void;
     favoriteExists?: boolean;
+    onPin?: (item: HistoryItem) => void;
+    onUnpin?: (item: HistoryItem) => void;
+    pinnedExists?: boolean;
     showDelete?: boolean;
     compact?: boolean;
   }>();
@@ -105,6 +111,21 @@
         <DropdownMenu.Item onclick={() => onFavorite(item)}>
           <Star class="mr-2 h-4 w-4" />
           <span>Favorite</span>
+        </DropdownMenu.Item>
+      {/if}
+    {/if}
+
+    {#if onPin}
+      <DropdownMenu.Separator />
+      {#if pinnedExists && onUnpin}
+        <DropdownMenu.Item onclick={() => onUnpin(item)}>
+          <PinOff class="mr-2 h-4 w-4" />
+          <span>Unpin</span>
+        </DropdownMenu.Item>
+      {:else}
+        <DropdownMenu.Item onclick={() => onPin(item)}>
+          <Pin class="mr-2 h-4 w-4" />
+          <span>Pin</span>
         </DropdownMenu.Item>
       {/if}
     {/if}

@@ -18,11 +18,14 @@
 
   let favoriteOpen = $state(false);
   let favoriteDraft: HistoryItem | null = $state(null);
+  let pinMode = $state(false);
 
   type FavoriteFormValue = Omit<FavoriteItem, 'id' | 'timestamp' | 'createdAt' | 'useCount'> & {
     useCount?: number;
     createdAt?: number;
     timestamp?: number;
+    isPinned?: boolean;
+    pinnedAt?: number | null;
   };
 
   async function restoreHistoryItem(item: HistoryItem) {
@@ -66,23 +69,35 @@
     return favoritesState.items.some((fav) => fav.type === item.type && fav.target === item.target);
   }
 
+  function isPinned(item: HistoryItem) {
+    const match = favoritesState.items.find((fav) => fav.type === item.type && fav.target === item.target);
+    return Boolean(match?.isPinned);
+  }
+
   function addFavorite(item: HistoryItem) {
     favoriteDraft = item;
+    pinMode = false;
     favoriteOpen = true;
   }
 
   async function saveFavoriteFromHistory(payload: FavoriteFormValue) {
     if (!favoriteDraft) return;
     try {
-      await favoritesState.addFromHistory(favoriteDraft, payload);
+      const extras: Partial<FavoriteItem> = {
+        ...payload,
+        isPinned: pinMode || payload.isPinned,
+        pinnedAt: pinMode ? Date.now() : payload.pinnedAt
+      };
+      await favoritesState.addFromHistory(favoriteDraft, extras);
       await favoritesState.load();
-      toast.success("Added to favorites");
+      toast.success(pinMode ? "Pinned and added to favorites" : "Added to favorites");
     } catch (err) {
       console.error("Failed to add favorite", err);
       toast.error("Could not add to favorites");
     } finally {
       favoriteDraft = null;
       favoriteOpen = false;
+      pinMode = false;
     }
   }
 
@@ -91,6 +106,35 @@
     if (!match) return;
     await favoritesState.delete(match);
     toast.success("Removed from favorites");
+  }
+
+  async function pinHistoryItem(item: HistoryItem) {
+    const match = favoritesState.findMatch(item.type, item.target);
+    if (match) {
+      const result = await favoritesState.pin(match.id);
+      if (!result.success && result.reason === 'limit') {
+        toast.error('You can pin up to five favorites. Unpin one to add this.');
+        return;
+      }
+      toast.success('Pinned to navigation');
+      return;
+    }
+
+    if (favoritesState.pinnedCount >= 5) {
+      toast.error('You can pin up to five favorites. Unpin one to add this.');
+      return;
+    }
+
+    pinMode = true;
+    favoriteDraft = item;
+    favoriteOpen = true;
+  }
+
+  async function unpinHistoryItem(item: HistoryItem) {
+    const match = favoritesState.findMatch(item.type, item.target);
+    if (!match) return;
+    await favoritesState.unpin(match.id);
+    toast.success('Unpinned');
   }
 </script>
 
@@ -131,6 +175,9 @@
         onFavorite={addFavorite}
         onUnfavorite={removeFavorite}
         isFavorited={isFavorited}
+        onPin={pinHistoryItem}
+        onUnpin={unpinHistoryItem}
+        isPinned={isPinned}
         enableSelection={true}
         enableToolbar={true}
         enableSorting={true}
@@ -163,5 +210,6 @@
   onClose={() => {
     favoriteOpen = false;
     favoriteDraft = null;
+    pinMode = false;
   }}
 />

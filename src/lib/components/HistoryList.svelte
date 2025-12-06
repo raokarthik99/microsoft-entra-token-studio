@@ -35,6 +35,9 @@
     onFavorite,
     onUnfavorite,
     isFavorited,
+    onPin,
+    onUnpin,
+    isPinned,
     enableToolbar = true,
     enableSorting = true,
     enableSelection = false,
@@ -53,6 +56,9 @@
     onFavorite?: (item: HistoryItem) => void;
     onUnfavorite?: (item: HistoryItem) => void;
     isFavorited?: (item: HistoryItem) => boolean;
+    onPin?: (item: HistoryItem) => void;
+    onUnpin?: (item: HistoryItem) => void;
+    isPinned?: (item: HistoryItem) => boolean;
     enableToolbar?: boolean;
     enableSorting?: boolean;
     enableSelection?: boolean;
@@ -615,6 +621,9 @@
                     onFavorite={onFavorite}
                     onUnfavorite={onUnfavorite}
                     favoriteExists={isFavorited ? isFavorited(row.item) : false}
+                    onPin={onPin}
+                    onUnpin={onUnpin}
+                    pinnedExists={isPinned ? isPinned(row.item) : false}
                     showDelete={Boolean(onDelete) && enableToolbar}
                     compact={compact}
                   />

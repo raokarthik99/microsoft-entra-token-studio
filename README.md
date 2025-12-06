@@ -23,6 +23,7 @@ Playground for generating and inspecting Microsoft Entra access tokens. Built wi
 - **Floating token dock** for quick access to token actions without scrolling.
 - **Comprehensive history management** with Load, Reissue, and Delete actions plus search/filter/sort.
 - **Favorites system** for saving frequently used targets with names, tags, colors, and descriptions for quick access.
+- **Pinned tokens navigation** to promote up to five favorites into the header for instant reissue, ordered by most recently pinned.
 - **One-click token reissue** from favorites with automatic parameter population.
 - **Visual prominence** for expired/expiring tokens with highlighted reissue buttons.
 - **Local-only storage**: history/preferences live in IndexedDB via a shared client storage helper, and the MSAL cache stays in `localStorage` for smoother reuse; clear data anytime from Settings.
@@ -190,6 +191,7 @@ The app uses `DefaultAzureCredential` from `@azure/identity` for Key Vault acces
 - Access the dedicated **Favorites page** at `/favorites` to manage all your saved favorites.
 - **Create favorites** with optional names, tags, colors, and descriptions for better organization.
 - **Filter favorites** by type (App Token/User Token), status, tags, and colors.
+- **Pinned slots**: Pin favorites from token results, the floating dock, fullscreen inspector, or history; up to five pinned entries stay in the header for one-click reissue and can be unpinned without deleting the favorite.
 - **Bulk operations**: Select multiple favorites for bulk delete operations.
 - **Usage tracking**: See how many times each favorite has been used and when it was last accessed.
 - **Quick access**: Use favorites to instantly populate token generation forms with saved parameters.

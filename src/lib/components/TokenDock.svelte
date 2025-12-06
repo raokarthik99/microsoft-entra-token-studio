@@ -24,7 +24,9 @@
     Play,
     Star,
     StarOff,
-    Sparkles
+    Sparkles,
+    Pin,
+    PinOff
   } from '@lucide/svelte';
   import type { FavoriteItem, HistoryItem } from '$lib/types';
 
@@ -34,6 +36,7 @@
   let copied = $state(false);
   let favoriteOpen = $state(false);
   let favoriteDraft: HistoryItem | null = $state(null);
+  let pinMode = $state(false);
 
   const activeToken = $derived(tokenDockState.token);
   const tokenData = $derived(activeToken?.tokenData ?? null);
@@ -63,6 +66,9 @@
       ? favoritesState.items.some((fav) => fav.type === activeToken.type && fav.target === activeToken.target)
       : false
   );
+  const currentPinned = $derived(
+    activeToken ? favoritesState.items.some((fav) => fav.type === activeToken.type && fav.target === activeToken.target && fav.isPinned) : false
+  );
   const shouldShow = $derived(tokenDockState.status !== 'idle' || hasToken);
 
   $effect(() => {
@@ -78,26 +84,35 @@
     useCount?: number;
     createdAt?: number;
     timestamp?: number;
+    isPinned?: boolean;
+    pinnedAt?: number | null;
   };
 
   function startFavorite() {
     if (!activeToken) return;
     favoriteDraft = activeToken;
+    pinMode = false;
     favoriteOpen = true;
   }
 
   async function saveFavorite(payload: FavoriteFormValue) {
     if (!favoriteDraft) return;
     try {
-      await favoritesState.addFromHistory(favoriteDraft, payload);
+      const extras: Partial<FavoriteItem> = {
+        ...payload,
+        isPinned: pinMode || payload.isPinned,
+        pinnedAt: pinMode ? Date.now() : payload.pinnedAt
+      };
+      await favoritesState.addFromHistory(favoriteDraft, extras);
       await favoritesState.load();
-      toast.success('Added to favorites');
+      toast.success(pinMode ? 'Pinned and added to favorites' : 'Added to favorites');
     } catch (err) {
       console.error('Failed to add favorite', err);
       toast.error('Could not add to favorites');
     } finally {
       favoriteDraft = null;
       favoriteOpen = false;
+      pinMode = false;
     }
   }
 
@@ -109,6 +124,39 @@
     if (!match) return;
     await favoritesState.delete(match);
     toast.success('Removed from favorites');
+  }
+
+  async function pinActive() {
+    if (!activeToken) return;
+    const match = favoritesState.findMatch(activeToken.type, activeToken.target);
+    if (match) {
+      const result = await favoritesState.pin(match.id);
+      if (!result.success && result.reason === 'limit') {
+        toast.error('You can pin up to five favorites. Unpin one to add this.');
+        return;
+      }
+      toast.success('Pinned to navigation');
+      return;
+    }
+
+    if (favoritesState.pinnedCount >= 5) {
+      toast.error('You can pin up to five favorites. Unpin one to add this.');
+      return;
+    }
+
+    pinMode = true;
+    favoriteDraft = activeToken;
+    favoriteOpen = true;
+  }
+
+  async function unpinActive() {
+    if (!activeToken) return;
+    const match = favoritesState.items.find(
+      (fav) => fav.type === activeToken.type && fav.target === activeToken.target
+    );
+    if (!match) return;
+    await favoritesState.unpin(match.id);
+    toast.success('Unpinned');
   }
 
   async function copyToken() {
@@ -312,21 +360,21 @@
                 <Copy class="h-4 w-4" />
                 {copied ? 'Copied' : 'Copy'}
               </Button>
-          <Button
-            size="sm"
-            variant={currentStatus?.label === 'Expired' || currentStatus?.label === 'Expiring' ? 'default' : 'ghost'}
-            class={`gap-2 ${currentStatus?.label === 'Expired' || currentStatus?.label === 'Expiring' ? 'shadow-[0_0_15px_-3px_oklch(var(--primary)/0.6)] hover:shadow-[0_0_20px_-3px_oklch(var(--primary)/0.7)] transition-all' : ''}`}
-            onclick={reissueCurrent}
-            title="Reissue this token"
-          >
-            <Play class="h-4 w-4" />
-            Reissue
-          </Button>
-          <Button
-            size="sm"
-            variant={currentFavorited ? 'secondary' : 'ghost'}
-            class="gap-2"
-            onclick={() => (currentFavorited ? removeFavorite() : startFavorite())}
+              <Button
+                size="sm"
+                variant={currentStatus?.label === 'Expired' || currentStatus?.label === 'Expiring' ? 'default' : 'ghost'}
+                class={`gap-2 ${currentStatus?.label === 'Expired' || currentStatus?.label === 'Expiring' ? 'shadow-[0_0_15px_-3px_oklch(var(--primary)/0.6)] hover:shadow-[0_0_20px_-3px_oklch(var(--primary)/0.7)] transition-all' : ''}`}
+                onclick={reissueCurrent}
+                title="Reissue this token"
+              >
+                <Play class="h-4 w-4" />
+                Reissue
+              </Button>
+              <Button
+                size="sm"
+                variant={currentFavorited ? 'secondary' : 'ghost'}
+                class="gap-2"
+                onclick={() => (currentFavorited ? removeFavorite() : startFavorite())}
                 disabled={!activeToken}
                 title={currentFavorited ? 'Remove from favorites' : 'Add to favorites'}
               >
@@ -338,7 +386,29 @@
                   Favorite
                 {/if}
               </Button>
-              <Button size="sm" variant="ghost" class="gap-2" onclick={toggleVisibility} title={tokenVisible ? 'Hide token' : 'Show token'}>
+              <Button
+                size="sm"
+                variant={currentPinned ? 'secondary' : 'ghost'}
+                class="gap-2"
+                onclick={() => (currentPinned ? unpinActive() : pinActive())}
+                disabled={!activeToken}
+                title={currentPinned ? 'Unpin from navigation' : 'Pin for instant access'}
+              >
+                {#if currentPinned}
+                  <PinOff class="h-4 w-4" />
+                  Unpin
+                {:else}
+                  <Pin class="h-4 w-4" />
+                  Pin
+                {/if}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                class="gap-2"
+                onclick={toggleVisibility}
+                title={tokenVisible ? 'Hide token' : 'Show token'}
+              >
                 {#if tokenVisible}
                   <EyeOff class="h-4 w-4" />
                   Hide
@@ -382,6 +452,7 @@
     onClose={() => {
       favoriteOpen = false;
       favoriteDraft = null;
+      pinMode = false;
     }}
   />
 {/if}

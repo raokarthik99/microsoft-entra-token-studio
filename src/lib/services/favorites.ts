@@ -36,6 +36,8 @@ function generateId() {
 function sanitizeFavorite(item: FavoriteItem): FavoriteItem {
   const now = Date.now();
   const tags = normalizeTags(item.tags);
+  const isPinned = Boolean(item.isPinned);
+  const pinnedAt = isPinned ? item.pinnedAt ?? now : undefined;
 
   return {
     ...item,
@@ -48,8 +50,23 @@ function sanitizeFavorite(item: FavoriteItem): FavoriteItem {
     name: item.name?.trim() || undefined,
     description: item.description?.trim() || undefined,
     color: item.color?.trim() || undefined,
-    tags
+    tags,
+    isPinned,
+    pinnedAt
   };
+}
+
+function normalizeFavoriteFromStorage(item: FavoriteItem): FavoriteItem {
+  const isPinned = Boolean(item.isPinned);
+  const pinnedAt = isPinned
+    ? item.pinnedAt ?? item.lastUsedAt ?? item.createdAt ?? item.timestamp
+    : undefined;
+
+  return sanitizeFavorite({
+    ...item,
+    isPinned,
+    pinnedAt
+  });
 }
 
 function evictIfNeeded(favorites: FavoriteItem[]): FavoriteItem[] {
@@ -69,7 +86,8 @@ export const favoritesService = {
   async getFavorites(): Promise<FavoriteItem[]> {
     if (typeof window === 'undefined') return [];
     try {
-      return (await get<FavoriteItem[]>(FAVORITES_KEY)) || [];
+      const favorites = (await get<FavoriteItem[]>(FAVORITES_KEY)) || [];
+      return favorites.map(normalizeFavoriteFromStorage);
     } catch (error) {
       console.error('Failed to get favorites from IndexedDB', error);
       return [];
@@ -80,19 +98,27 @@ export const favoritesService = {
     if (typeof window === 'undefined') return [];
     try {
       let favorites = (await get<FavoriteItem[]>(FAVORITES_KEY)) || [];
-      const normalized = sanitizeFavorite(item);
-
       const duplicateIndex = favorites.findIndex(
-        (fav) => fav.type === normalized.type && fav.target === normalized.target
+        (fav) => fav.type === item.type && fav.target === item.target
       );
 
       if (duplicateIndex !== -1) {
-        favorites[duplicateIndex] = {
-          ...favorites[duplicateIndex],
-          ...normalized,
-          id: favorites[duplicateIndex].id
-        };
+        const existing = favorites[duplicateIndex];
+        const merged = sanitizeFavorite({
+          ...existing,
+          ...item,
+          id: existing.id,
+          isPinned: item.isPinned ?? existing.isPinned,
+          pinnedAt:
+            item.isPinned === undefined
+              ? existing.pinnedAt
+              : item.isPinned
+                ? item.pinnedAt ?? existing.pinnedAt
+                : undefined
+        });
+        favorites[duplicateIndex] = merged;
       } else {
+        const normalized = sanitizeFavorite(item);
         favorites = evictIfNeeded(favorites);
         favorites.unshift(normalized);
       }

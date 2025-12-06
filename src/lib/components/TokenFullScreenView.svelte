@@ -1,6 +1,6 @@
 <script lang="ts">
   import { goto } from "$app/navigation";
-  import { X, Copy, Check, FileJson, Shield, User, Eye, EyeOff, Play, Star, StarOff, Maximize2, ShieldCheck, Clock3, AlertTriangle, Info } from "@lucide/svelte";
+  import { X, Copy, Check, FileJson, Shield, User, Eye, EyeOff, Play, Star, StarOff, Maximize2, ShieldCheck, Clock3, AlertTriangle, Info, Pin, PinOff } from "@lucide/svelte";
   import { Button } from "$lib/shadcn/components/ui/button";
   import { Badge } from "$lib/shadcn/components/ui/badge";
   import { ScrollArea } from "$lib/shadcn/components/ui/scroll-area";
@@ -32,6 +32,7 @@
 
   let favoriteOpen = $state(false);
   let favoriteDraft: HistoryItem | null = $state(null);
+  let pinMode = $state(false);
   let copiedToken = $state(false);
   let showRawToken = $state(true);
 
@@ -43,6 +44,11 @@
   const currentFavorited = $derived(
     activeToken
       ? favoritesState.items.some((fav) => fav.type === activeToken.type && fav.target === activeToken.target)
+      : false
+  );
+  const currentPinned = $derived(
+    activeToken
+      ? favoritesState.items.some((fav) => fav.type === activeToken.type && fav.target === activeToken.target && fav.isPinned)
       : false
   );
 
@@ -100,26 +106,35 @@
     useCount?: number;
     createdAt?: number;
     timestamp?: number;
+    isPinned?: boolean;
+    pinnedAt?: number | null;
   };
 
   function startFavorite() {
     if (!activeToken) return;
     favoriteDraft = activeToken;
+    pinMode = false;
     favoriteOpen = true;
   }
 
   async function saveFavorite(payload: FavoriteFormValue) {
     if (!favoriteDraft) return;
     try {
-      await favoritesState.addFromHistory(favoriteDraft, payload);
+      const extras: Partial<FavoriteItem> = {
+        ...payload,
+        isPinned: pinMode || payload.isPinned,
+        pinnedAt: pinMode ? Date.now() : payload.pinnedAt
+      };
+      await favoritesState.addFromHistory(favoriteDraft, extras);
       await favoritesState.load();
-      toast.success('Added to favorites');
+      toast.success(pinMode ? 'Pinned and added to favorites' : 'Added to favorites');
     } catch (err) {
       console.error('Failed to add favorite', err);
       toast.error('Could not add to favorites');
     } finally {
       favoriteDraft = null;
       favoriteOpen = false;
+      pinMode = false;
     }
   }
 
@@ -131,6 +146,39 @@
     if (!match) return;
     await favoritesState.delete(match);
     toast.success('Removed from favorites');
+  }
+
+  async function pinCurrent() {
+    if (!activeToken) return;
+    const match = favoritesState.findMatch(activeToken.type, activeToken.target);
+    if (match) {
+      const result = await favoritesState.pin(match.id);
+      if (!result.success && result.reason === 'limit') {
+        toast.error('You can pin up to five favorites. Unpin one to add this.');
+        return;
+      }
+      toast.success('Pinned to navigation');
+      return;
+    }
+
+    if (favoritesState.pinnedCount >= 5) {
+      toast.error('You can pin up to five favorites. Unpin one to add this.');
+      return;
+    }
+
+    pinMode = true;
+    favoriteDraft = activeToken;
+    favoriteOpen = true;
+  }
+
+  async function unpinCurrent() {
+    if (!activeToken) return;
+    const match = favoritesState.items.find(
+      (fav) => fav.type === activeToken.type && fav.target === activeToken.target
+    );
+    if (!match) return;
+    await favoritesState.unpin(match.id);
+    toast.success('Unpinned');
   }
 
   // Derived values
@@ -210,6 +258,22 @@
         {:else}
           <Star class="h-4 w-4" />
           Favorite
+        {/if}
+      </Button>
+      <Button
+        size="sm"
+        variant={currentPinned ? 'secondary' : 'ghost'}
+        class="gap-2"
+        onclick={() => (currentPinned ? unpinCurrent() : pinCurrent())}
+        disabled={!activeToken}
+        title={currentPinned ? 'Unpin from navigation' : 'Pin for instant access'}
+      >
+        {#if currentPinned}
+          <PinOff class="h-4 w-4" />
+          Unpin
+        {:else}
+          <Pin class="h-4 w-4" />
+          Pin
         {/if}
       </Button>
       <Button
@@ -417,6 +481,7 @@
     onClose={() => {
       favoriteOpen = false;
       favoriteDraft = null;
+      pinMode = false;
     }}
   />
 </div>

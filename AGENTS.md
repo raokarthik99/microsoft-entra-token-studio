@@ -94,3 +94,10 @@
 - **User Tokens**: MSAL.js handles storage (localStorage by default). Ensure no XSS vulnerabilities as tokens are accessible to client-side scripts.
 - MSAL.js cache is kept in `localStorage` for smoother reuse between navigations; logout and cache-clearing paths should wipe both localStorage and sessionStorage keys prefixed with `msal.` or the client ID.
 - Local history/preferences/app configs stay in the browser (IndexedDB); remind users to clear data on shared machines.
+
+## Active Technologies
+- SvelteKit 2, Svelte 5 runes, shadcn components, `idb-keyval` for IndexedDB persistence, existing favorites/history state modules (001-pinned-tokens)
+- Browser IndexedDB for favorites/history/preferences/app configs; localStorage/sessionStorage for MSAL cache; no new server-side persistence for pinned metadata (001-pinned-tokens)
+
+## Recent Changes
+- 001-pinned-tokens: Added SvelteKit 2, Svelte 5 runes, shadcn components, `idb-keyval` for IndexedDB persistence, existing favorites/history state modules

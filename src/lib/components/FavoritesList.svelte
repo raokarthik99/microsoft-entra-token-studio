@@ -6,7 +6,7 @@
   import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "$lib/shadcn/components/ui/table";
   import * as DropdownMenu from "$lib/shadcn/components/ui/dropdown-menu";
   import { buttonVariants } from "$lib/shadcn/components/ui/button/button.svelte";
-  import { Star, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, Play, Eye, Pencil, Trash2, MoreHorizontal, Copy } from "@lucide/svelte";
+  import { Star, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, Play, Eye, Pencil, Trash2, MoreHorizontal, Copy, Pin } from "@lucide/svelte";
   import type { FavoriteItem } from "$lib/types";
   import TokenStatusBadge from "./TokenStatusBadge.svelte";
   import { cn, getReadableExpiry, getTokenStatus } from "$lib/utils";
@@ -178,6 +178,21 @@
     });
 
     const sorted = [...filtered].sort((a, b) => {
+      const aPinned = Boolean(a.favorite.isPinned);
+      const bPinned = Boolean(b.favorite.isPinned);
+
+      if (aPinned && bPinned) {
+        const aPinnedAt = a.favorite.pinnedAt ?? 0;
+        const bPinnedAt = b.favorite.pinnedAt ?? 0;
+        if (aPinnedAt !== bPinnedAt) {
+          return bPinnedAt - aPinnedAt;
+        }
+      }
+
+      if (aPinned !== bPinned) {
+        return aPinned ? -1 : 1;
+      }
+
       const direction = sortDirection === "asc" ? 1 : -1;
       switch (sortKey) {
         case "name": {
@@ -599,6 +614,12 @@
                         <p class="text-sm font-semibold leading-tight text-foreground">
                           {row.favorite.name || row.favorite.target}
                         </p>
+                        {#if row.favorite.isPinned}
+                          <div class="mt-0.5 inline-flex items-center gap-1 text-[11px] font-semibold text-primary">
+                            <Pin class="h-3 w-3" />
+                            <span>Pinned</span>
+                          </div>
+                        {/if}
                         {#if row.favorite.name}
                           <p class="font-mono text-[12px] text-muted-foreground break-all">{row.favorite.target}</p>
                         {/if}

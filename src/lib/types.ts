@@ -38,6 +38,8 @@ export interface FavoriteItem {
     lastUsedAt?: number;
     useCount: number;
     color?: string;
+    isPinned?: boolean;
+    pinnedAt?: number | null;
 }
 
 export type CredentialValidationStatus = 'ready' | 'issues' | 'not_configured';

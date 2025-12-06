@@ -47,6 +47,8 @@
     Home,
     Star,
     StarOff,
+    Pin,
+    PinOff,
     RefreshCw,
     ChevronDown,
     Plus,
@@ -72,6 +74,7 @@
   let copied = $state(false);
   let favoriteOpen = $state(false);
   let favoriteDraft: HistoryItem | null = $state(null);
+  let favoritePinMode = $state(false);
 
   let tokenVisible = $state(true);
   let hasAutoScrolled = $state(false);
@@ -523,29 +526,43 @@
     useCount?: number;
     createdAt?: number;
     timestamp?: number;
+    isPinned?: boolean;
+    pinnedAt?: number | null;
   };
 
   function isFavorited(item: HistoryItem) {
     return favoritesState.items.some((fav) => fav.type === item.type && fav.target === item.target);
   }
 
+  function isPinned(item: HistoryItem) {
+    const match = favoritesState.findMatch(item.type, item.target);
+    return Boolean(match?.isPinned);
+  }
+
   function startFavoriteFromHistory(item: HistoryItem) {
     favoriteDraft = item;
+    favoritePinMode = false;
     favoriteOpen = true;
   }
 
   async function saveFavoriteFromHistory(payload: FavoriteFormValue) {
     if (!favoriteDraft) return;
     try {
-      await favoritesState.addFromHistory(favoriteDraft, payload);
+      const extras: Partial<FavoriteItem> = {
+        ...payload,
+        isPinned: favoritePinMode || payload.isPinned,
+        pinnedAt: favoritePinMode ? Date.now() : payload.pinnedAt
+      };
+      await favoritesState.addFromHistory(favoriteDraft, extras);
       await favoritesState.load();
-      toast.success('Added to favorites');
+      toast.success(favoritePinMode ? 'Pinned and added to favorites' : 'Added to favorites');
     } catch (err) {
       console.error('Failed to add favorite', err);
       toast.error('Could not add to favorites');
     } finally {
       favoriteDraft = null;
       favoriteOpen = false;
+      favoritePinMode = false;
     }
   }
 
@@ -556,6 +573,35 @@
     toast.success('Removed from favorites');
   }
 
+  async function pinHistoryItem(item: HistoryItem) {
+    const match = favoritesState.findMatch(item.type, item.target);
+    if (match) {
+      const result = await favoritesState.pin(match.id);
+      if (!result.success && result.reason === 'limit') {
+        toast.error('You can pin up to five favorites. Unpin one to add this.');
+        return;
+      }
+      toast.success('Pinned to navigation');
+      return;
+    }
+
+    if (favoritesState.pinnedCount >= 5) {
+      toast.error('You can pin up to five favorites. Unpin one to add this.');
+      return;
+    }
+
+    favoritePinMode = true;
+    favoriteDraft = item;
+    favoriteOpen = true;
+  }
+
+  async function unpinHistoryItem(item: HistoryItem) {
+    const match = favoritesState.findMatch(item.type, item.target);
+    if (!match) return;
+    await favoritesState.unpin(match.id);
+    toast.success('Unpinned');
+  }
+
   const currentFavoriteSeed: HistoryItem | null = $derived((() => {
     const latest = historyState.items[0];
     if (!latest || !latest.tokenData) return null;
@@ -563,11 +609,23 @@
   })());
 
   const currentFavorited = $derived(currentFavoriteSeed ? isFavorited(currentFavoriteSeed) : false);
+  const currentPinned = $derived(currentFavoriteSeed ? isPinned(currentFavoriteSeed) : false);
 
   function startFavoriteFromCurrent() {
     if (!currentFavoriteSeed) return;
     favoriteDraft = currentFavoriteSeed;
+    favoritePinMode = false;
     favoriteOpen = true;
+  }
+
+  async function pinCurrentFavorite() {
+    if (!currentFavoriteSeed) return;
+    await pinHistoryItem(currentFavoriteSeed);
+  }
+
+  async function unpinCurrentFavorite() {
+    if (!currentFavoriteSeed) return;
+    await unpinHistoryItem(currentFavoriteSeed);
   }
 
   async function deleteHistoryItem(item: HistoryItem) {
@@ -1350,6 +1408,22 @@
                   </Button>
                   <Button
                     size="sm"
+                    variant={currentPinned ? "secondary" : "ghost"}
+                    class="h-8 gap-2"
+                    onclick={() => (currentPinned ? unpinCurrentFavorite() : pinCurrentFavorite())}
+                    disabled={!currentFavoriteSeed}
+                    title={currentPinned ? "Unpin from navigation" : "Pin for instant access"}
+                  >
+                    {#if currentPinned}
+                      <PinOff class="h-3.5 w-3.5" />
+                      Unpin
+                    {:else}
+                      <Pin class="h-3.5 w-3.5" />
+                      Pin
+                    {/if}
+                  </Button>
+                  <Button
+                    size="sm"
                     variant="ghost"
                     class="h-8 gap-2"
                     onclick={() => (tokenVisible = !tokenVisible)}
@@ -1583,7 +1657,10 @@
               onLoad={loadHistoryItem}
               onFavorite={startFavoriteFromHistory}
               onUnfavorite={removeFavoriteFromHistory}
+              onPin={pinHistoryItem}
+              onUnpin={unpinHistoryItem}
               isFavorited={isFavorited}
+              isPinned={isPinned}
               enableToolbar={false}
               enableSorting={false}
               compact={true}
@@ -1619,5 +1696,6 @@
   onClose={() => {
     favoriteOpen = false;
     favoriteDraft = null;
+    favoritePinMode = false;
   }}
 />

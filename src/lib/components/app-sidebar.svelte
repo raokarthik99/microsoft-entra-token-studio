@@ -4,6 +4,7 @@
   import { History, Home, Zap, ShieldHalf, Star, Cloud, Settings } from "@lucide/svelte";
   import { page } from '$app/stores';
   import entraIconUrl from "$lib/assets/microsoft-entra-color-icon.svg";
+  import PinnedTokensNav from "$lib/components/PinnedTokensNav.svelte";
 
   let { ...restProps } = $props();
 
@@ -64,6 +65,13 @@
             </Sidebar.MenuItem>
           {/each}
         </Sidebar.Menu>
+      </Sidebar.GroupContent>
+    </Sidebar.Group>
+
+    <Sidebar.Group class="mt-4">
+      <Sidebar.GroupLabel>Pinned tokens</Sidebar.GroupLabel>
+      <Sidebar.GroupContent class="pl-1">
+        <PinnedTokensNav />
       </Sidebar.GroupContent>
     </Sidebar.Group>
 
