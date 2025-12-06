@@ -248,7 +248,17 @@
           </div>
 
           <div class="rounded-lg border bg-muted/20 p-3">
-            {#if hasToken && tokenVisible}
+            {#if tokenDockState.status === 'error'}
+              <div class="flex items-start gap-2 text-xs text-destructive">
+                <AlertTriangle class="h-4 w-4 shrink-0" />
+                <span class="line-clamp-3 break-all leading-relaxed">{tokenDockState.error || 'Token issue failed.'}</span>
+              </div>
+            {:else if tokenDockState.status === 'loading'}
+              <div class="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 class="h-4 w-4 animate-spin" />
+                <span>Issuing token...</span>
+              </div>
+            {:else if hasToken && tokenVisible}
               <div class="line-clamp-4 whitespace-pre-wrap break-all font-mono text-[11px] leading-relaxed text-foreground/90">
                 {tokenData?.accessToken}
               </div>
@@ -259,16 +269,6 @@
                   <Eye class="h-4 w-4" />
                   Show
                 </Button>
-              </div>
-            {:else if tokenDockState.status === 'error'}
-              <div class="flex items-start gap-2 text-xs text-destructive">
-                <AlertTriangle class="h-4 w-4 shrink-0" />
-                <span class="line-clamp-3 break-all leading-relaxed">{tokenDockState.error || 'Token issue failed.'}</span>
-              </div>
-            {:else if tokenDockState.status === 'loading'}
-              <div class="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 class="h-4 w-4 animate-spin" />
-                <span>Issuing token...</span>
               </div>
             {:else}
               <div class="space-y-2 text-sm text-muted-foreground">
