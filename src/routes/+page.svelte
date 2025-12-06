@@ -23,6 +23,7 @@
   import { Badge } from "$lib/shadcn/components/ui/badge";
   import { Separator } from "$lib/shadcn/components/ui/separator";
   import { ScrollArea } from "$lib/shadcn/components/ui/scroll-area";
+  import * as Tooltip from "$lib/shadcn/components/ui/tooltip";
   import { goto } from '$app/navigation';
   import { clientStorage, CLIENT_STORAGE_KEYS } from '$lib/services/client-storage';
   
@@ -1415,6 +1416,31 @@
                   <p class="text-xs text-muted-foreground">{result.tokenType || 'Bearer'}</p>
                 </div>
                 <div class="rounded-lg border bg-muted/25 p-4">
+                  <p class="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Client App</p>
+                  {#if tokenDockState.token?.appName}
+                    <div class="flex items-center gap-2 mt-1">
+                      <div 
+                        class="w-3 h-3 rounded-full shrink-0" 
+                        style="background-color: {tokenDockState.token.appColor || '#10b981'}"
+                      ></div>
+                      <span class="text-sm font-semibold text-foreground">{tokenDockState.token.appName}</span>
+                    </div>
+                    <Tooltip.Root openDelay={0}>
+                      <Tooltip.Trigger asChild>
+                        <p class="text-xs text-muted-foreground mt-1 cursor-help">
+                          {tokenDockState.token.appId ? `ID: ${tokenDockState.token.appId.slice(0, 20)}...` : 'App context preserved'}
+                        </p>
+                      </Tooltip.Trigger>
+                      <Tooltip.Content>
+                        <p class="font-mono text-xs">{tokenDockState.token.appId}</p>
+                      </Tooltip.Content>
+                    </Tooltip.Root>
+                  {:else}
+                    <div class="text-sm font-semibold text-foreground">Legacy token</div>
+                    <p class="text-xs text-muted-foreground">No app context available</p>
+                  {/if}
+                </div>
+                <div class="rounded-lg border bg-muted/25 p-4">
                   <p class="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Issued</p>
                   <div class="text-sm font-semibold text-foreground">
                     {#if issuedAtDate}
@@ -1423,7 +1449,6 @@
                       Unknown
                     {/if}
                   </div>
-                  <p class="text-xs text-muted-foreground">{issuedAtDate ? 'Derived from iat claim' : 'No iat claim'}</p>
                 </div>
                 <div class="rounded-lg border bg-muted/25 p-4">
                   <p class="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Expiry</p>

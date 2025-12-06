@@ -255,8 +255,8 @@
               ></div>
               <span class="text-sm font-semibold text-foreground">{activeToken.appName}</span>
             </div>
-            <p class="text-xs text-muted-foreground mt-1">
-              {activeToken.appId ? `ID: ${activeToken.appId.slice(0, 8)}...` : 'App context preserved'}
+            <p class="text-xs text-muted-foreground mt-1 cursor-help" title={activeToken.appId || ''}>
+              {activeToken.appId ? `ID: ${activeToken.appId.slice(0, 20)}...` : 'App context preserved'}
             </p>
           {:else}
             <div class="text-sm font-semibold text-foreground">Legacy token</div>
@@ -272,7 +272,6 @@
               Unknown
             {/if}
           </div>
-          <p class="text-xs text-muted-foreground">{issuedAtDate ? 'Derived from iat claim' : 'No iat claim'}</p>
         </div>
         <div class="rounded-lg border bg-muted/25 p-4">
           <p class="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Expiry</p>
