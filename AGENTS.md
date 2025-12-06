@@ -87,7 +87,8 @@
 - Do not commit `.env` or real secrets.
 - Treat access tokens as sensitive: avoid logging them.
 - **App Tokens**: Keep token exchange logic server-side (see `src/lib/server/msal.ts`, `src/lib/server/keyvault.ts`, and `src/lib/server/certificate.ts`).
-- **User Tokens**: MSAL.js handles storage (localStorage/sessionStorage). Ensure no XSS vulnerabilities as tokens are accessible to client-side scripts.
+- **User Tokens**: MSAL.js handles storage (localStorage by default; sessionStorage optional). Ensure no XSS vulnerabilities as tokens are accessible to client-side scripts.
+- MSAL.js cache is kept in `localStorage` for smoother reuse between navigations; logout and cache-clearing paths should wipe both localStorage and sessionStorage keys prefixed with `msal.` or the client ID.
 - **Key Vault Access**: When using certificate auth, ensure the app identity has `Certificates: Get` and `Secrets: Get` permissions on the Key Vault.
 - Credential preference cookie is client-side only (`auth_pref=method:source`); clearing cookies returns to auto-detection.
 - Local history/preferences stay in the browser (IndexedDB); remind users to clear data on shared machines when changing those flows.

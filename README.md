@@ -23,7 +23,7 @@ Playground for generating and inspecting Microsoft Entra access tokens. Built wi
 - **Favorites system** for saving frequently used targets with names, tags, colors, and descriptions for quick access.
 - **One-click token reissue** from favorites with automatic parameter population.
 - **Visual prominence** for expired/expiring tokens with highlighted reissue buttons.
-- **Local-only storage** in IndexedDB for history and preferences; clear data anytime from Settings.
+- **Local-only storage**: history/preferences live in IndexedDB via a shared client storage helper, and the MSAL cache stays in `localStorage` for smoother reuse; clear data anytime from Settings.
 - **Guided setup** experience and readiness check powered by `/api/health`, surfaced on the home page Setup card and `/setup` page.
 - **Server-only secret handling** with `@azure/msal-node`; tokens stay in the browser unless you copy them.
 - **Credential preference + validation** with per-path status (ready/issues/not set) and a saved selection (cookie) that drives both `/api/health` and `/api/token/app`.
@@ -198,7 +198,7 @@ Never commit `.env` or real secrets.
 - **Reissue**: One-click token reissue from history automatically issues a token with the same parameters.
 - **Delete**: Remove individual items from history via the trash icon.
 - **Search, filter, sort**: Find entries by target/type/status, toggle status/type filters, and sort by issued/expires/status/target.
-- **Clear all**: Wipe all history data from the dashboard or Settings page.
+- **Clear all**: Wipe history, favorites, and saved preferences stored in IndexedDB from the dashboard or Settings page; the MSAL auth cache stays in `localStorage` until you clear it or sign out.
 - **Token status**: History items display real-time expiry status (expired, expiring, valid) with visual indicators.
 - **Favorites**: Save frequently used targets to favorites for quick access, with support for names, tags, colors, and descriptions.
 - **Favorite/Unfavorite**: Add or remove items from favorites directly from history entries.
@@ -218,6 +218,7 @@ Never commit `.env` or real secrets.
 ### Setup and health
 
 - The home page Setup card and `/setup` page read `/api/health` to confirm tenant/client/redirect plus credential validation per path (ready, issues, or not configured).
+- The Setup card includes contextual copy about the active credential source (Key Vault vs. local secret/certificate) so users know what is being used.
 - `/api/health` returns `authMethod`/`authSource` based on either your saved preference (`auth_pref` cookie) or auto-detection, along with a `validation` map for certificate/secret paths and specific Key Vault/local status + errors.
 - `/api/token/app` echoes the resolved `authMethod`/`authSource` used to issue the token.
 

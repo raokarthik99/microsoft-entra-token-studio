@@ -11,16 +11,22 @@
   import { auth, authServiceStore } from '$lib/stores/auth';
   import { identityPreference } from '$lib/states/identity.svelte';
   import { Avatar, AvatarFallback, AvatarImage } from "$lib/shadcn/components/ui/avatar";
+  import { clientStorage } from '$lib/services/client-storage';
+  import { favoritesState } from '$lib/states/favorites.svelte';
+  import { historyState } from '$lib/states/history.svelte';
 
   function getInitials(name: string) {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   }
 
-  function clearAllData() {
-    if (confirm('This will clear all history and saved preferences. Are you sure?')) {
-      localStorage.clear();
-      window.location.reload();
-    }
+  async function clearAllData() {
+    if (!confirm('This will clear all history and saved preferences. Are you sure?')) return;
+
+    await clientStorage.clearAll();
+    historyState.items = [];
+    favoritesState.items = [];
+    await identityPreference.reset();
+    window.location.reload();
   }
 
   function clearCachedIdentity() {
@@ -33,8 +39,8 @@
     }
   }
 
-  function handleIdentityPreferenceChange(value: string) {
-    identityPreference.setMode(value as 'use_last' | 'always_ask');
+  async function handleIdentityPreferenceChange(value: string) {
+    await identityPreference.setMode(value as 'use_last' | 'always_ask');
     toast.success('Identity preference saved');
   }
 
@@ -168,4 +174,3 @@
     </Card.Root>
   </div>
 </div>
-

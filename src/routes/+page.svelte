@@ -21,6 +21,7 @@
   import { Separator } from "$lib/shadcn/components/ui/separator";
   import { ScrollArea } from "$lib/shadcn/components/ui/scroll-area";
   import { goto } from '$app/navigation';
+  import { clientStorage, CLIENT_STORAGE_KEYS } from '$lib/services/client-storage';
   
   import { 
     User,
@@ -130,12 +131,40 @@
     if (credentialStatus === 'issues') return 'h-5 text-[10px] px-2 bg-amber-500/10 text-amber-700 border-amber-500/40';
     return 'h-5 text-[10px] px-2 bg-muted text-muted-foreground border-border/60';
   });
-  const credentialPathLabel = $derived(() => {
+  const credentialPathLabel = $derived((() => {
     if (!health) return 'Credential not configured';
-    if (health.authMethod === 'certificate') return `Certificate · ${health.authSource === 'keyvault' ? 'Key Vault' : 'Local'}`;
-    if (health.authMethod === 'secret') return `Secret · ${health.authSource === 'keyvault' ? 'Key Vault' : 'Local'}`;
+    if (health.authMethod === 'certificate') {
+      return `Certificate · ${health.authSource === 'keyvault' ? 'Key Vault' : 'Local'}`;
+    }
+    if (health.authMethod === 'secret') {
+      return `Secret · ${health.authSource === 'keyvault' ? 'Key Vault' : 'Local'}`;
+    }
     return 'Credential not configured';
-  });
+  })());
+  const credentialContextLabel = $derived((() => {
+    if (!health) return '';
+    if (health.authMethod === 'certificate') {
+      if (health.authSource === 'keyvault') {
+        const name = health.keyVault?.certName;
+        const vault = health.keyVault?.uri;
+        return `Using a private key stored in Azure Key Vault${name ? ` (${name})` : ''}${vault ? ` at ${vault}` : ''}.`;
+      }
+      if (health.authSource === 'local') {
+        return 'Using a local certificate with private key on this machine.';
+      }
+    }
+    if (health.authMethod === 'secret') {
+      if (health.authSource === 'keyvault') {
+        const name = health.keyVault?.secretName;
+        const vault = health.keyVault?.uri;
+        return `Using a client secret stored in Azure Key Vault${name ? ` (${name})` : ''}${vault ? ` at ${vault}` : ''}.`;
+      }
+      if (health.authSource === 'local') {
+        return 'Using a client secret loaded from local environment variables.';
+      }
+    }
+    return '';
+  })());
   const credentialErrors = $derived(credentialValidation?.errors ?? []);
 
   $effect(() => {
@@ -171,64 +200,65 @@
   });
 
   onMount(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const tabParam = urlParams.get('tab');
-    const tab = tabParam === 'app-token' || tabParam === 'user-token' ? tabParam : null;
-    const startGeneratingIntent = urlParams.get('cta') === 'start-generating';
-    if (tab) {
-      activeTab = tab;
-      
-      if (tab === 'app-token' && urlParams.has('resource')) {
-        const r = urlParams.get('resource');
-        if (r) resource = r;
-      } else if (tab === 'user-token' && urlParams.has('scopes')) {
-        const s = urlParams.get('scopes');
-        if (s) scopes = s;
-      }
-    } else {
-      const lastResource = localStorage.getItem('last_resource');
-      if (lastResource) resource = lastResource;
-
-      const lastScopes = localStorage.getItem('last_scopes');
-      if (lastScopes) scopes = lastScopes;
-
-      const savedTab = localStorage.getItem('active_tab');
-      if (savedTab === 'app-token' || savedTab === 'user-token') activeTab = savedTab;
-    }
-
-    // historyState.load() is called in constructor, but we can call it again if needed, or rely on it being singleton
-    checkUrlForToken();
-    refreshHealth();
-
-    const autorun = urlParams.get('autorun');
-    if (autorun === 'true') {
-      if (activeTab === 'app-token') {
-        handleAppSubmit();
+    (async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const tabParam = urlParams.get('tab');
+      const tab = tabParam === 'app-token' || tabParam === 'user-token' ? tabParam : null;
+      const startGeneratingIntent = urlParams.get('cta') === 'start-generating';
+      if (tab) {
+        activeTab = tab;
+        
+        if (tab === 'app-token' && urlParams.has('resource')) {
+          const r = urlParams.get('resource');
+          if (r) resource = r;
+        } else if (tab === 'user-token' && urlParams.has('scopes')) {
+          const s = urlParams.get('scopes');
+          if (s) scopes = s;
+        }
       } else {
-        handleUserSubmit();
+        const lastResource = await clientStorage.get<string>(CLIENT_STORAGE_KEYS.lastResource);
+        if (lastResource) resource = lastResource;
+
+        const lastScopes = await clientStorage.get<string>(CLIENT_STORAGE_KEYS.lastScopes);
+        if (lastScopes) scopes = lastScopes;
+
+        const savedTab = await clientStorage.get<FlowTab>(CLIENT_STORAGE_KEYS.activeTab);
+        if (savedTab === 'app-token' || savedTab === 'user-token') activeTab = savedTab;
       }
-    }
 
-    const pendingLoad = localStorage.getItem('pending_token_load');
-    if (pendingLoad) {
-      try {
-        const item = JSON.parse(pendingLoad);
-        loadHistoryItem(item);
-        localStorage.removeItem('pending_token_load');
-      } catch (e) {
-        console.error('Failed to load pending token', e);
+      // historyState.load() is called in constructor, but we can call it again if needed, or rely on it being singleton
+      await checkUrlForToken();
+      refreshHealth();
+
+      const autorun = urlParams.get('autorun');
+      if (autorun === 'true') {
+        if (activeTab === 'app-token') {
+          handleAppSubmit();
+        } else {
+          handleUserSubmit();
+        }
       }
-    }
 
-    if (startGeneratingIntent) {
-      setTimeout(() => {
-        scrollToFlows({ highlight: true, targetTab: tab ?? activeTab });
-      }, 150);
-    }
+      const pendingLoad = await clientStorage.get<HistoryItem>(CLIENT_STORAGE_KEYS.pendingTokenLoad);
+      if (pendingLoad) {
+        try {
+          await loadHistoryItem(pendingLoad);
+          await clientStorage.remove(CLIENT_STORAGE_KEYS.pendingTokenLoad);
+        } catch (e) {
+          console.error('Failed to load pending token', e);
+        }
+      }
 
-    if (tab || startGeneratingIntent || urlParams.has('resource') || urlParams.has('scopes') || urlParams.has('autorun')) {
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
+      if (startGeneratingIntent) {
+        setTimeout(() => {
+          scrollToFlows({ highlight: true, targetTab: tab ?? activeTab });
+        }, 150);
+      }
+
+      if (tab || startGeneratingIntent || urlParams.has('resource') || urlParams.has('scopes') || urlParams.has('autorun')) {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    })();
   });
 
   // Removed loadHistory function
@@ -265,7 +295,7 @@
         const timestamp = Date.now();
         
         activeTab = 'user-token';
-        localStorage.setItem('active_tab', 'user-token');
+        await clientStorage.set(CLIENT_STORAGE_KEYS.activeTab, 'user-token');
         
         result = tokenData;
         const historyItem: HistoryItem = {
@@ -298,7 +328,7 @@
     error = null;
     result = null;
     tokenDockState.setLoading({ type: 'App Token', target: resource });
-    localStorage.setItem('last_resource', resource);
+    await clientStorage.set(CLIENT_STORAGE_KEYS.lastResource, resource);
 
     try {
       const res = await fetch(`/api/token/app?resource=${encodeURIComponent(resource)}`);
@@ -336,8 +366,8 @@
   async function handleUserSubmit(forceSwitch: boolean = false) {
     if (!ensureSetupReady()) return;
     if (!scopes) return;
-    localStorage.setItem('last_scopes', scopes);
-    localStorage.setItem('active_tab', 'user-token');
+    await clientStorage.set(CLIENT_STORAGE_KEYS.lastScopes, scopes);
+    await clientStorage.set(CLIENT_STORAGE_KEYS.activeTab, 'user-token');
     loading = true;
     error = null;
     result = null;
@@ -396,15 +426,15 @@
     await handleUserSubmit(true);
   }
 
-  function resetAll() {
-    if (confirm('Are you sure you want to clear the forms and the current result?')) {
-      resource = 'https://graph.microsoft.com';
-      scopes = 'User.Read';
-      result = null;
-      error = null;
-      localStorage.removeItem('last_resource');
-      localStorage.removeItem('last_scopes');
-    }
+  async function resetAll() {
+    if (!confirm('Are you sure you want to clear the forms and the current result?')) return;
+    
+    resource = 'https://graph.microsoft.com';
+    scopes = 'User.Read';
+    result = null;
+    error = null;
+    await clientStorage.remove(CLIENT_STORAGE_KEYS.lastResource);
+    await clientStorage.remove(CLIENT_STORAGE_KEYS.lastScopes);
   }
 
   async function copyToClipboard(text: string) {
@@ -419,9 +449,9 @@
     }
   }
 
-  function switchTab(tab: FlowTab) {
+  async function switchTab(tab: FlowTab) {
     activeTab = tab;
-    localStorage.setItem('active_tab', tab);
+    await clientStorage.set(CLIENT_STORAGE_KEYS.activeTab, tab);
   }
 
   async function restoreHistoryItem(item: HistoryItem) {
@@ -824,6 +854,12 @@
                       {credentialStatus === 'ready' ? 'Change' : 'Fix in Setup'}
                     </Button>
                   </div>
+                  {#if credentialContextLabel}
+                    <p class="text-xs text-muted-foreground flex items-start gap-2">
+                      <Info class="h-3.5 w-3.5 mt-0.5 text-muted-foreground" />
+                      <span>{credentialContextLabel}</span>
+                    </p>
+                  {/if}
                   {#if credentialStatus !== 'ready'}
                     <p class="text-[11px] text-amber-700 flex items-center gap-1">
                       <AlertTriangle class="h-3.5 w-3.5" />

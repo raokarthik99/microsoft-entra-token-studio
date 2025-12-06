@@ -1,35 +1,10 @@
+import { CLIENT_STORAGE_KEYS, clientStorage } from '$lib/services/client-storage';
 import type { IdentityPreference, IdentityPreferenceMode } from '$lib/types';
-
-const STORAGE_KEY = 'identity_preference';
 
 const defaultPreference: IdentityPreference = {
   mode: 'use_last',
   setAt: Date.now(),
 };
-
-function loadFromStorage(): IdentityPreference {
-  if (typeof window === 'undefined') return defaultPreference;
-  
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      return JSON.parse(stored);
-    }
-  } catch (e) {
-    console.warn('Failed to load identity preference', e);
-  }
-  return defaultPreference;
-}
-
-function saveToStorage(preference: IdentityPreference) {
-  if (typeof window === 'undefined') return;
-  
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(preference));
-  } catch (e) {
-    console.warn('Failed to save identity preference', e);
-  }
-}
 
 /**
  * Svelte 5 runes-based state for identity preference.
@@ -38,10 +13,11 @@ function saveToStorage(preference: IdentityPreference) {
  */
 class IdentityPreferenceState {
   preference = $state<IdentityPreference>(defaultPreference);
+  ready = $state(false);
 
   constructor() {
     if (typeof window !== 'undefined') {
-      this.preference = loadFromStorage();
+      void this.load();
     }
   }
 
@@ -53,17 +29,23 @@ class IdentityPreferenceState {
     return this.preference.mode === 'always_ask';
   }
 
-  setMode(mode: IdentityPreferenceMode) {
+  async load() {
+    const stored = await clientStorage.get<IdentityPreference>(CLIENT_STORAGE_KEYS.identityPreference, defaultPreference);
+    this.preference = stored ?? defaultPreference;
+    this.ready = true;
+  }
+
+  async setMode(mode: IdentityPreferenceMode) {
     this.preference = {
       mode,
       setAt: Date.now(),
     };
-    saveToStorage(this.preference);
+    await clientStorage.set(CLIENT_STORAGE_KEYS.identityPreference, this.preference);
   }
 
-  reset() {
+  async reset() {
     this.preference = { ...defaultPreference, setAt: Date.now() };
-    saveToStorage(this.preference);
+    await clientStorage.set(CLIENT_STORAGE_KEYS.identityPreference, this.preference);
   }
 }
 

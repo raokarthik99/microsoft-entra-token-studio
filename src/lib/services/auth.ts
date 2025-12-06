@@ -161,19 +161,18 @@ export class AuthService {
     try {
       // Clear the active account
       this.msalInstance.setActiveAccount(null);
-      
+
       // Clear all MSAL-related data from local storage
       // MSAL stores tokens with keys prefixed by the client ID
-      const keysToRemove: string[] = [];
+      const localKeysToRemove: string[] = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
         if (key && (key.startsWith('msal.') || key.includes(this.config.clientId))) {
-          keysToRemove.push(key);
+          localKeysToRemove.push(key);
         }
       }
-      keysToRemove.forEach(key => localStorage.removeItem(key));
-      
-      // Also clear session storage
+      localKeysToRemove.forEach(key => localStorage.removeItem(key));
+
       const sessionKeysToRemove: string[] = [];
       for (let i = 0; i < sessionStorage.length; i++) {
         const key = sessionStorage.key(i);
@@ -203,14 +202,23 @@ export class AuthService {
     this.msalInstance.setActiveAccount(null);
     
     // Clear all MSAL-related data from storage
-    const keysToRemove: string[] = [];
+    const localKeysToRemove: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (key && (key.startsWith('msal.') || key.includes(this.config.clientId))) {
-        keysToRemove.push(key);
+        localKeysToRemove.push(key);
       }
     }
-    keysToRemove.forEach(key => localStorage.removeItem(key));
+    localKeysToRemove.forEach(key => localStorage.removeItem(key));
+
+    const sessionKeysToRemove: string[] = [];
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i);
+      if (key && (key.startsWith('msal.') || key.includes(this.config.clientId))) {
+        sessionKeysToRemove.push(key);
+      }
+    }
+    sessionKeysToRemove.forEach(key => sessionStorage.removeItem(key));
     
     auth.setUser(null);
   }
@@ -308,4 +316,3 @@ export class AuthService {
     }
   }
 }
-

@@ -8,6 +8,7 @@
   import { Button } from "$lib/shadcn/components/ui/button";
   import { Trash2, History } from "@lucide/svelte";
   import { toast } from "svelte-sonner";
+  import { clientStorage, CLIENT_STORAGE_KEYS } from '$lib/services/client-storage';
 
   const lastUpdated = $derived(historyState.items[0]?.timestamp ? new Date(historyState.items[0].timestamp).toLocaleString() : null);
   const favoriteTags = $derived(
@@ -38,7 +39,7 @@
 
   async function loadHistoryItem(item: HistoryItem) {
     if (item.tokenData) {
-      localStorage.setItem('pending_token_load', JSON.stringify(item));
+      await clientStorage.set(CLIENT_STORAGE_KEYS.pendingTokenLoad, item);
       window.location.href = '/';
     }
   }

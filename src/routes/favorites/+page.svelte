@@ -6,6 +6,7 @@
   import { Button } from "$lib/shadcn/components/ui/button";
   import { Star, Trash2 } from "@lucide/svelte";
   import { onMount } from "svelte";
+  import { clientStorage, CLIENT_STORAGE_KEYS } from '$lib/services/client-storage';
 
   type FavoriteFormValue = Omit<FavoriteItem, 'id' | 'timestamp' | 'createdAt' | 'useCount'> & {
     useCount?: number;
@@ -60,7 +61,7 @@
 
   async function loadFavorite(item: FavoriteItem) {
     if (!item.tokenData) return;
-    localStorage.setItem('pending_token_load', JSON.stringify(item));
+    await clientStorage.set(CLIENT_STORAGE_KEYS.pendingTokenLoad, item);
     await favoritesState.incrementUse(item.id);
     window.location.href = '/';
   }

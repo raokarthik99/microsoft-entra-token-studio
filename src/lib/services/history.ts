@@ -6,12 +6,7 @@ const HISTORY_KEY = 'token_history';
 export const historyService = {
   async getHistory(): Promise<HistoryItem[]> {
     try {
-      // Check if we need to migrate from localStorage
       if (typeof window === 'undefined') return [];
-      
-      if (localStorage.getItem(HISTORY_KEY)) {
-        await this.migrateFromLocalStorage();
-      }
       return (await get<HistoryItem[]>(HISTORY_KEY)) || [];
     } catch (error) {
       console.error('Failed to get history from IndexedDB', error);
@@ -65,21 +60,6 @@ export const historyService = {
     } catch (error) {
       console.error('Failed to delete history items', error);
       return [];
-    }
-  },
-
-  async migrateFromLocalStorage(): Promise<void> {
-    try {
-      const stored = localStorage.getItem(HISTORY_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) {
-          await set(HISTORY_KEY, parsed);
-        }
-        localStorage.removeItem(HISTORY_KEY);
-      }
-    } catch (error) {
-      console.error('Failed to migrate history', error);
     }
   }
 };
