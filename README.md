@@ -24,6 +24,7 @@ Playground for generating and inspecting Microsoft Entra access tokens. Built wi
 - **One-click token reissue** from favorites with automatic parameter population.
 - **Visual prominence** for expired/expiring tokens with highlighted reissue buttons.
 - **Local-only storage**: history/preferences live in IndexedDB via a shared client storage helper, and the MSAL cache stays in `localStorage` for smoother reuse; clear data anytime from Settings.
+- **Local backup/restore**: export all IndexedDB data (history, favorites, preferences) to JSON and re-import backups from Settings with validation and replace safeguards.
 - **Guided setup** experience and readiness check powered by `/api/health`, surfaced on the home page Setup card and `/setup` page.
 - **Server-only secret handling** with `@azure/msal-node`; tokens stay in the browser unless you copy them.
 - **Credential preference + validation** with per-path status (ready/issues/not set) and a saved selection (cookie) that drives both `/api/health` and `/api/token/app`.
@@ -205,6 +206,7 @@ Never commit `.env` or real secrets.
 - **Delete**: Remove individual items from history via the trash icon.
 - **Search, filter, sort**: Find entries by target/type/status, toggle status/type filters, and sort by issued/expires/status/target.
 - **Clear all**: Wipe history, favorites, and saved preferences stored in IndexedDB from the dashboard or Settings page; the MSAL auth cache stays in `localStorage` until you clear it or sign out.
+- **Backup/Restore**: Export all local data to a JSON backup from Settings and import it later to replace current data (with preview/validation before restore).
 - **Token status**: History items display real-time expiry status (expired, expiring, valid) with visual indicators.
 - **Favorites**: Save frequently used targets to favorites for quick access, with support for names, tags, colors, and descriptions.
 - **Favorite/Unfavorite**: Add or remove items from favorites directly from history entries.
@@ -252,9 +254,10 @@ Never commit `.env` or real secrets.
 - `src/lib/states/history.svelte.ts` — Svelte 5 runes-based history state management.
 - `src/lib/states/favorites.svelte.ts` — Svelte 5 runes-based favorites state management.
 - `src/lib/services/favorites.ts` — Favorites service for IndexedDB persistence with CRUD operations.
+- `src/lib/services/data-export.ts` — Export/import helper for backing up and restoring all IndexedDB data with validation.
 - `src/lib/shadcn/` — shadcn-svelte UI primitives and components (includes table primitives under `components/ui/table`).
 - `src/lib/utils.ts` — helpers for JWT decoding, expiry calculations, and token status.
-- `src/lib/types.ts` — TypeScript interfaces for HistoryItem, TokenData, FavoriteItem, HealthStatus, and shared config helpers.
+- `src/lib/types.ts` — TypeScript interfaces for HistoryItem, TokenData, FavoriteItem, HealthStatus, data export envelopes, and shared config helpers.
 - `src/lib/server/msal.ts` — server-only MSAL configuration with certificate/secret priority handling.
 - `src/lib/server/keyvault.ts` — Key Vault helpers for certificates and secrets.
 - `src/lib/server/certificate.ts` — Local certificate loader and status helpers.
@@ -277,6 +280,7 @@ Never commit `.env` or real secrets.
 - Favorites filtering by type, status, tags, and colors works correctly.
 - Favorites usage tracking shows accurate counts and timestamps.
 - Favorites can be used to quickly reissue tokens with saved parameters.
+- Export downloads a JSON backup; import validates counts and replaces current data (history, favorites, preferences) without errors.
 - No secrets or tokens leak into server logs or browser console beyond intentional copy actions.
 
 ## Troubleshooting

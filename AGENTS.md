@@ -11,6 +11,7 @@
 - **Favorites system**: Save frequently used targets with names, tags, colors, and descriptions for quick access and reissue.
 - Readiness is surfaced through `/api/health` and mirrored on the home page Setup card and `/setup` walkthrough.
 - Credential selection can be auto-detected or set via a saved preference cookie (`auth_pref=method:source`), with per-path validation surfaced to the UI.
+- **Data portability**: Local backup/restore for IndexedDB data (history, favorites, preferences) via Settings import/export with validation and replace semantics.
 - Tokens and history live only in `IndexedDB` (via `idb-keyval`); secrets stay server-side. Avoid logging tokens or secrets in client or server code.
 
 ## Project Structure & Module Organization
@@ -33,7 +34,7 @@
   - Collapsible primitives: `shadcn/components/ui/collapsible/{collapsible.svelte,collapsible-content.svelte,collapsible-trigger.svelte}`.
   - Layout: `app-header.svelte`, `app-sidebar.svelte`, `app-footer.svelte`, `UserMenu.svelte`.
 - **State management**: Svelte 5 runes-based state in `src/lib/states/`; reactive time store in `src/lib/stores/time.ts` for real-time expiry updates.
-- Shared logic/UI in `src/lib` (`shadcn/` for shadcn-svelte primitives, including table components under `components/ui/table`; `utils.ts` for JWT/expiry/status helpers, `types.ts` for TypeScript interfaces, server-only MSAL helpers in `server/msal.ts`, Key Vault integration in `server/keyvault.ts`, certificate parsing with OpenSSL fallback in `server/certificate.ts`). Keep server imports out of client modules.
+- Shared logic/UI in `src/lib` (`shadcn/` for shadcn-svelte primitives, including table components under `components/ui/table`; `utils.ts` for JWT/expiry/status helpers, `types.ts` for TypeScript interfaces including data export envelopes, `services/data-export.ts` for IndexedDB backup/restore, server-only MSAL helpers in `server/msal.ts`, Key Vault integration in `server/keyvault.ts`, certificate parsing with OpenSSL fallback in `server/certificate.ts`). Keep server imports out of client modules.
 - Global shell and styles: `src/app.html`, `src/app.css`; static assets live in `static/`.
 - Type configuration extends SvelteKit defaults via `tsconfig.json`; use the `$lib` alias.
 
@@ -68,7 +69,7 @@
 - **Local certificate**: When using `CERTIFICATE_PATH`, ensure `/api/health` surfaces `authMethod: "certificate"`, `authSource: "local"`, and `validation.certificate.local.status: "ready"`.
 - **Client secret**: For Key Vault and local secrets, check `validation.secret.keyvault/local` status and errors; `authMethod`/`authSource` should match the selected or auto-detected path.
 - Credential preference: Saving a path in the credentials sheet should set the `auth_pref` cookie and drive `/api/token/app`/`/api/health` unless that path becomes invalid.
-- Sanity check theme and data clearing under `/settings` when touching local storage logic.
+- Sanity check theme, data clearing, and import/export under `/settings` when touching local storage logic. Export should download JSON; import should preview counts and replace current data without errors.
 
 ## Commit & Pull Request Guidelines
 
