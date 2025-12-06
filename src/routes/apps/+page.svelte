@@ -13,11 +13,9 @@
     Plus,
     Shield,
     KeyRound,
-    ExternalLink,
-    Rocket,
-    CheckCircle2,
     ArrowRight,
-    Sparkles
+    Sparkles,
+    Trash2
   } from "@lucide/svelte";
 
   let dialogOpen = $state(false);
@@ -75,6 +73,21 @@
       toast.success(`Deleted ${selectedApps.length} ${label}`);
     } catch (error) {
       toast.error('Failed to delete apps');
+    }
+  }
+
+  async function handleClearAll() {
+    if (!apps.length) return;
+
+    const confirmed = confirm('Clear all apps? This removes every configured app and clears your active selection.');
+    if (!confirmed) return;
+
+    try {
+      await appRegistry.clear();
+      toast.success('Cleared all apps');
+    } catch (error) {
+      console.error('Failed to clear apps', error);
+      toast.error('Failed to clear apps');
     }
   }
 
@@ -210,7 +223,7 @@
       </div>
     {:else}
       <!-- Header (when apps exist) -->
-      <div class="flex items-center justify-between">
+      <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 class="text-2xl font-bold tracking-tight flex items-center gap-3">
             <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
@@ -221,6 +234,18 @@
           <p class="text-muted-foreground mt-1">
             Manage your client applications for generating tokens to access other apps and resources.
           </p>
+        </div>
+        <div class="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            class="gap-2"
+            onclick={handleClearAll}
+            disabled={apps.length === 0}
+          >
+            <Trash2 class="h-4 w-4" />
+            Clear All
+          </Button>
         </div>
       </div>
 
