@@ -37,7 +37,7 @@
   - Collapsible primitives: `shadcn/components/ui/collapsible/{collapsible.svelte,collapsible-content.svelte,collapsible-trigger.svelte}`.
   - Layout: `app-header.svelte`, `app-sidebar.svelte`, `app-footer.svelte`, `UserMenu.svelte`.
 - **State management**: Svelte 5 runes-based state in `src/lib/states/`; reactive time store in `src/lib/stores/time.ts` for real-time expiry updates.
-- **Server-side Key Vault**: `src/lib/server/keyvault.ts` for certificates and secrets, `src/lib/server/keyvault-validator.ts` for validating app configs, `src/lib/server/certificate.ts` for certificate parsing with OpenSSL fallback.
+- **Server-side Key Vault**: `src/lib/server/keyvault.ts` for certificates and secrets, `src/lib/server/keyvault-validator.ts` for validating app configs, `src/lib/server/certificate.ts` for certificate parsing with OpenSSL fallback, and `src/lib/server/msal.ts` for confidential client token acquisition using `@azure/msal-node`.
 - Shared logic/UI in `src/lib` (`shadcn/` for shadcn-svelte primitives, `utils.ts` for JWT/expiry/status helpers, `types.ts` for TypeScript interfaces, `services/data-export.ts` for IndexedDB backup/restore). Keep server imports out of client modules.
 - Global shell and styles: `src/app.html`, `src/app.css`; static assets live in `static/`.
 - Type configuration extends SvelteKit defaults via `tsconfig.json`; use the `$lib` alias.
@@ -47,6 +47,7 @@
 - `pnpm install` — install dependencies (pnpm is required).
 - `pnpm dev` — start the dev server with HMR on the port defined in `.env` (default 5173).
 - `pnpm check` — run `svelte-kit sync` plus `svelte-check` with strict TS settings; fix these before commits.
+- `pnpm check:watch` — run type checking in watch mode for rapid feedback during development.
 - `pnpm build` — production build; use this to verify SSR/build stability before releasing.
 - `pnpm preview` — serve the built app locally to sanity-check deployment output.
 

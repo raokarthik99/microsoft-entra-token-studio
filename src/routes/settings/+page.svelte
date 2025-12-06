@@ -9,7 +9,8 @@
   import { toast } from "svelte-sonner";
 
   import { auth, authServiceStore } from '$lib/stores/auth';
-  import { identityPreference } from '$lib/states/identity.svelte';
+import { identityPreference } from '$lib/states/identity.svelte';
+import { appRegistry } from '$lib/states/app-registry.svelte';
   import { Avatar, AvatarFallback, AvatarImage } from "$lib/shadcn/components/ui/avatar";
   import { clientStorage } from '$lib/services/client-storage';
   import { favoritesState } from '$lib/states/favorites.svelte';
@@ -102,8 +103,16 @@
   }
 
   async function clearAllData() {
-    if (!confirm('This will clear all history and saved preferences. Are you sure?')) return;
+    if (!confirm('This will clear all history, saved preferences, and sign you out. Are you sure?')) return;
 
+    // Clear MSAL cached accounts (sign out)
+    const service = $authServiceStore;
+    if (service) {
+      service.clearCachedAccounts();
+    }
+    auth.reset();
+
+    // Clear app storage
     await clientStorage.clearAll();
     historyState.items = [];
     favoritesState.items = [];
@@ -129,6 +138,11 @@
   const identityPreferenceLabel = $derived(
     identityPreference.mode === 'use_last' ? 'Always use last account' : 'Ask me each time'
   );
+
+  // Get the app used for sign-in
+  const signedInApp = $derived(
+    $auth.signedInAppId ? appRegistry.getById($auth.signedInAppId) : null
+  );
 </script>
 
 <svelte:head>
@@ -152,11 +166,18 @@
                 {getInitials($auth.user?.name || 'User')}
               </AvatarFallback>
             </Avatar>
-            <div class="space-y-1">
+            <div class="space-y-1.5">
               <h3 class="text-lg font-semibold">{$auth.user?.name}</h3>
               <p class="text-sm text-muted-foreground">{$auth.user?.username}</p>
-              <div class="flex items-center gap-2 text-xs text-muted-foreground">
+              <div class="flex flex-col gap-1 text-xs text-muted-foreground">
                 <span class="font-mono">Tenant ID: {$auth.user?.tenantId}</span>
+                <span class="font-mono">Object ID: {$auth.user?.localAccountId}</span>
+                {#if signedInApp}
+                  <div class="flex items-center gap-1.5 pt-0.5">
+                    <span class="h-2 w-2 rounded-full" style="background-color: {signedInApp.color}"></span>
+                    <span>Signed in via: <span class="font-medium text-foreground">{signedInApp.name}</span></span>
+                  </div>
+                {/if}
               </div>
             </div>
           </div>
@@ -340,7 +361,7 @@
         <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-muted/30 p-4">
           <div class="space-y-1">
             <Label>Clear data</Label>
-            <p class="text-sm text-muted-foreground">Remove history and saved preferences from this browser.</p>
+            <p class="text-sm text-muted-foreground">Remove history, saved preferences, and sign out from this browser.</p>
           </div>
           <Button variant="destructive" onclick={clearAllData} class="gap-2">
             <Trash2 class="h-4 w-4" />

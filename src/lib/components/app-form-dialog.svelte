@@ -415,12 +415,9 @@
     </div>
 
     <div class={sectionCardClass}>
-      <div class="flex items-center justify-between gap-2">
-        <div class="flex items-center gap-2 text-sm font-semibold">
-          <KeyRound class="h-4 w-4 text-emerald-500" />
-          <span>Key Vault credentials</span>
-        </div>
-        <Badge variant="outline" class="border-emerald-400/40 bg-emerald-500/10 text-emerald-500">Server-side only</Badge>
+      <div class="flex items-center gap-2 text-sm font-semibold">
+        <KeyRound class="h-4 w-4 text-emerald-500" />
+        <span>Key Vault credentials</span>
       </div>
 
       <div class="grid gap-5">
@@ -549,14 +546,23 @@
           </div>
         {/if}
 
-        <div class="text-[11px] text-muted-foreground bg-blue-50/50 dark:bg-blue-950/20 p-3 rounded border border-blue-100 dark:border-blue-900/50">
-          <p class="flex items-center gap-1.5 font-medium mb-1 text-blue-700 dark:text-blue-400">
-            <Info class="h-3 w-3" />
+        <div class="text-xs bg-sky-50 dark:bg-sky-950/40 p-3 rounded-lg border border-sky-200 dark:border-sky-800">
+          <p class="flex items-center gap-1.5 font-semibold mb-1.5 text-sky-900 dark:text-sky-100">
+            <Info class="h-3.5 w-3.5" />
             Prerequisites
           </p>
-          <p>Ensure your local environment (AZ CLI / VS Code) is signed in and has 
-            <span class="font-mono text-[10px] bg-blue-100 dark:bg-blue-900 px-1 py-0.5 rounded">Key Vault Secrets User</span>
-            permissions on the target Key Vault.
+          <p class="text-sky-800 dark:text-sky-200 leading-relaxed">
+            Ensure your local environment (AZ CLI / VS Code) is signed in and has
+            {#if credentialType === 'certificate'}
+              <code class="font-mono text-[10px] bg-sky-100 dark:bg-sky-900 text-sky-900 dark:text-sky-100 px-1.5 py-0.5 rounded mx-0.5">Key Vault Secrets User</code>
+              and
+              <code class="font-mono text-[10px] bg-sky-100 dark:bg-sky-900 text-sky-900 dark:text-sky-100 px-1.5 py-0.5 rounded mx-0.5">Key Vault Certificates User</code>
+              roles
+            {:else}
+              <code class="font-mono text-[10px] bg-sky-100 dark:bg-sky-900 text-sky-900 dark:text-sky-100 px-1.5 py-0.5 rounded mx-0.5">Key Vault Secrets User</code>
+              role
+            {/if}
+            on the target Key Vault.
           </p>
         </div>
       </div>

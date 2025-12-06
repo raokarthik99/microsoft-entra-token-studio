@@ -6,6 +6,7 @@
   import { ScrollArea } from "$lib/shadcn/components/ui/scroll-area";
   import { Separator } from "$lib/shadcn/components/ui/separator";
   import * as Card from "$lib/shadcn/components/ui/card";
+  import * as Tooltip from "$lib/shadcn/components/ui/tooltip";
   import DecodedClaims from "./DecodedClaims.svelte";
   import { fade, fly } from "svelte/transition";
   import { toast } from "svelte-sonner";
@@ -255,9 +256,16 @@
               ></div>
               <span class="text-sm font-semibold text-foreground">{activeToken.appName}</span>
             </div>
-            <p class="text-xs text-muted-foreground mt-1 cursor-help" title={activeToken.appId || ''}>
-              {activeToken.appId ? `ID: ${activeToken.appId.slice(0, 20)}...` : 'App context preserved'}
-            </p>
+            <Tooltip.Root delayDuration={0}>
+              <Tooltip.Trigger>
+                <span class="text-xs text-muted-foreground mt-1 cursor-help inline-block">
+                  {activeToken.appId ? `ID: ${activeToken.appId.slice(0, 20)}...` : 'App context preserved'}
+                </span>
+              </Tooltip.Trigger>
+              <Tooltip.Content>
+                <p class="font-mono text-xs">{activeToken.appId}</p>
+              </Tooltip.Content>
+            </Tooltip.Root>
           {:else}
             <div class="text-sm font-semibold text-foreground">Legacy token</div>
             <p class="text-xs text-muted-foreground">No app context available</p>

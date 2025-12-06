@@ -15,7 +15,9 @@
     KeyRound,
     ExternalLink,
     Rocket,
-    CheckCircle2
+    CheckCircle2,
+    ArrowRight,
+    Sparkles
   } from "@lucide/svelte";
 
   let dialogOpen = $state(false);
@@ -221,6 +223,29 @@
           </p>
         </div>
       </div>
+
+      <!-- Playground Guidance Banner -->
+      <a 
+        href="/" 
+        class="group flex items-center gap-4 rounded-xl border border-primary/20 bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 p-4 transition-all hover:border-primary/40 hover:shadow-md hover:shadow-primary/5"
+      >
+        <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 transition-transform group-hover:scale-105">
+          <Sparkles class="h-6 w-6 text-primary" />
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2">
+            <h3 class="font-semibold text-foreground">Ready to generate tokens!</h3>
+            <Badge variant="secondary" class="text-[10px]">Next step</Badge>
+          </div>
+          <p class="text-sm text-muted-foreground mt-0.5">
+            Head to the Playground to issue user tokens (delegated) or app tokens (daemon) using your configured apps.
+          </p>
+        </div>
+        <div class="flex items-center gap-2 text-sm font-medium text-primary shrink-0">
+          <span class="hidden sm:inline">Go to Playground</span>
+          <ArrowRight class="h-4 w-4 transition-transform group-hover:translate-x-1" />
+        </div>
+      </a>
 
       <!-- Apps Table -->
       <div class="flex-1">

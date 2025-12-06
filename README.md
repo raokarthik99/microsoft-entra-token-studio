@@ -210,6 +210,7 @@ The app uses `DefaultAzureCredential` from `@azure/identity` for Key Vault acces
 - `src/routes/api/apps/validate/+server.ts` — Key Vault validation endpoint for app configuration.
 - `src/routes/api/health/+server.ts` — Server-side health and credential configuration status used by setup guidance.
 - `src/routes/auth/callback/+page.svelte` — Client-side redirect handler for MSAL.js.
+- `src/lib/server/msal.ts` — Server-side confidential client token acquisition using `@azure/msal-node`, including Key Vault and local certificate/secret resolution.
 - `src/lib/services/auth.ts` — Client-side authentication service (MSAL.js wrapper).
 - `src/lib/stores/auth.ts` — Svelte stores for authentication state.
 - `src/lib/stores/time.ts` — Reactive time store for real-time expiry updates.

@@ -1,7 +1,7 @@
 <script lang="ts">
   import * as Sidebar from "$lib/shadcn/components/ui/sidebar";
   import { Badge } from "$lib/shadcn/components/ui/badge";
-  import { History, Home, Zap, ShieldHalf, Star, Cloud } from "@lucide/svelte";
+  import { History, Home, Zap, ShieldHalf, Star, Cloud, Settings } from "@lucide/svelte";
   import { page } from '$app/stores';
   import entraIconUrl from "$lib/assets/microsoft-entra-color-icon.svg";
 
@@ -87,5 +87,20 @@
       </Sidebar.GroupContent>
     </Sidebar.Group>
   </Sidebar.Content>
+
+  <Sidebar.Footer class="pb-4">
+    <Sidebar.Menu class="px-2">
+      <Sidebar.MenuItem>
+        <Sidebar.MenuButton isActive={$page.url.pathname === '/settings'} class="rounded-lg border border-border/50 bg-muted/30 hover:bg-muted/50 transition-colors">
+          {#snippet child({ props })}
+            <a href="/settings" {...props} class="flex w-full items-center gap-3">
+              <Settings class="h-4 w-4" />
+              <span class="font-medium">Settings</span>
+            </a>
+          {/snippet}
+        </Sidebar.MenuButton>
+      </Sidebar.MenuItem>
+    </Sidebar.Menu>
+  </Sidebar.Footer>
 
 </Sidebar.Root>

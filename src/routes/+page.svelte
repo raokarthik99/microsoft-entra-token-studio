@@ -1425,11 +1425,11 @@
                       ></div>
                       <span class="text-sm font-semibold text-foreground">{tokenDockState.token.appName}</span>
                     </div>
-                    <Tooltip.Root openDelay={0}>
-                      <Tooltip.Trigger asChild>
-                        <p class="text-xs text-muted-foreground mt-1 cursor-help">
+                    <Tooltip.Root delayDuration={0}>
+                      <Tooltip.Trigger>
+                        <span class="text-xs text-muted-foreground mt-1 cursor-help inline-block">
                           {tokenDockState.token.appId ? `ID: ${tokenDockState.token.appId.slice(0, 20)}...` : 'App context preserved'}
-                        </p>
+                        </span>
                       </Tooltip.Trigger>
                       <Tooltip.Content>
                         <p class="font-mono text-xs">{tokenDockState.token.appId}</p>
