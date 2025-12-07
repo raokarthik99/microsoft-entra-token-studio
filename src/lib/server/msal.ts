@@ -73,12 +73,7 @@ export const missingEnvKeys = (): string[] => {
 };
 
 const loggerOptions = {
-  loggerCallback(_loglevel: msal.LogLevel, message: string) {
-    const quiet = ['acquireTokenByCode', 'acquireTokenByClientCredential'];
-    if (!quiet.some((q) => message.includes(q))) {
-      console.log(message);
-    }
-  },
+  loggerCallback() {},
   piiLoggingEnabled: false,
   logLevel: msal.LogLevel.Info,
 };
@@ -172,7 +167,6 @@ async function initializeClientApp(resolution: AuthResolution): Promise<ClientAp
 
   try {
     if (resolution.method === 'certificate' && resolution.source === 'keyvault') {
-      console.log('[MSAL] Attempting certificate authentication from Key Vault...');
       const certCredential = await fetchCertificateFromKeyVault();
       const kvConfig = getKeyVaultConfig();
 
@@ -192,12 +186,10 @@ async function initializeClientApp(resolution: AuthResolution): Promise<ClientAp
       state.error = null;
       clientApps.set(key, state);
       lastResolvedAuth = resolution;
-      console.log(`[MSAL] Configured with certificate from Key Vault (${kvConfig.certName})`);
       return state;
     }
 
     if (resolution.method === 'certificate' && resolution.source === 'local') {
-      console.log('[MSAL] Attempting local certificate authentication...');
       const certCredential = await loadLocalCertificate();
       const localCertStatus = await getLocalCertificateStatus();
       
@@ -217,12 +209,10 @@ async function initializeClientApp(resolution: AuthResolution): Promise<ClientAp
       state.error = null;
       clientApps.set(key, state);
       lastResolvedAuth = resolution;
-      console.log(`[MSAL] Configured with local certificate (${localCertStatus.path})`);
       return state;
     }
 
     if (resolution.method === 'secret' && resolution.source === 'keyvault') {
-      console.log('[MSAL] Attempting client secret authentication from Key Vault...');
       const secretValue = await fetchSecretFromKeyVault();
       const kvConfig = getKeyVaultConfig();
 
@@ -239,7 +229,6 @@ async function initializeClientApp(resolution: AuthResolution): Promise<ClientAp
       state.error = null;
       clientApps.set(key, state);
       lastResolvedAuth = resolution;
-      console.log(`[MSAL] Configured with client secret from Key Vault (${kvConfig.secretName})`);
       return state;
     }
 
@@ -248,7 +237,6 @@ async function initializeClientApp(resolution: AuthResolution): Promise<ClientAp
         return fail('CLIENT_SECRET is not configured');
       }
 
-      console.log('[MSAL] Using client secret authentication from environment');
       state.app = new msal.ConfidentialClientApplication({
         auth: {
           clientId: env.CLIENT_ID,

@@ -202,7 +202,7 @@ import { appRegistry } from '$lib/states/app-registry.svelte';
 </script>
 
 <svelte:head>
-  <title>Settings | Entra Token Client</title>
+  <title>Settings | Entra Token Studio</title>
 </svelte:head>
 
 <div class="space-y-10">

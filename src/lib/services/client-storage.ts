@@ -9,6 +9,7 @@ export const CLIENT_STORAGE_KEYS = {
   // Multi-app support
   appRegistry: 'app_registry',
   activeAppId: 'active_app_id',
+  freAcknowledged: 'fre_acknowledged',
 } as const;
 
 export type ClientStorageKey = (typeof CLIENT_STORAGE_KEYS)[keyof typeof CLIENT_STORAGE_KEYS];

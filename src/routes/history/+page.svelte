@@ -149,7 +149,7 @@
 </script>
 
 <svelte:head>
-  <title>History | Entra Token Client</title>
+  <title>History | Entra Token Studio</title>
 </svelte:head>
 
 <div class="flex h-[calc(100vh-12rem)] flex-col gap-6">

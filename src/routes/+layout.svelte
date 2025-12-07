@@ -16,10 +16,33 @@
   import type { ClientConfig, AppConfig } from '$lib/types';
   import TokenDock from "$lib/components/TokenDock.svelte";
   import AppFormDialog from "$lib/components/app-form-dialog.svelte";
+  import ConfirmDialog from "$lib/components/confirm-dialog.svelte";
+  import { ShieldAlert } from "@lucide/svelte";
+  import { clientStorage, CLIENT_STORAGE_KEYS } from '$lib/services/client-storage';
+  import entraIcon from '$lib/assets/microsoft-entra-color-icon.svg';
 
   let { children, data } = $props<{ children: any, data: LayoutData }>();
   let authService: AuthService | null = $state(null);
   let addAppDialogOpen = $state(false);
+  
+  // FRE State
+  let freOpen = $state(false);
+  let isFreChecked = $state(false);
+  let freAck1 = $state(false); // Local dev only
+  let freAck2 = $state(false); // Responsible use
+  let freAck3 = $state(false); // Never share tokens
+
+  const canProceedFre = $derived(freAck1 && freAck2 && freAck3);
+
+  async function handleFreConfirm() {
+    await clientStorage.set(CLIENT_STORAGE_KEYS.freAcknowledged, true);
+    freOpen = false;
+  }
+
+  function handleFreExit() {
+    // Redirect away to prevent access if they decline
+    window.location.href = 'about:blank';
+  }
   
   /** Track the last app ID the AuthService was initialized for */
   let currentAuthAppId: string | null = $state(null);
@@ -82,6 +105,13 @@
   }
 
   onMount(async () => {
+    // Check availability of FRE acknowledgment first
+    const freAck = await clientStorage.get(CLIENT_STORAGE_KEYS.freAcknowledged);
+    if (!freAck) {
+      freOpen = true;
+    }
+    isFreChecked = true;
+
     // Ensure registry is loaded before we decide which app to initialize with.
     if (!appRegistry.ready) {
       await appRegistry.load();
@@ -114,15 +144,10 @@
     auth.setUser(null);
     authServiceStore.set(null);
   });
-
-  /**
-   * Watch for app registry changes and reinitialize auth when needed.
-   * This handles:
-   * 1. App switches - user selects a different app
-   * 2. App deletions - signed-in app gets deleted
-   * 3. All apps deleted - clear any orphaned sign-in
-   * 4. First load when registry becomes ready
-   */
+  
+  // ... (effects and handlers remain unchanged)
+  
+  // Need to splice the handle handlers back in as this tool replaces a block
   $effect(() => {
     // Skip during SSR
     if (typeof window === 'undefined') return;
@@ -138,7 +163,6 @@
       // When running purely from server-provided config, keep the auth session alive.
       if (!data.authConfig) {
         if ($auth.isAuthenticated || signedInAppId) {
-          console.log('[Auth] No apps configured, clearing sign-in state');
           clearAuthState();
         }
       }
@@ -151,21 +175,18 @@
     
     // Case 2: Active app changed to a different app than what we initialized for
     if (activeApp && currentAuthAppId && activeApp.id !== currentAuthAppId) {
-      console.log(`[Auth] App changed from ${currentAuthAppId} to ${activeApp.id}, reinitializing auth`);
       initializeAuthForApp(activeApp);
       return;
     }
     
     // Case 3: We have an active app but no auth service yet (first load from registry)
     if (activeApp && !authService) {
-      console.log(`[Auth] Initializing auth for app: ${activeApp.name}`);
       initializeAuthForApp(activeApp);
       return;
     }
     
     // Case 4: The app we signed in with was deleted (signedInAppId no longer exists in registry)
     if (signedInAppId && !appRegistry.getById(signedInAppId)) {
-      console.log(`[Auth] Signed-in app ${signedInAppId} was deleted, clearing sign-in state`);
       auth.reset();
       // Reinitialize with current active app if available
       if (activeApp) {
@@ -197,7 +218,7 @@
 </script>
 
 <svelte:head>
-  <title>Entra Token Client</title>
+  <title>Entra Token Studio</title>
   <link rel="icon" href={favicon} />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
@@ -207,13 +228,97 @@
 <ModeWatcher />
 <Toaster position="top-center" richColors />
 
-{#if $auth.loading}
+{#if !isFreChecked || $auth.loading}
   <div class="flex h-screen w-full items-center justify-center bg-background">
     <div class="flex flex-col items-center gap-4">
       <div class="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-      <p class="text-sm text-muted-foreground">Loading application...</p>
+      <p class="text-sm text-muted-foreground">{!isFreChecked ? 'Initializing...' : 'Loading application...'}</p>
     </div>
   </div>
+{:else if freOpen}
+  <div class="flex h-screen w-full items-center justify-center bg-background">
+     <!-- Empty container to block view, dialog will float above -->
+     <div class="max-w-md text-center space-y-4 opacity-50 blur-[1px]">
+        <div class="h-12 w-12 rounded-full bg-muted mx-auto animate-pulse"></div>
+        <div class="h-4 w-32 bg-muted rounded mx-auto animate-pulse"></div>
+        <div class="h-32 w-full bg-muted/50 rounded-lg animate-pulse"></div>
+     </div>
+  </div>
+  
+  <!-- First Run Experience Security Acknowledgment -->
+  <ConfirmDialog
+    bind:open={freOpen}
+    title="Welcome to Entra Token Studio"
+    confirmText="Get Started"
+    cancelText="Exit"
+    destructive={false}
+    onConfirm={handleFreConfirm}
+    onCancel={handleFreExit}
+    confirmDisabled={!canProceedFre}
+  >
+    {#snippet descriptionContent()}
+      <div class="space-y-4">
+        <div class="rounded-md border border-primary/20 bg-primary/5 p-4">
+          <div class="flex items-start gap-4">
+            <div class="rounded-full bg-background/50 p-2 shrink-0 border border-primary/10">
+              <img src={entraIcon} alt="Entra Token Studio" class="h-8 w-8" />
+            </div>
+            <div class="space-y-2">
+              <p class="text-sm text-foreground leading-relaxed">
+                This tool allows you to easily manage Entra ID tokens tailored for your development needs. 
+                Because it handles sensitive identity data, we need you to acknowledge the following security practices 
+                to ensure your data remains safe.
+              </p>
+              <p class="text-[10px] text-muted-foreground">
+                <span class="font-medium text-primary">Disclaimer:</span> This tool is an independent project and is not affiliated with, endorsed by, or connected to Microsoft Corporation.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="space-y-3">
+          <label class="flex items-start gap-3 cursor-pointer group">
+            <input
+              type="checkbox"
+              bind:checked={freAck1}
+              class="mt-0.5 h-4 w-4 rounded border-border text-primary focus:ring-primary focus:ring-offset-background"
+            />
+            <span class="text-sm text-foreground leading-tight">
+              I understand this tool is for <strong>local development only</strong> and should <strong>never be deployed</strong> to a public server or shared environment.
+            </span>
+          </label>
+
+          <label class="flex items-start gap-3 cursor-pointer group">
+            <input
+              type="checkbox"
+              bind:checked={freAck2}
+              class="mt-0.5 h-4 w-4 rounded border-border text-primary focus:ring-primary focus:ring-offset-background"
+            />
+            <span class="text-sm text-foreground leading-tight">
+              I will use this tool <strong>responsibly</strong> and understand that all data is stored locally in my browser's storage.
+            </span>
+          </label>
+
+          <label class="flex items-start gap-3 cursor-pointer group">
+            <input
+              type="checkbox"
+              bind:checked={freAck3}
+              class="mt-0.5 h-4 w-4 rounded border-border text-primary focus:ring-primary focus:ring-offset-background"
+            />
+            <span class="text-sm text-foreground leading-tight">
+              I will <strong>never share my exported data or tokens</strong> with others. Identity tokens are personal and should not be shared, even with trusted team members.
+            </span>
+          </label>
+        </div>
+
+        {#if !canProceedFre}
+          <p class="text-xs text-muted-foreground pt-2">
+            Please acknowledge all items to continue.
+          </p>
+        {/if}
+      </div>
+    {/snippet}
+  </ConfirmDialog>
 {:else}
   <SidebarProvider>
     <AppFormDialog bind:open={addAppDialogOpen} onOpenChange={(v: boolean) => addAppDialogOpen = v} />

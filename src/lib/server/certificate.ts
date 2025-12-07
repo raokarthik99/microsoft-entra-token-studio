@@ -126,7 +126,6 @@ const convertPfxToPem = (pfx: Buffer, passphrase?: string) => {
     // If node-forge fails with MAC verification error (modern encryption), try OpenSSL
     if (forgeError.message?.includes('MAC could not be verified') || 
         forgeError.message?.includes('PKCS#12')) {
-      console.log('[Certificate] node-forge failed with modern encryption, trying OpenSSL fallback...');
       return convertPfxToPemViaOpenSSL(pfx, passphrase);
     }
     throw forgeError;
@@ -221,8 +220,6 @@ export async function loadLocalCertificate(): Promise<LocalCertificateCredential
     cachedCredential = { thumbprint, privateKey };
     credentialFetched = true;
     cachedError = null;
-
-    console.log(`[LocalCert] Successfully loaded certificate from '${certPath}' with thumbprint ${thumbprint.substring(0, 8)}...`);
     
     return cachedCredential;
   } catch (err: any) {

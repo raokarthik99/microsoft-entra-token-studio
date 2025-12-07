@@ -31,6 +31,9 @@
     '/settings': 'Settings',
     '/favorites': 'Favorites',
     '/apps': 'Apps',
+    '/about': 'About',
+    '/contact': 'Contact',
+    '/legal': 'Privacy & Terms',
   };
 
   const subtitles: Record<string, string> = {
@@ -39,6 +42,9 @@
     '/settings': 'Preferences',
     '/favorites': 'Quick access',
     '/apps': 'App Management',
+    '/about': 'Project overview',
+    '/contact': 'Reach the maintainers',
+    '/legal': 'Privacy & terms',
   };
 
   const pageTitle = $derived(titles[$page.url.pathname] ?? 'Entra Client');

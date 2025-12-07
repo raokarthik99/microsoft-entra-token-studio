@@ -140,8 +140,6 @@ export async function fetchCertificateFromKeyVault(): Promise<CertificateCredent
     cachedCredential = { thumbprint, privateKey };
     credentialFetched = true;
     cachedError = null;
-
-    console.log(`[KeyVault] Successfully loaded certificate '${certName}' with thumbprint ${thumbprint.substring(0, 8)}...`);
     
     return cachedCredential;
   } catch (err: any) {
@@ -201,8 +199,6 @@ export async function fetchSecretFromKeyVault(): Promise<string> {
     cachedSecret = secret.value;
     secretFetched = true;
     cachedError = null;
-
-    console.log(`[KeyVault] Successfully loaded secret '${secretName}'...`);
     
     return cachedSecret;
   } catch (err: any) {

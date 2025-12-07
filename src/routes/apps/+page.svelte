@@ -23,7 +23,8 @@
     Star,
     Pin,
     AlertTriangle,
-    CheckCheck
+    CheckCheck,
+    Wrench
   } from "@lucide/svelte";
 
   let dialogOpen = $state(false);
@@ -262,7 +263,7 @@
             </p>
             <div class="flex justify-center gap-2 pt-1">
               <Badge variant="secondary" class="text-xs gap-1">
-                <Sparkles class="h-3 w-3" />
+                <Wrench class="h-3 w-3" />
                 For Developers
               </Badge>
               <Badge variant="outline" class="text-xs gap-1">
@@ -571,18 +572,7 @@
             Connect Your First Client App
             <ArrowRight class="h-4 w-4 ml-1" />
           </Button>
-          <p class="text-center text-xs text-muted-foreground">
-            Need help? Check the 
-            <a 
-              href="https://learn.microsoft.com/entra/identity-platform/v2-oauth2-auth-code-flow" 
-              target="_blank" 
-              rel="noreferrer"
-              class="text-primary hover:underline"
-            >
-              OAuth 2.0 documentation
-            </a>
-            for detailed guidance.
-          </p>
+
         </div>
       </div>
     {:else}
