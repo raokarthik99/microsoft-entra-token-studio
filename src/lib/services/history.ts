@@ -61,5 +61,31 @@ export const historyService = {
       console.error('Failed to delete history items', error);
       return [];
     }
+  },
+
+  /**
+   * Delete all history items associated with specific app IDs.
+   * Used for cascade deletion when apps are removed.
+   * @returns Object with updated history list and count of deleted items
+   */
+  async deleteHistoryByAppIds(appIds: string[]): Promise<{ items: HistoryItem[]; deletedCount: number }> {
+    if (typeof window === 'undefined') return { items: [], deletedCount: 0 };
+    if (appIds.length === 0) return { items: await this.getHistory(), deletedCount: 0 };
+    
+    try {
+      const appIdSet = new Set(appIds);
+      const currentHistory = (await get<HistoryItem[]>(HISTORY_KEY)) || [];
+      const newHistory = currentHistory.filter((item) => !item.appId || !appIdSet.has(item.appId));
+      const deletedCount = currentHistory.length - newHistory.length;
+      
+      if (deletedCount > 0) {
+        await set(HISTORY_KEY, newHistory);
+      }
+      
+      return { items: newHistory, deletedCount };
+    } catch (error) {
+      console.error('Failed to delete history by app IDs', error);
+      return { items: [], deletedCount: 0 };
+    }
   }
 };

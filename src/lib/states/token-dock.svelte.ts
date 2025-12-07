@@ -46,6 +46,23 @@ export class TokenDockState {
   closeFullScreen() {
     this.isFullScreen = false;
   }
+
+  /**
+   * Clear the current token if it belongs to any of the deleted apps.
+   * Used for cascade deletion when apps are removed.
+   * @returns true if the token was cleared
+   */
+  clearIfAppDeleted(deletedAppIds: string[]): boolean {
+    if (!this.token?.appId) return false;
+    if (!deletedAppIds.includes(this.token.appId)) return false;
+    
+    this.token = null;
+    this.context = null;
+    this.error = null;
+    this.status = 'idle';
+    this.isFullScreen = false;
+    return true;
+  }
 }
 
 export const tokenDockState = new TokenDockState();

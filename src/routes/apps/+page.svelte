@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { appRegistry } from "$lib/states/app-registry.svelte";
+  import { appRegistry, type CascadeDeleteResult } from "$lib/states/app-registry.svelte";
+  import { historyState } from "$lib/states/history.svelte";
+  import { favoritesState } from "$lib/states/favorites.svelte";
   import AppsTable from "$lib/components/apps-table.svelte";
   import AppFormDialog from "$lib/components/app-form-dialog.svelte";
   import { toast } from "svelte-sonner";
@@ -16,21 +18,50 @@
     KeyRound,
     ArrowRight,
     Sparkles,
-    Trash2
+    Trash2,
+    History,
+    Star,
+    Pin,
+    AlertTriangle
   } from "@lucide/svelte";
 
   let dialogOpen = $state(false);
   let editingApp = $state<AppConfig | null>(null);
 
-  // Confirmation state
+  // Confirmation state with structured cascade info
   let confirmOpen = $state(false);
   let confirmTitle = $state("");
-  let confirmDescription = $state("");
   let confirmAction = $state<() => Promise<void>>(async () => {});
+  let confirmBaseMessage = $state("");
+  let cascadeInfo = $state<{
+    historyCount: number;
+    favoritesCount: number;
+    pinnedCount: number;
+  } | null>(null);
 
-  function openConfirm(title: string, desc: string, action: () => Promise<void>) {
+  interface CascadePreview {
+    historyCount: number;
+    favoritesCount: number;
+    pinnedCount: number;
+  }
+
+  function getCascadePreview(appIds: string[]): CascadePreview {
+    const appIdSet = new Set(appIds);
+    const historyCount = historyState.items.filter(item => item.appId && appIdSet.has(item.appId)).length;
+    const favoritesCount = favoritesState.items.filter(item => item.appId && appIdSet.has(item.appId)).length;
+    const pinnedCount = favoritesState.items.filter(item => item.appId && appIdSet.has(item.appId) && item.isPinned).length;
+    return { historyCount, favoritesCount, pinnedCount };
+  }
+
+  function openConfirmWithCascade(
+    title: string, 
+    baseMessage: string, 
+    appIds: string[],
+    action: () => Promise<void>
+  ) {
     confirmTitle = title;
-    confirmDescription = desc;
+    confirmBaseMessage = baseMessage;
+    cascadeInfo = getCascadePreview(appIds);
     confirmAction = action;
     confirmOpen = true;
   }
@@ -39,6 +70,9 @@
   const activeAppId = $derived(appRegistry.activeAppId);
   const activeApp = $derived(appRegistry.activeApp);
   const hasApps = $derived(appRegistry.hasApps);
+  const hasCascadeData = $derived(
+    cascadeInfo && (cascadeInfo.historyCount > 0 || cascadeInfo.favoritesCount > 0)
+  );
 
   function handleAdd() {
     editingApp = null;
@@ -59,14 +93,34 @@
     }
   }
 
+  /**
+   * Format cascade delete result for toast message.
+   */
+  function formatCascadeResult(result: CascadeDeleteResult): string {
+    const parts: string[] = [];
+    if (result.historyDeleted > 0) {
+      parts.push(`${result.historyDeleted} history`);
+    }
+    if (result.favoritesDeleted > 0) {
+      parts.push(`${result.favoritesDeleted} favorites`);
+    }
+    if (result.tokenCleared) {
+      parts.push('live token');
+    }
+    
+    if (parts.length === 0) return '';
+    return ` — cleared ${parts.join(', ')}`;
+  }
+
   async function handleDelete(app: AppConfig) {
-    openConfirm(
+    openConfirmWithCascade(
       `Delete "${app.name}"?`,
-      "This action cannot be undone.",
+      "This app will be permanently removed.",
+      [app.id],
       async () => {
         try {
-          await appRegistry.remove(app.id);
-          toast.success(`Deleted ${app.name}`);
+          const result = await appRegistry.remove(app.id);
+          toast.success(`Deleted ${app.name}${formatCascadeResult(result)}`);
         } catch (error) {
           toast.error('Failed to delete app');
         }
@@ -78,14 +132,16 @@
     if (!selectedApps.length) return;
 
     const label = selectedApps.length === 1 ? "app" : "apps";
+    const appIds = selectedApps.map((app) => app.id);
     
-    openConfirm(
+    openConfirmWithCascade(
       `Delete ${selectedApps.length} ${label}?`,
-      "This action cannot be undone.",
+      `${selectedApps.length === 1 ? 'This app' : 'These apps'} will be permanently removed.`,
+      appIds,
       async () => {
         try {
-          await appRegistry.removeMany(selectedApps.map((app) => app.id));
-          toast.success(`Deleted ${selectedApps.length} ${label}`);
+          const result = await appRegistry.removeMany(appIds);
+          toast.success(`Deleted ${selectedApps.length} ${label}${formatCascadeResult(result)}`);
         } catch (error) {
           toast.error('Failed to delete apps');
         }
@@ -96,13 +152,16 @@
   async function handleClearAll() {
     if (!apps.length) return;
 
-    openConfirm(
+    const allAppIds = apps.map(app => app.id);
+    
+    openConfirmWithCascade(
       'Delete all apps?',
-      'This removes every configured app and clears your active selection.',
+      'All configured apps will be permanently removed.',
+      allAppIds,
       async () => {
         try {
-          await appRegistry.clear();
-          toast.success('Cleared all apps');
+          const result = await appRegistry.clear();
+          toast.success(`Deleted all apps${formatCascadeResult(result)}`);
         } catch (error) {
           console.error('Failed to clear apps', error);
           toast.error('Failed to clear apps');
@@ -132,9 +191,47 @@
 <ConfirmDialog
   bind:open={confirmOpen}
   title={confirmTitle}
-  description={confirmDescription}
   onConfirm={confirmAction}
-/>
+>
+  {#snippet descriptionContent()}
+    <div class="space-y-3">
+      <p>{confirmBaseMessage}</p>
+      
+      {#if hasCascadeData}
+        <div class="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 space-y-2">
+          <div class="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-medium text-xs uppercase tracking-wide">
+            <AlertTriangle class="h-3.5 w-3.5" />
+            Connected data will also be removed
+          </div>
+          <ul class="space-y-1.5 text-sm">
+            {#if cascadeInfo && cascadeInfo.historyCount > 0}
+              <li class="flex items-center gap-2">
+                <History class="h-4 w-4 text-muted-foreground" />
+                <span>{cascadeInfo.historyCount} history {cascadeInfo.historyCount === 1 ? 'entry' : 'entries'}</span>
+              </li>
+            {/if}
+            {#if cascadeInfo && cascadeInfo.favoritesCount > 0}
+              <li class="flex items-center gap-2">
+                <Star class="h-4 w-4 text-muted-foreground" />
+                <span>
+                  {cascadeInfo.favoritesCount} {cascadeInfo.favoritesCount === 1 ? 'favorite' : 'favorites'}
+                  {#if cascadeInfo.pinnedCount > 0}
+                    <span class="inline-flex items-center gap-1 ml-1 text-muted-foreground">
+                      <Pin class="h-3 w-3" />
+                      {cascadeInfo.pinnedCount} pinned
+                    </span>
+                  {/if}
+                </span>
+              </li>
+            {/if}
+          </ul>
+        </div>
+      {/if}
+      
+      <p class="text-xs text-muted-foreground">This action cannot be undone.</p>
+    </div>
+  {/snippet}
+</ConfirmDialog>
 
 <div class="flex flex-1 flex-col h-full">
   <div class="flex-1 space-y-4 p-4 pt-6 md:p-8">

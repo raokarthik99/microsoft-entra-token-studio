@@ -1,11 +1,13 @@
 <script lang="ts">
   import * as AlertDialog from "$lib/shadcn/components/ui/alert-dialog";
   import { buttonVariants } from "$lib/shadcn/components/ui/button";
+  import type { Snippet } from "svelte";
 
   let {
     open = $bindable(false),
     title,
     description,
+    descriptionContent,
     confirmText = "Delete",
     cancelText = "Cancel",
     onConfirm,
@@ -14,7 +16,8 @@
   } = $props<{
     open?: boolean;
     title: string;
-    description: string;
+    description?: string;
+    descriptionContent?: Snippet;
     confirmText?: string;
     cancelText?: string;
     onConfirm: () => void | Promise<void>;
@@ -37,7 +40,13 @@
   <AlertDialog.Content>
     <AlertDialog.Header>
       <AlertDialog.Title>{title}</AlertDialog.Title>
-      <AlertDialog.Description>{description}</AlertDialog.Description>
+      {#if descriptionContent}
+        <div class="text-sm text-muted-foreground">
+          {@render descriptionContent()}
+        </div>
+      {:else if description}
+        <AlertDialog.Description>{description}</AlertDialog.Description>
+      {/if}
     </AlertDialog.Header>
     <AlertDialog.Footer>
       <AlertDialog.Cancel onclick={handleCancel}>{cancelText}</AlertDialog.Cancel>
@@ -50,3 +59,5 @@
     </AlertDialog.Footer>
   </AlertDialog.Content>
 </AlertDialog.Root>
+
+

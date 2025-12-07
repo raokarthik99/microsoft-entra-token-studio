@@ -238,5 +238,31 @@ export const favoritesService = {
 
       return haystacks.some((value) => value.includes(term));
     });
+  },
+
+  /**
+   * Delete all favorites associated with specific app IDs.
+   * Used for cascade deletion when apps are removed.
+   * @returns Object with updated favorites list and count of deleted items
+   */
+  async deleteFavoritesByAppIds(appIds: string[]): Promise<{ items: FavoriteItem[]; deletedCount: number }> {
+    if (typeof window === 'undefined') return { items: [], deletedCount: 0 };
+    if (appIds.length === 0) return { items: await this.getFavorites(), deletedCount: 0 };
+    
+    try {
+      const appIdSet = new Set(appIds);
+      const favorites = (await get<FavoriteItem[]>(FAVORITES_KEY)) || [];
+      const next = favorites.filter((fav) => !fav.appId || !appIdSet.has(fav.appId));
+      const deletedCount = favorites.length - next.length;
+      
+      if (deletedCount > 0) {
+        await set(FAVORITES_KEY, next);
+      }
+      
+      return { items: next.map(normalizeFavoriteFromStorage), deletedCount };
+    } catch (error) {
+      console.error('Failed to delete favorites by app IDs', error);
+      return { items: [], deletedCount: 0 };
+    }
   }
 };

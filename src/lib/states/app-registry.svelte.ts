@@ -1,5 +1,17 @@
 import { CLIENT_STORAGE_KEYS, clientStorage } from '$lib/services/client-storage';
 import type { AppConfig } from '$lib/types';
+import { historyState } from './history.svelte';
+import { favoritesState } from './favorites.svelte';
+import { tokenDockState } from './token-dock.svelte';
+
+/**
+ * Result of a cascade delete operation.
+ */
+export interface CascadeDeleteResult {
+  historyDeleted: number;
+  favoritesDeleted: number;
+  tokenCleared: boolean;
+}
 
 /**
  * Default colors for apps without a custom color.
@@ -100,9 +112,10 @@ class AppRegistryState {
   }
 
   /**
-   * Remove an app from the registry.
+   * Remove an app from the registry with cascade deletion.
+   * Deletes all associated history, favorites, and clears token dock if needed.
    */
-  async remove(id: string): Promise<void> {
+  async remove(id: string): Promise<CascadeDeleteResult> {
     this.apps = this.apps.filter(a => a.id !== id);
     await this.persist();
     
@@ -111,14 +124,20 @@ class AppRegistryState {
       const newActiveId = this.apps.length > 0 ? this.apps[0].id : null;
       await this.setActive(newActiveId);
     }
+
+    // Cascade delete associated data
+    return this.cascadeDelete([id]);
   }
 
   /**
-   * Remove multiple apps at once.
+   * Remove multiple apps at once with cascade deletion.
+   * Deletes all associated history, favorites, and clears token dock if needed.
    */
-  async removeMany(ids: string[]): Promise<void> {
+  async removeMany(ids: string[]): Promise<CascadeDeleteResult> {
     const uniqueIds = Array.from(new Set(ids));
-    if (uniqueIds.length === 0) return;
+    if (uniqueIds.length === 0) {
+      return { historyDeleted: 0, favoritesDeleted: 0, tokenCleared: false };
+    }
 
     const idSet = new Set(uniqueIds);
     const nextApps = this.apps.filter(app => !idSet.has(app.id));
@@ -129,6 +148,9 @@ class AppRegistryState {
       const newActiveId = nextApps.length > 0 ? nextApps[0].id : null;
       await this.setActive(newActiveId);
     }
+
+    // Cascade delete associated data
+    return this.cascadeDelete(uniqueIds);
   }
 
   /**
@@ -167,15 +189,43 @@ class AppRegistryState {
   }
 
   /**
-   * Clear all apps (for testing/reset).
+   * Clear all apps with cascade deletion.
+   * Deletes all history, favorites, and clears token dock.
    */
-  async clear(): Promise<void> {
+  async clear(): Promise<CascadeDeleteResult> {
+    // Get all app IDs before clearing
+    const allAppIds = this.apps.map(app => app.id);
+    
     this.apps = [];
     this.activeAppId = null;
     await Promise.all([
       clientStorage.set(CLIENT_STORAGE_KEYS.appRegistry, []),
       clientStorage.set(CLIENT_STORAGE_KEYS.activeAppId, null),
     ]);
+
+    // Cascade delete associated data
+    return this.cascadeDelete(allAppIds);
+  }
+
+  /**
+   * Perform cascade deletion for the given app IDs.
+   * Cleans up history, favorites, and token dock state.
+   */
+  private async cascadeDelete(appIds: string[]): Promise<CascadeDeleteResult> {
+    if (appIds.length === 0) {
+      return { historyDeleted: 0, favoritesDeleted: 0, tokenCleared: false };
+    }
+
+    // Run cascade deletions in parallel
+    const [historyDeleted, favoritesDeleted] = await Promise.all([
+      historyState.deleteByAppIds(appIds),
+      favoritesState.deleteByAppIds(appIds),
+    ]);
+
+    // Clear token dock if current token was from a deleted app
+    const tokenCleared = tokenDockState.clearIfAppDeleted(appIds);
+
+    return { historyDeleted, favoritesDeleted, tokenCleared };
   }
 }
 

@@ -33,7 +33,7 @@
         Switch to app
       </DropdownMenu.Item>
     {:else if isActive}
-      <DropdownMenu.Item disabled class="gap-2 text-emerald-600">
+      <DropdownMenu.Item disabled class="gap-2 text-emerald-600 dark:text-emerald-400 font-medium data-[disabled]:opacity-100">
         <Check class="h-4 w-4" />
         Active
       </DropdownMenu.Item>

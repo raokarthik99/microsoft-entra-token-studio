@@ -47,6 +47,18 @@ export class HistoryState {
             this.items = await historyService.deleteHistoryItems(timestamps);
         }
     }
+
+    /**
+     * Delete all history items associated with specific app IDs.
+     * Used for cascade deletion when apps are removed - no confirmation needed.
+     * @returns Count of deleted items
+     */
+    async deleteByAppIds(appIds: string[]): Promise<number> {
+        if (!appIds.length) return 0;
+        const result = await historyService.deleteHistoryByAppIds(appIds);
+        this.items = result.items;
+        return result.deletedCount;
+    }
 }
 
 export const historyState = new HistoryState();
