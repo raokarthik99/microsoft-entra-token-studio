@@ -5,7 +5,9 @@
   import { Badge } from "$lib/shadcn/components/ui/badge";
   import * as DropdownMenu from "$lib/shadcn/components/ui/dropdown-menu";
   import FavoriteFormSheet from "$lib/components/FavoriteFormSheet.svelte";
+  import ConfirmDialog from "$lib/components/confirm-dialog.svelte";
   import { clientStorage, CLIENT_STORAGE_KEYS } from "$lib/services/client-storage";
+  import { reissueFromFavorite } from "$lib/services/token-reissue";
   import { toast } from "svelte-sonner";
   import { Pin, PinOff, Play, Copy, Eye, Pencil, Trash2, MoreHorizontal } from "@lucide/svelte";
   import type { FavoriteItem } from "$lib/types";
@@ -16,6 +18,10 @@
   );
   let editOpen = $state(false);
   let editing: FavoriteItem | null = $state(null);
+  
+  // Confirm dialog state
+  let confirmOpen = $state(false);
+  let pendingDelete: FavoriteItem | null = $state(null);
 
   function getAccent(fav: FavoriteItem) {
     return fav.color || fav.appColor || APP_COLORS[0];
@@ -23,25 +29,6 @@
 
   function getLabel(fav: FavoriteItem) {
     return fav.name || fav.target;
-  }
-
-  async function reissueFavorite(fav: FavoriteItem) {
-    if (fav.appId && appRegistry.getById(fav.appId)) {
-      await appRegistry.setActive(fav.appId);
-    }
-
-    const params = new URLSearchParams();
-    if (fav.type === "App Token") {
-      params.set("tab", "app-token");
-      params.set("resource", fav.target);
-    } else {
-      params.set("tab", "user-token");
-      params.set("scopes", fav.target);
-    }
-    params.set("autorun", "true");
-
-    await favoritesState.incrementUse(fav.id);
-    await goto(`/?${params.toString()}`);
   }
 
   async function unpinFavorite(fav: FavoriteItem) {
@@ -77,10 +64,16 @@
     editing = null;
   }
 
-  async function deleteFavorite(fav: FavoriteItem) {
-    if (!confirm("Remove this favorite?")) return;
-    await favoritesState.delete(fav);
+  function requestDeleteFavorite(fav: FavoriteItem) {
+    pendingDelete = fav;
+    confirmOpen = true;
+  }
+
+  async function confirmDelete() {
+    if (!pendingDelete) return;
+    await favoritesState.delete(pendingDelete);
     toast.success("Favorite removed");
+    pendingDelete = null;
   }
 
   async function copyValue(value: string, label: string) {
@@ -119,7 +112,7 @@
           <button
             type="button"
             class="rounded-full p-1 text-muted-foreground transition hover:text-primary"
-            onclick={() => reissueFavorite(fav)}
+            onclick={() => reissueFromFavorite(fav)}
             title="Reissue from pinned"
           >
             <Play class="h-4 w-4" />
@@ -136,7 +129,7 @@
             </DropdownMenu.Trigger>
             <DropdownMenu.Content align="end" class="w-56">
               <DropdownMenu.Label>Actions</DropdownMenu.Label>
-              <DropdownMenu.Item onclick={() => reissueFavorite(fav)}>
+              <DropdownMenu.Item onclick={() => reissueFromFavorite(fav)}>
                 <Play class="mr-2 h-4 w-4" />
                 <span>Reissue</span>
               </DropdownMenu.Item>
@@ -167,7 +160,7 @@
                 <PinOff class="mr-2 h-4 w-4" />
                 <span>Unpin</span>
               </DropdownMenu.Item>
-              <DropdownMenu.Item onclick={() => deleteFavorite(fav)} class="text-destructive focus:text-destructive">
+              <DropdownMenu.Item onclick={() => requestDeleteFavorite(fav)} class="text-destructive focus:text-destructive">
                 <Trash2 class="mr-2 h-4 w-4" />
                 <span>Delete favorite</span>
               </DropdownMenu.Item>
@@ -195,4 +188,12 @@
     editOpen = false;
     editing = null;
   }}
+/>
+
+<ConfirmDialog
+  bind:open={confirmOpen}
+  title="Remove this favorite?"
+  description="This action cannot be undone."
+  onConfirm={confirmDelete}
+  onCancel={() => { pendingDelete = null; }}
 />

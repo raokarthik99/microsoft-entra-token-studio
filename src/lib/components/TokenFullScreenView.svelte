@@ -16,6 +16,7 @@
   import { favoritesState } from "$lib/states/favorites.svelte";
   import { tokenDockState } from "$lib/states/token-dock.svelte";
   import { appRegistry } from "$lib/states/app-registry.svelte";
+  import { reissue } from "$lib/services/token-reissue";
   import { getTokenStatus } from "$lib/utils";
   import { time } from "$lib/stores/time";
   import type { FavoriteItem, HistoryItem } from "$lib/types";
@@ -43,12 +44,12 @@
   );
   const currentFavorited = $derived(
     activeToken
-      ? favoritesState.items.some((fav) => fav.type === activeToken.type && fav.target === activeToken.target)
+      ? favoritesState.isFavorited(activeToken.type, activeToken.target)
       : false
   );
   const currentPinned = $derived(
     activeToken
-      ? favoritesState.items.some((fav) => fav.type === activeToken.type && fav.target === activeToken.target && fav.isPinned)
+      ? favoritesState.isPinnedTarget(activeToken.type, activeToken.target)
       : false
   );
 
@@ -79,23 +80,12 @@
     const context = activeToken ?? tokenDockState.context;
     if (!context?.type || !context?.target) return;
 
-    // Auto-switch to the app that was used for this token
-    if (activeToken?.appId && appRegistry.getById(activeToken.appId)) {
-      await appRegistry.setActive(activeToken.appId);
-    }
-
-    const params = new URLSearchParams();
-    if (context.type === 'App Token') {
-      params.set('tab', 'app-token');
-      params.set('resource', context.target);
-    } else {
-      params.set('tab', 'user-token');
-      params.set('scopes', context.target);
-    }
-    params.set('autorun', 'true');
-
     tokenDockState.closeFullScreen();
-    await goto(`/?${params.toString()}`);
+    await reissue({
+      type: context.type,
+      target: context.target,
+      appId: activeToken?.appId
+    });
   }
 
   function toggleVisibility() {

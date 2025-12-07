@@ -70,30 +70,18 @@ export class FavoritesState {
     }
 
     async delete(item: FavoriteItem) {
-        if (confirm('Remove this favorite?')) {
-            this.items = await favoritesService.deleteFavorite(item.id);
-        }
+        this.items = await favoritesService.deleteFavorite(item.id);
     }
 
     async deleteMany(items: FavoriteItem[]) {
         if (!items.length) return;
-
-        const message =
-            items.length === 1
-                ? 'Remove this favorite?'
-                : `Remove ${items.length} favorites?`;
-
-        if (confirm(message)) {
-            const ids = items.map((item) => item.id);
-            this.items = await favoritesService.deleteFavorites(ids);
-        }
+        const ids = items.map((item) => item.id);
+        this.items = await favoritesService.deleteFavorites(ids);
     }
 
     async clear() {
-        if (confirm('Clear all favorites?')) {
-            await favoritesService.clearFavorites();
-            this.items = [];
-        }
+        await favoritesService.clearFavorites();
+        this.items = [];
     }
 
     async incrementUse(id: string) {
@@ -107,6 +95,23 @@ export class FavoritesState {
 
     findMatch(type: FavoriteItem['type'], target: string) {
         return this.items.find((fav) => fav.type === type && fav.target === target);
+    }
+
+    /**
+     * Check if a token target is currently pinned.
+     * Use this for consistent pinned status checks across components.
+     */
+    isPinnedTarget(type: FavoriteItem['type'], target: string): boolean {
+        const match = this.findMatch(type, target);
+        return Boolean(match?.isPinned);
+    }
+
+    /**
+     * Check if a token target is currently a favorite.
+     * Use this for consistent favorited status checks across components.
+     */
+    isFavorited(type: FavoriteItem['type'], target: string): boolean {
+        return this.findMatch(type, target) !== undefined;
     }
 
     async pin(id: string) {

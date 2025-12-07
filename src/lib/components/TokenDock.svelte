@@ -7,6 +7,7 @@
   import { favoritesState } from '$lib/states/favorites.svelte';
   import { tokenDockState } from '$lib/states/token-dock.svelte';
   import { appRegistry } from '$lib/states/app-registry.svelte';
+  import { reissue } from '$lib/services/token-reissue';
   import { parseJwt, getTokenStatus } from '$lib/utils';
   import { time } from '$lib/stores/time';
   import { toast } from 'svelte-sonner';
@@ -64,11 +65,11 @@
   );
   const currentFavorited = $derived(
     activeToken
-      ? favoritesState.items.some((fav) => fav.type === activeToken.type && fav.target === activeToken.target)
+      ? favoritesState.isFavorited(activeToken.type, activeToken.target)
       : false
   );
   const currentPinned = $derived(
-    activeToken ? favoritesState.items.some((fav) => fav.type === activeToken.type && fav.target === activeToken.target && fav.isPinned) : false
+    activeToken ? favoritesState.isPinnedTarget(activeToken.type, activeToken.target) : false
   );
   const shouldShow = $derived(tokenDockState.status !== 'idle' || hasToken);
 
@@ -188,21 +189,11 @@
   async function reissueCurrent() {
     if (!activeToken) return;
     
-    // Auto-switch to the app that was used for this token
-    if (activeToken.appId && appRegistry.getById(activeToken.appId)) {
-      await appRegistry.setActive(activeToken.appId);
-    }
-    
-    const params = new URLSearchParams();
-    if (activeToken.type === 'App Token') {
-      params.set('tab', 'app-token');
-      params.set('resource', activeToken.target);
-    } else {
-      params.set('tab', 'user-token');
-      params.set('scopes', activeToken.target);
-    }
-    params.set('autorun', 'true');
-    await goto(`/?${params.toString()}`);
+    await reissue({
+      type: activeToken.type,
+      target: activeToken.target,
+      appId: activeToken.appId
+    });
   }
 
   async function startGenerating() {

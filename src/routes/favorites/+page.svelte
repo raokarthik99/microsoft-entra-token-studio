@@ -8,6 +8,7 @@
   import { Star, Trash2 } from "@lucide/svelte";
   import { onMount } from "svelte";
   import { clientStorage, CLIENT_STORAGE_KEYS } from '$lib/services/client-storage';
+  import { reissueFromFavorite } from '$lib/services/token-reissue';
   import ConfirmDialog from "$lib/components/confirm-dialog.svelte";
 
   type FavoriteFormValue = Omit<FavoriteItem, 'id' | 'timestamp' | 'createdAt' | 'useCount'> & {
@@ -61,22 +62,7 @@
   }
 
   async function useFavorite(item: FavoriteItem) {
-    // Auto-switch to the app that was used for this favorite
-    if (item.appId && appRegistry.getById(item.appId)) {
-      await appRegistry.setActive(item.appId);
-    }
-    
-    const params = new URLSearchParams();
-    if (item.type === 'App Token') {
-      params.set('tab', 'app-token');
-      params.set('resource', item.target);
-    } else {
-      params.set('tab', 'user-token');
-      params.set('scopes', item.target);
-    }
-    params.set('autorun', 'true');
-    favoritesState.incrementUse(item.id);
-    window.location.href = `/?${params.toString()}`;
+    await reissueFromFavorite(item);
   }
 
   async function loadFavorite(item: FavoriteItem) {

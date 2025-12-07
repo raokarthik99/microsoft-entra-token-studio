@@ -51,8 +51,8 @@
   let description = $state(favorite?.description ?? "");
   let color = $state(favorite?.color ?? "");
   let error = $state<string | null>(null);
-  const targetError = $derived(validateTarget(target, type));
-  const canSave = $derived(!targetError && target.trim().length > 0);
+  // Target is now read-only from context, no validation needed for user input
+  const canSave = $derived(target.trim().length > 0);
 
   $effect(() => {
     if (open) {
@@ -79,20 +79,9 @@
       .filter(Boolean);
   }
 
-  function validateTarget(value: string, currentType: FavoriteItem["type"]) {
-    const trimmed = value.trim();
-    if (!trimmed) return "Resource is required.";
-    if (currentType === "User Token" && trimmed.includes("  ")) {
-      return "Scopes should be space or comma separated.";
-    }
-    return null;
-  }
+
 
   function validate(): boolean {
-    if (targetError) {
-      error = targetError;
-      return false;
-    }
     if (name.length > 100) {
       error = "Name must be under 100 characters.";
       return false;
@@ -135,75 +124,33 @@
     bodyClass="space-y-0 pb-2"
   >
     <div class="space-y-4">
-      <div class="space-y-2">
+      <!-- Token context (read-only) -->
+      <div class="space-y-3 rounded-lg border bg-muted/30 p-3">
         <div class="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-          <span>Token flow</span>
+          <span>Token context</span>
           <Tooltip.Root>
             <Tooltip.Trigger class="text-muted-foreground">
               <Info class="h-3.5 w-3.5" aria-hidden="true" />
             </Tooltip.Trigger>
             <Tooltip.Content side="top" align="start" class="max-w-xs text-[12px] leading-snug">
-              Choose the flow that matches your target: App Token uses a resource (URL or client ID), User Token uses delegated scopes.
+              These values are captured from the issued token and cannot be changed.
             </Tooltip.Content>
           </Tooltip.Root>
-          <span class="text-destructive">*</span>
         </div>
-        <div class="grid grid-cols-2 gap-2">
-          <Button
-            type="button"
-            variant={type === "User Token" ? "default" : "outline"}
-            class="justify-center"
-            onclick={() => (type = "User Token")}
-          >
-            User Token
-          </Button>
-          <Button
-            type="button"
-            variant={type === "App Token" ? "default" : "outline"}
-            class="justify-center"
-            onclick={() => (type = "App Token")}
-          >
-            App Token
-          </Button>
-        </div>
-      </div>
 
-      <div class="space-y-2">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-2">
-            <Label for="target" class="text-xs font-medium text-muted-foreground flex items-center gap-1">
-              {type === "App Token" ? "Resource" : "Delegated scopes"}
-              <span class="text-destructive">*</span>
-            </Label>
-            <Tooltip.Root>
-              <Tooltip.Trigger class="text-muted-foreground">
-                <Info class="h-3.5 w-3.5" aria-hidden="true" />
-              </Tooltip.Trigger>
-              <Tooltip.Content side="top" align="start" class="max-w-xs text-[12px] leading-snug">
-                {type === "App Token"
-                  ? "Resource can be an API URL, application ID URI, or client ID."
-                  : "Use space or comma separated scopes (e.g., User.Read Mail.Read)."}
-              </Tooltip.Content>
-            </Tooltip.Root>
+        <div class="space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-muted-foreground">Token flow</span>
+            <Badge variant="secondary" class="font-medium">{type}</Badge>
           </div>
-          {#if existingTags.length}
-            <div class="flex flex-wrap gap-1">
-              {#each existingTags.slice(0, 6) as tag}
-                <Badge variant="secondary" class="text-[11px] font-normal">{tag}</Badge>
-              {/each}
+          <div class="space-y-1">
+            <span class="text-xs text-muted-foreground">{type === "App Token" ? "Resource" : "Delegated scopes"}</span>
+            <div class="flex items-center gap-2 rounded-md border bg-background/50 px-3 py-2">
+              <Tag class="h-4 w-4 shrink-0 text-muted-foreground" />
+              <code class="text-sm break-all">{target}</code>
             </div>
-          {/if}
+          </div>
         </div>
-        <div class="relative">
-          <Tag class="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            id="target"
-            placeholder={type === "App Token" ? "https://graph.microsoft.com or api://client-id" : "User.Read Mail.Read"}
-            bind:value={target}
-            aria-invalid={Boolean(targetError)}
-          />
-        </div>
-        <p class="text-[11px] text-muted-foreground">Separate with commas or spaces. Stored in lowercase.</p>
       </div>
 
       <Separator />
@@ -220,7 +167,7 @@
             </Tooltip.Content>
           </Tooltip.Root>
         </div>
-        <Input id="name" maxlength={100} placeholder="Graph user profile" bind:value={name} />
+        <Input id="name" maxlength={100} placeholder="Graph user profile" bind:value={name} class="bg-transparent" />
       </div>
 
       <div class="space-y-2">
@@ -251,7 +198,7 @@
           <Input
             id="tags"
             placeholder="graph, production, readonly"
-            class="pl-9"
+            class="pl-9 bg-transparent"
             bind:value={tagsInput}
           />
         </div>
@@ -273,7 +220,7 @@
         <textarea
           id="description"
           rows="3"
-          class="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          class="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           placeholder="Context for this favorite"
           bind:value={description}
           maxlength="500"
@@ -320,9 +267,9 @@
         </div>
       </div>
 
-      {#if error || targetError}
+      {#if error}
         <div class="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          {error || targetError}
+          {error}
         </div>
       {/if}
     </div>

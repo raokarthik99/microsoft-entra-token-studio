@@ -10,6 +10,7 @@
   import { Trash2, History } from "@lucide/svelte";
   import { toast } from "svelte-sonner";
   import { clientStorage, CLIENT_STORAGE_KEYS } from '$lib/services/client-storage';
+  import { reissueFromHistory } from '$lib/services/token-reissue';
   import ConfirmDialog from "$lib/components/confirm-dialog.svelte";
 
   const lastUpdated = $derived(historyState.items[0]?.timestamp ? new Date(historyState.items[0].timestamp).toLocaleString() : null);
@@ -43,21 +44,7 @@
   };
 
   async function restoreHistoryItem(item: HistoryItem) {
-    // Auto-switch to the app that was used for this token
-    if (item.appId && appRegistry.getById(item.appId)) {
-      await appRegistry.setActive(item.appId);
-    }
-    
-    const params = new URLSearchParams();
-    if (item.type === 'App Token') {
-      params.set('tab', 'app-token');
-      params.set('resource', item.target);
-    } else {
-      params.set('tab', 'user-token');
-      params.set('scopes', item.target);
-    }
-    params.set('autorun', 'true');
-    window.location.href = `/?${params.toString()}`;
+    await reissueFromHistory(item);
   }
 
   async function loadHistoryItem(item: HistoryItem) {
@@ -90,12 +77,11 @@
   }
 
   function isFavorited(item: HistoryItem) {
-    return favoritesState.items.some((fav) => fav.type === item.type && fav.target === item.target);
+    return favoritesState.isFavorited(item.type, item.target);
   }
 
   function isPinned(item: HistoryItem) {
-    const match = favoritesState.items.find((fav) => fav.type === item.type && fav.target === item.target);
-    return Boolean(match?.isPinned);
+    return favoritesState.isPinnedTarget(item.type, item.target);
   }
 
   function addFavorite(item: HistoryItem) {

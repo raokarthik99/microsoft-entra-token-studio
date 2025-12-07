@@ -8,6 +8,7 @@
   import { appRegistry, APP_COLORS } from '$lib/states/app-registry.svelte';
   import HistoryList from '$lib/components/HistoryList.svelte';
   import FavoriteFormSheet from '$lib/components/FavoriteFormSheet.svelte';
+  import ConfirmDialog from '$lib/components/confirm-dialog.svelte';
   import DecodedClaims from '$lib/components/DecodedClaims.svelte';
   import TokenStatusBadge from '$lib/components/TokenStatusBadge.svelte';
   import { time } from '$lib/stores/time';
@@ -26,6 +27,7 @@
   import * as Tooltip from "$lib/shadcn/components/ui/tooltip";
   import { goto } from '$app/navigation';
   import { clientStorage, CLIENT_STORAGE_KEYS } from '$lib/services/client-storage';
+  import { clearReissueParams } from '$lib/services/token-reissue';
   
   import { 
     User,
@@ -75,6 +77,7 @@
   let favoriteOpen = $state(false);
   let favoriteDraft: HistoryItem | null = $state(null);
   let favoritePinMode = $state(false);
+  let resetConfirmOpen = $state(false);
 
   let tokenVisible = $state(true);
   let hasAutoScrolled = $state(false);
@@ -271,9 +274,8 @@
         }, 150);
       }
 
-      if (tab || startGeneratingIntent || urlParams.has('resource') || urlParams.has('scopes') || urlParams.has('autorun')) {
-        window.history.replaceState({}, document.title, window.location.pathname);
-      }
+      // Clear URL params immediately after reading to prevent stale autorun on refresh
+      clearReissueParams();
     })();
   });
 
@@ -442,9 +444,11 @@
     await handleUserSubmit(true);
   }
 
-  async function resetAll() {
-    if (!confirm('Are you sure you want to clear the forms and the current result?')) return;
-    
+  function requestResetAll() {
+    resetConfirmOpen = true;
+  }
+
+  async function confirmResetAll() {
     resource = 'https://graph.microsoft.com';
     scopes = 'User.Read';
     result = null;
@@ -517,12 +521,11 @@
   };
 
   function isFavorited(item: HistoryItem) {
-    return favoritesState.items.some((fav) => fav.type === item.type && fav.target === item.target);
+    return favoritesState.isFavorited(item.type, item.target);
   }
 
   function isPinned(item: HistoryItem) {
-    const match = favoritesState.findMatch(item.type, item.target);
-    return Boolean(match?.isPinned);
+    return favoritesState.isPinnedTarget(item.type, item.target);
   }
 
   function startFavoriteFromHistory(item: HistoryItem) {
@@ -1417,7 +1420,7 @@
                       <Copy class="h-4 w-4" />
                       Copy error
                     </Button>
-                    <Button size="sm" variant="secondary" onclick={resetAll} title="Clear inputs and try again">Clear inputs</Button>
+                    <Button size="sm" variant="secondary" onclick={requestResetAll} title="Clear inputs and try again">Clear inputs</Button>
                   </div>
                 </div>
                 <p class="text-sm leading-relaxed break-all">{error}</p>
@@ -1645,4 +1648,13 @@
     favoriteDraft = null;
     favoritePinMode = false;
   }}
+/>
+
+<ConfirmDialog
+  bind:open={resetConfirmOpen}
+  title="Clear forms and result?"
+  description="This will reset all inputs to defaults and clear the current token result."
+  confirmText="Clear"
+  onConfirm={confirmResetAll}
+  destructive={true}
 />
