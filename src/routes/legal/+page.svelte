@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Github, CheckCircle, XCircle, Globe, Server, KeyRound, Database, Lock, ShieldCheck, Scale, FileText, Package, AlertTriangle, User, Star, ShieldHalf } from "@lucide/svelte";
+  import { GITHUB_URL } from "$lib/constants";
 </script>
 
 <svelte:head>
@@ -256,7 +257,7 @@
         <p class="mt-1 text-sm text-muted-foreground">MIT License — broad rights with attribution and warranty disclaimer.</p>
       </div>
       <a
-        href="https://github.com/raokarthik99/entra-token-client/blob/main/LICENSE"
+        href="{GITHUB_URL}/blob/main/LICENSE"
         target="_blank"
         rel="noreferrer"
         class="inline-flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary transition hover:border-primary/60 hover:bg-primary/15"

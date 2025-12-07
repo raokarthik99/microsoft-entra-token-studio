@@ -173,8 +173,8 @@ If you're calling specific APIs (like Microsoft Graph):
 
 ```bash
 # 1. Clone and install
-git clone https://github.com/raokarthik99/entra-token-client.git
-cd entra-token-client
+git clone https://github.com/raokarthik99/microsoft-entra-token-studio.git
+cd microsoft-entra-token-studio
 pnpm install
 
 # 2. Set up environment
@@ -195,24 +195,24 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 1. **Clone the repository**
 
    ```bash
-   git clone https://github.com/raokarthik99/entra-token-client.git
-   cd entra-token-client
+   git clone https://github.com/raokarthik99/microsoft-entra-token-studio.git
+   cd microsoft-entra-token-studio
    code .
    ```
 
-2. **Install dependencies**
+3. **Install dependencies**
 
    ```bash
    pnpm install
    ```
 
-3. **Set up environment**  
+4. **Set up environment**  
    Copy `.env.example` to `.env`
 
-4. **Sign in to Azure**  
+5. **Sign in to Azure**  
    Open Command Palette (`Cmd/Ctrl + Shift + P`) → **Azure: Sign In**
 
-5. **Start the dev server**
+6. **Start the dev server**
    ```bash
    pnpm dev
    ```
@@ -414,6 +414,6 @@ MIT. See [LICENSE](LICENSE) for details.
 
 _Because generating an OAuth token shouldn't require a treasure hunt through documentation._
 
-[Report an Issue](https://github.com/raokarthik99/entra-token-client/issues) · [Request a Feature](https://github.com/raokarthik99/entra-token-client/issues)
+[Report an Issue](https://github.com/raokarthik99/microsoft-entra-token-studio/issues) · [Request a Feature](https://github.com/raokarthik99/microsoft-entra-token-studio/issues)
 
 </div>

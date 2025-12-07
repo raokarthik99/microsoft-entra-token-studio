@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Github, MessageSquare, ShieldAlert, GitPullRequest, CheckCircle, XCircle, AlertTriangle, Clock, Bug, Lightbulb } from "@lucide/svelte";
+  import { GITHUB_URL } from "$lib/constants";
 </script>
 
 <svelte:head>
@@ -30,7 +31,7 @@
   <section class="grid gap-4 md:grid-cols-2">
     <a
       class="group flex flex-col rounded-2xl border-2 border-blue-500/20 bg-card/70 p-5 shadow-sm transition hover:border-blue-500/40 hover:shadow-md"
-      href="https://github.com/raokarthik99/entra-token-client/issues/new/choose"
+      href="{GITHUB_URL}/issues/new/choose"
       target="_blank"
       rel="noreferrer"
     >
@@ -54,7 +55,7 @@
 
     <a
       class="group flex flex-col rounded-2xl border-2 border-purple-500/20 bg-card/70 p-5 shadow-sm transition hover:border-purple-500/40 hover:shadow-md"
-      href="https://github.com/raokarthik99/entra-token-client/discussions"
+      href="{GITHUB_URL}/discussions"
       target="_blank"
       rel="noreferrer"
     >
@@ -78,7 +79,7 @@
 
     <a
       class="group flex flex-col rounded-2xl border-2 border-red-500/20 bg-card/70 p-5 shadow-sm transition hover:border-red-500/40 hover:shadow-md"
-      href="https://github.com/raokarthik99/entra-token-client/security/advisories/new"
+      href="{GITHUB_URL}/security/advisories/new"
       target="_blank"
       rel="noreferrer"
     >
@@ -102,7 +103,7 @@
 
     <a
       class="group flex flex-col rounded-2xl border-2 border-emerald-500/20 bg-card/70 p-5 shadow-sm transition hover:border-emerald-500/40 hover:shadow-md"
-      href="https://github.com/raokarthik99/entra-token-client"
+      href={GITHUB_URL}
       target="_blank"
       rel="noreferrer"
     >

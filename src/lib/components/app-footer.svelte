@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Github, ExternalLink } from "@lucide/svelte";
+  import { GITHUB_URL } from "$lib/constants";
 </script>
 
 <footer class="sticky bottom-0 z-20 border-t bg-gradient-to-r from-background/95 via-background/90 to-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/70">
@@ -12,7 +13,7 @@
       <a href="/legal" class="text-foreground underline-offset-4 transition hover:text-primary hover:underline">Privacy & Terms</a>
       <span class="text-muted-foreground/60">•</span>
       <a
-        href="https://github.com/raokarthik99/entra-token-client"
+        href={GITHUB_URL}
         target="_blank"
         class="text-foreground underline-offset-4 transition hover:text-primary hover:underline"
         rel="noreferrer"

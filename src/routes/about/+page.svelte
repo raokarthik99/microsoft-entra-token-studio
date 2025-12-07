@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Github, KeyRound, User, ShieldHalf, History, Star, Database, Download, Lock, Eye, Zap, Server, Globe } from "@lucide/svelte";
+  import { GITHUB_URL } from "$lib/constants";
 </script>
 
 <svelte:head>
@@ -29,7 +30,7 @@
         </p>
         <div class="flex flex-wrap gap-2 pt-2">
           <a
-            href="https://github.com/raokarthik99/entra-token-client"
+            href={GITHUB_URL}
             target="_blank"
             rel="noreferrer"
             class="inline-flex items-center gap-2 rounded-lg bg-white/10 px-4 py-2 text-sm font-semibold text-white shadow-sm ring-1 ring-white/20 transition hover:bg-white/15 hover:ring-white/30"
@@ -38,7 +39,7 @@
             View on GitHub
           </a>
           <a
-            href="https://github.com/raokarthik99/entra-token-client/issues/new/choose"
+            href="{GITHUB_URL}/issues/new/choose"
             target="_blank"
             rel="noreferrer"
             class="inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-100 shadow-sm transition hover:border-white/40 hover:bg-white/10"
