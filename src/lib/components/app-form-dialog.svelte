@@ -57,7 +57,7 @@
   let tagsInput = $state('');
   let description = $state('');
   let metaOpen = $state(false);
-  let nameInput: HTMLInputElement | null = null;
+  let nameInput = $state<HTMLInputElement | null>(null);
   const formId = 'app-form';
   const sectionCardClass = 'rounded-xl border border-border/60 bg-card/60 p-5 shadow-sm shadow-black/5 space-y-5';
   const redirectUri = $derived(typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : '/auth/callback');

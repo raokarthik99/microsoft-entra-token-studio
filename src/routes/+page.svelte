@@ -1099,7 +1099,7 @@
                           : ''}
                       />
                     </div>
-                    
+                  </div>
 
 
                   <!-- App Permissions Guide -->
