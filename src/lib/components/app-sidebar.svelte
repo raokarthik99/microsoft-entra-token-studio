@@ -10,9 +10,9 @@
 
   const nav = [
     { href: '/', label: 'Playground', description: 'Generate and inspect tokens', icon: Home },
-    { href: '/apps', label: 'Apps', description: 'Manage app registrations', icon: Cloud },
+    { href: '/apps', label: 'Apps', description: 'Manage connected client apps', icon: Cloud },
     { href: '/favorites', label: 'Favorites', description: 'Quick access presets', icon: Star },
-    { href: '/history', label: 'History', description: 'Recall past inputs', icon: History },
+    { href: '/history', label: 'History', description: 'View past generations', icon: History },
   ];
 
   const quickLinks = [
