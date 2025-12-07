@@ -1,3 +1,7 @@
+<script lang="ts">
+  import { Github } from "@lucide/svelte";
+</script>
+
 <svelte:head>
   <title>About · Entra Token Studio</title>
   <meta name="description" content="What Entra Token Studio is, how it works, and how we keep tokens local-first." />
@@ -21,6 +25,7 @@
             rel="noreferrer"
             class="inline-flex items-center gap-2 rounded-lg bg-white/10 px-4 py-2 text-sm font-semibold text-white shadow-sm ring-1 ring-white/20 transition hover:bg-white/15 hover:ring-white/30"
           >
+            <Github class="h-4 w-4" />
             View on GitHub
           </a>
           <a

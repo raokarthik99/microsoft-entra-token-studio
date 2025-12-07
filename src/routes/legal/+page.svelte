@@ -1,3 +1,7 @@
+<script lang="ts">
+  import { Github } from "@lucide/svelte";
+</script>
+
 <svelte:head>
   <title>Privacy & Terms · Entra Token Studio</title>
   <meta name="description" content="Privacy posture, responsible use guidance, and licensing for Entra Token Studio." />
@@ -73,6 +77,7 @@
         rel="noreferrer"
         class="inline-flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-sm font-semibold text-primary transition hover:border-primary/60 hover:bg-primary/15"
       >
+        <Github class="h-4 w-4" />
         View LICENSE
       </a>
     </div>

@@ -1,3 +1,7 @@
+<script lang="ts">
+  import { Github } from "@lucide/svelte";
+</script>
+
 <svelte:head>
   <title>Contact · Entra Token Studio</title>
   <meta name="description" content="How to reach the maintainers, ask questions, and report issues for Entra Token Studio." />
@@ -21,7 +25,10 @@
         target="_blank"
         rel="noreferrer"
       >
-        <p class="font-semibold">Create an issue</p>
+        <p class="font-semibold inline-flex items-center gap-2">
+          <Github class="h-4 w-4" />
+          Create an issue
+        </p>
         <p class="mt-1 text-slate-200">Bugs, regressions, or feature requests with repro details.</p>
       </a>
       <a
@@ -30,7 +37,10 @@
         target="_blank"
         rel="noreferrer"
       >
-        <p class="font-semibold">Start a discussion</p>
+        <p class="font-semibold inline-flex items-center gap-2">
+          <Github class="h-4 w-4" />
+          Start a discussion
+        </p>
         <p class="mt-1 text-slate-200">Usage questions, tips, or design feedback.</p>
       </a>
       <a
@@ -39,7 +49,10 @@
         target="_blank"
         rel="noreferrer"
       >
-        <p class="font-semibold">Security reports</p>
+        <p class="font-semibold inline-flex items-center gap-2">
+          <Github class="h-4 w-4" />
+          Security reports
+        </p>
         <p class="mt-1 text-slate-200">Responsible disclosure for vulnerabilities or data risks.</p>
       </a>
       <a
@@ -48,7 +61,10 @@
         target="_blank"
         rel="noreferrer"
       >
-        <p class="font-semibold">Contribute on GitHub</p>
+        <p class="font-semibold inline-flex items-center gap-2">
+          <Github class="h-4 w-4" />
+          Contribute on GitHub
+        </p>
         <p class="mt-1 text-slate-200">Read the code, open PRs, or suggest improvements.</p>
       </a>
     </div>
