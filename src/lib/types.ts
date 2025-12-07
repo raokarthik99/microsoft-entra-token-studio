@@ -176,3 +176,20 @@ export interface ImportPreview {
   isValid: boolean;
   errors?: string[];
 }
+
+export interface Suggestion {
+    id: string; // concise unique id
+    type: 'pinned' | 'favorite' | 'history' | 'preset';
+    value: string; // validation: scope or target
+    label?: string; // name
+    description?: string; // extra context
+    metadata?: any;
+    score: number; // for ranking
+    highlightIndices?: [number, number][]; // [start, end] tuples for bolding
+    appId?: string;
+    appName?: string;
+    appColor?: string;
+    timestamp?: number;
+    tags?: string[];
+    isPinned?: boolean;
+}

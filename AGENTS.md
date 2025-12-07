@@ -11,6 +11,7 @@
 - **Token status tracking**: Real-time expiry monitoring with color-coded badges (expired, expiring, valid).
 - **Full-screen token inspector**: Immersive token analysis view with ESC key support.
 - **Favorites system**: Save frequently used targets with names, tags, colors, and descriptions for quick access and reissue.
+- **Quick-pick inputs**: Resource and scope fields surface pinned favorites, recents, and Graph/Azure presets with admin-consent badges for sensitive scopes.
 - **Dynamic routing**: First-time users (no apps configured) are redirected to the Apps page; returning users land on Playground.
 - **Data portability**: Local backup/restore for IndexedDB data (history, favorites, preferences, app configs) via Settings import/export with validation and replace semantics.
 - Tokens and history live only in `IndexedDB` (via `idb-keyval`); secrets stay in Azure Key Vault and server-side. Avoid logging tokens or secrets in client or server code.
@@ -25,6 +26,7 @@
 - Supporting pages: `src/routes/history/+page.svelte` (local history), `src/routes/settings/+page.svelte` (theme, profile, data clearing, import/export), `src/routes/favorites/+page.svelte` (favorites management).
 - **History management**: `src/lib/states/history.svelte.ts` manages state via a shared `HistoryState` class (Svelte 5 runes). `src/lib/services/history.ts` handles `idb-keyval` persistence. `src/lib/components/HistoryList.svelte` is the shared UI component.
 - **Favorites management**: `src/lib/states/favorites.svelte.ts` manages favorites state via a shared `FavoritesState` class (Svelte 5 runes). `src/lib/services/favorites.ts` handles `idb-keyval` persistence with CRUD operations. `src/lib/components/FavoritesList.svelte` is the main UI component.
+- **Suggestions**: `src/lib/states/suggestions.svelte.ts` ranks quick-pick options from pinned favorites, history, and presets. `src/lib/data/scope-metadata.ts` holds Graph scope metadata plus scope/resource presets. `src/lib/components/SuggestionsInput.svelte` is the shared input used on Playground resource/scope fields.
 - **UI Components** (`src/lib/components/`):
   - `app-selector.svelte` — Header dropdown for switching between configured apps.
   - `app-management-sheet.svelte` — Slide-out panel for CRUD operations on app configurations.
@@ -34,6 +36,7 @@
   - `HistoryList.svelte` — Shared history list with Load, Reissue, Delete, search/filter/sort, and status-aware styling.
   - `FavoritesList.svelte` — Favorites management with advanced filtering and bulk operations.
   - `FavoriteFormSheet.svelte` — Form for creating and editing favorites.
+  - `SuggestionsInput.svelte` — Quick-pick input with keyboard navigation that prefers pinned favorites, recents, and presets.
   - Collapsible primitives: `shadcn/components/ui/collapsible/{collapsible.svelte,collapsible-content.svelte,collapsible-trigger.svelte}`.
   - Layout: `app-header.svelte`, `app-sidebar.svelte`, `app-footer.svelte`, `UserMenu.svelte`.
 - **State management**: Svelte 5 runes-based state in `src/lib/states/`; reactive time store in `src/lib/stores/time.ts` for real-time expiry updates.
@@ -69,6 +72,7 @@
 - **Decoded claims**: Test search functionality, Important/All filter toggle, and per-claim copy actions.
 - **History management**: Verify Load displays full token details, Reissue issues new tokens, Delete removes items, and the history toolbar search/filter/sort behave correctly.
 - **Favorites management**: Test creating, editing, and deleting favorites. Verify filtering and bulk operations work.
+- **Quick-pick inputs**: Verify resource/scope inputs show pinned favorites first, include recents and presets (Graph scopes with admin badges, Azure resource presets), support keyboard navigation, and fill the form on selection.
 - **Real-time updates**: Confirm token expiry status updates every minute; expired/expiring tokens show prominent reissue buttons.
 - **Dynamic routing**: Verify first-time users (no apps) are redirected to the Apps page; returning users land on Playground.
 - Sanity check theme, data clearing, and import/export under `/settings`. Export should download JSON; import should preview counts and replace current data without errors.
@@ -98,6 +102,8 @@
 ## Active Technologies
 - SvelteKit 2, Svelte 5 runes, shadcn components, `idb-keyval` for IndexedDB persistence, existing favorites/history state modules (001-pinned-tokens)
 - Browser IndexedDB for favorites/history/preferences/app configs; localStorage/sessionStorage for MSAL cache; no new server-side persistence for pinned metadata (001-pinned-tokens)
+- Scope/resource quick-pick suggestions sourced from favorites/history plus Graph scope metadata and presets (001-pinned-tokens)
 
 ## Recent Changes
 - 001-pinned-tokens: Added SvelteKit 2, Svelte 5 runes, shadcn components, `idb-keyval` for IndexedDB persistence, existing favorites/history state modules
+- Scope/resource quick-pick inputs for Playground flows powered by favorites/history/presets with Graph scope metadata badges

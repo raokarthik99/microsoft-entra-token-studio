@@ -11,6 +11,7 @@ Local, single-user lab for generating and inspecting Microsoft Entra access toke
 - User tokens (Authorization Code + PKCE) with MSAL.js, silent acquisition, and popup fallback.
 - Token intelligence: live expiry badges, floating token dock, full-screen inspector, decoded claims search/filter, and per-claim copy.
 - Productivity features: history with Load/Reissue/Delete, advanced sorting/filtering, favorites with tags/colors/descriptions, and pinned favorites in the header for one-click reissue.
+- Smart suggestions: scope/resource quick picks sourced from pinned favorites, recent history, and built-in Graph/Azure presets, with admin-consent badges for sensitive scopes.
 - Data portability: import/export all IndexedDB data (history, favorites, preferences, app configs) with validation and replace semantics.
 - First-run onboarding: automatic redirect to `/apps` when no apps exist, guided setup, and credential health checks.
 
@@ -51,8 +52,8 @@ TODO
 ## Onboarding and everyday use
 
 - **Connect a client app**: From the header, click **Connect Client App** (or go to `/apps`). Enter tenant ID, client ID, redirect URI, Key Vault URI, and credential name (secret or certificate). Validation checks Key Vault connectivity before saving.
-- **Issue an app token**: On the Playground, choose **App token**, enter a resource (e.g., `https://graph.microsoft.com`), and issue. `/.default` is applied automatically. Results include token type, expiry, status badge, and decoded claims.
-- **Issue a user token**: Choose **User token**, set scopes (space-separated), and issue. The app attempts silent acquisition; if consent or login is needed, a popup prompts you. You can switch accounts before issuing.
+- **Issue an app token**: On the Playground, choose **App token**, use the quick-pick resource input (pinned favorites/history plus Azure presets), and issue. `/.default` is applied automatically. Results include token type, expiry, status badge, and decoded claims.
+- **Issue a user token**: Choose **User token**, set scopes via the quick-pick input (pinned/favorites/history plus Graph scope metadata with admin-consent badges), and issue. The app attempts silent acquisition; if consent or login is needed, a popup prompts you. You can switch accounts before issuing.
 - **Stay organized**: History captures full results with per-app context. Favorites support names/tags/colors/descriptions, usage counts, and bulk delete. Pin up to five favorites to the header for instant reissue.
 - **Inspect quickly**: Use the floating token dock for active tokens, open the full-screen inspector with ESC-to-close support, and search/filter claims with Important/All toggles and per-claim copy.
 - **Port your data**: Export all local data to JSON from Settings; imports validate counts and replace current data.
@@ -75,7 +76,9 @@ TODO
 - `src/lib/server/{msal,keyvault,keyvault-validator,certificate}.ts` — credential resolution, Key Vault helpers, and certificate parsing (PEM/PKCS#12 with OpenSSL fallback).
 - `src/lib/services/auth.ts`, `src/lib/stores/auth.ts`, `src/lib/stores/time.ts` — client auth wrapper, auth state, and real-time expiry ticking.
 - `src/lib/states/{app-registry,history,favorites}.svelte.ts` — Svelte 5 runes-based state for multi-app registry, history, and favorites.
-- `src/lib/components/` — shared UI (app selector, management sheets/dialogs, History/Favorites lists, TokenStatusBadge, TokenFullScreenView, DecodedClaims, layout components).
+- `src/lib/states/suggestions.svelte.ts` — ranks quick-pick suggestions from pinned favorites, history, and system presets for scopes/resources.
+- `src/lib/components/` — shared UI (app selector, management sheets/dialogs, History/Favorites lists, TokenStatusBadge, TokenFullScreenView, DecodedClaims, `SuggestionsInput`, layout components).
+- `src/lib/data/scope-metadata.ts` — Graph scope metadata plus scope/resource presets used by quick-pick inputs.
 - `src/lib/utils.ts`, `src/lib/types.ts` — helpers and shared types. Global shell/styles live in `src/app.html` and `src/app.css`; static assets in `static/`.
 
 ## Manual validation (high-value checks)
@@ -85,6 +88,7 @@ TODO
 - Status UX: expiry badges update in real time; expired/expiring tokens surface reissue prompts.
 - Token views: floating dock and full-screen inspector work; ESC closes the full-screen view.
 - Claims UX: Important/All toggle works; search and per-claim copy behave correctly.
+- Quick-pick inputs: resource/scope inputs show pinned favorites first, include recents and presets (Graph scopes with admin badges, Azure resource presets), support keyboard navigation, and populate the form on selection.
 - History/favorites: search/filter/sort, Load/Reissue/Delete work; pinned favorites render in the header and reissue successfully.
 - Data portability: export produces JSON; import validates and replaces data without errors.
 - Multi-app: add/edit/delete apps, switch active app, and validate Key Vault connectivity.

@@ -13,6 +13,7 @@
   import TokenStatusBadge from '$lib/components/TokenStatusBadge.svelte';
   import { time } from '$lib/stores/time';
   import { toast } from "svelte-sonner";
+  import SuggestionsInput from "$lib/components/SuggestionsInput.svelte";
 
   import { Button } from "$lib/shadcn/components/ui/button";
   import { Input } from "$lib/shadcn/components/ui/input";
@@ -67,8 +68,8 @@
   type FlowTab = 'app-token' | 'user-token';
 
   let activeTab = $state<FlowTab>('user-token');
-  let resource = $state('https://graph.microsoft.com');
-  let scopes = $state('User.Read');
+  let resourceInput = $state('https://graph.microsoft.com');
+  let scopesInput = $state('User.Read');
   // history state is now managed by historyState
   let result = $state<TokenData | null>(null);
   let error = $state<string | null>(null);
@@ -209,10 +210,10 @@
       result = dockToken.tokenData;
       if (dockToken.type === 'App Token') {
         activeTab = 'app-token';
-        resource = dockToken.target;
+        resourceInput = dockToken.target;
       } else {
         activeTab = 'user-token';
-        scopes = dockToken.target;
+        scopesInput = dockToken.target;
       }
     } else if (!dockToken && !loading) {
       result = null;
@@ -230,18 +231,12 @@
         
         if (tab === 'app-token' && urlParams.has('resource')) {
           const r = urlParams.get('resource');
-          if (r) resource = r;
+          if (r) resourceInput = r;
         } else if (tab === 'user-token' && urlParams.has('scopes')) {
           const s = urlParams.get('scopes');
-          if (s) scopes = s;
+          if (s) scopesInput = s;
         }
       } else {
-        const lastResource = await clientStorage.get<string>(CLIENT_STORAGE_KEYS.lastResource);
-        if (lastResource) resource = lastResource;
-
-        const lastScopes = await clientStorage.get<string>(CLIENT_STORAGE_KEYS.lastScopes);
-        if (lastScopes) scopes = lastScopes;
-
         const savedTab = await clientStorage.get<FlowTab>(CLIENT_STORAGE_KEYS.activeTab);
         if (savedTab === 'app-token' || savedTab === 'user-token') activeTab = savedTab;
       }
@@ -333,11 +328,10 @@
     error = null;
     lastErrorSource = null;
     result = null;
-    tokenDockState.setLoading({ type: 'App Token', target: resource });
-    await clientStorage.set(CLIENT_STORAGE_KEYS.lastResource, resource);
+    tokenDockState.setLoading({ type: 'App Token', target: resourceInput });
 
     try {
-      const res = await fetch(`/api/token/app?resource=${encodeURIComponent(resource)}`);
+      const res = await fetch(`/api/token/app?resource=${encodeURIComponent(resourceInput)}`);
       const data = await res.json();
       
       if (res.ok) {
@@ -345,7 +339,7 @@
         const issuedAt = Date.now();
         const historyItem: HistoryItem = {
           type: 'App Token',
-          target: resource,
+          target: resourceInput,
           timestamp: issuedAt,
           tokenData: JSON.parse(JSON.stringify(data)),
           // App context for multi-app support
@@ -377,20 +371,19 @@
 
   async function handleUserSubmit(forceSwitch: boolean = false) {
     if (!ensureSetupReady()) return;
-    if (!scopes) return;
-    await clientStorage.set(CLIENT_STORAGE_KEYS.lastScopes, scopes);
+    if (!scopesInput) return;
     await clientStorage.set(CLIENT_STORAGE_KEYS.activeTab, 'user-token');
     loading = true;
     error = null;
     lastErrorSource = null;
     result = null;
-    tokenDockState.setLoading({ type: 'User Token', target: scopes });
+    tokenDockState.setLoading({ type: 'User Token', target: scopesInput });
 
     try {
       const service = $authServiceStore;
       if (!service) throw new Error('Auth service not initialized');
       
-      const scopeArray = scopes.split(/[ ,]+/).filter(Boolean);
+      const scopeArray = scopesInput.split(/[ ,]+/).filter(Boolean);
       // getToken handles unauthenticated users automatically (prompts sign-in)
       // If forceSwitch is true, we force an interactive prompt to allow switching accounts
       const options = forceSwitch 
@@ -408,7 +401,7 @@
       const issuedAt = Date.now();
       const historyItem: HistoryItem = {
         type: 'User Token',
-        target: scopes,
+        target: scopesInput,
         timestamp: issuedAt,
         tokenData: JSON.parse(JSON.stringify(result!)),
         // App context for multi-app support
@@ -449,8 +442,8 @@
   }
 
   async function confirmResetAll() {
-    resource = 'https://graph.microsoft.com';
-    scopes = 'User.Read';
+    resourceInput = 'https://graph.microsoft.com';
+    scopesInput = 'User.Read';
     result = null;
     error = null;
     await clientStorage.remove(CLIENT_STORAGE_KEYS.lastResource);
@@ -477,12 +470,12 @@
   async function restoreHistoryItem(item: HistoryItem) {
     if (item.type === 'App Token') {
       switchTab('app-token');
-      resource = item.target;
+      resourceInput = item.target;
       await tick();
       handleAppSubmit();
     } else {
       switchTab('user-token');
-      scopes = item.target;
+      scopesInput = item.target;
       await tick();
       handleUserSubmit();
     }
@@ -494,10 +487,10 @@
       tokenDockState.setToken(item);
       if (item.type === 'App Token') {
         activeTab = 'app-token';
-        resource = item.target;
+        resourceInput = item.target;
       } else {
         activeTab = 'user-token';
-        scopes = item.target;
+        scopesInput = item.target;
       }
       // Scroll to output
       await tick();
@@ -621,7 +614,18 @@
     await historyState.delete(item);
   }
 
-
+  function handleSaveFavorite(val: string) {
+    favoriteDraft = {
+        type: activeTab === 'user-token' ? 'User Token' : 'App Token',
+        target: val,
+        timestamp: Date.now(),
+        appId: appRegistry.activeApp?.id,
+        appName: appRegistry.activeApp?.name,
+        appColor: appRegistry.activeApp?.color
+    };
+    favoriteOpen = true;
+    favoritePinMode = false;
+  }
 
   async function handleSelectApp(appId: string) {
     await appRegistry.setActive(appId);
@@ -629,12 +633,6 @@
 
   function navigateToApps() {
     goto('/apps');
-  }
-
-
-
-  function formatTimestamp(ts: number) {
-    return new Date(ts).toLocaleString();
   }
 
   function highlightRequiredInput(tab: FlowTab) {
@@ -830,15 +828,16 @@
                   <div class="space-y-3">
                     <div class="space-y-2">
                       <Label for="scopes">Scopes</Label>
-                    <Input
-                      type="text"
+                    <SuggestionsInput
                       id="scopes"
-                      bind:value={scopes}
+                      flow="user-token"
+                      bind:value={scopesInput}
                       placeholder="User.Read Mail.Read (space separated)"
                       required
-                      class={highlightTarget === 'scopes'
+                      highlightClass={highlightTarget === 'scopes'
                         ? 'ring-2 ring-amber-500/70 ring-offset-2 ring-offset-background bg-gradient-to-r from-amber-200/70 via-orange-100/70 to-transparent shadow-[0_0_0_10px_rgba(251,191,36,0.35),0_14px_30px_-10px_rgba(249,115,22,0.45)] animate-[pulse_1.2s_ease-in-out_0s_4]'
                         : ''}
+                      onSaveFavorite={handleSaveFavorite}
                     />
                       <p class="text-[10px] text-muted-foreground">
                         Tip: You can request multiple scopes by separating them with spaces or commas.
@@ -1091,16 +1090,17 @@
                         <Label for="resource">Resource</Label>
                         <span class="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">/.default will be applied</span>
                       </div>
-                      <Input
-                        type="text"
-                        id="resource"
-                        bind:value={resource}
-                        placeholder="https://graph.microsoft.com or api://client-id"
-                        required
-                        class={highlightTarget === 'resource'
-                          ? 'ring-2 ring-amber-500/70 ring-offset-2 ring-offset-background bg-gradient-to-r from-amber-200/70 via-orange-100/70 to-transparent shadow-[0_0_0_10px_rgba(251,191,36,0.35),0_14px_30px_-10px_rgba(249,115,22,0.45)] animate-[pulse_1.2s_ease-in-out_0s_4]'
-                          : ''}
-                      />
+                      <SuggestionsInput
+                      id="resource"
+                      flow="app-token"
+                      bind:value={resourceInput}
+                      placeholder="https://graph.microsoft.com"
+                      required
+                      highlightClass={highlightTarget === 'resource'
+                        ? 'ring-2 ring-amber-500/70 ring-offset-2 ring-offset-background bg-gradient-to-r from-amber-200/70 via-orange-100/70 to-transparent shadow-[0_0_0_10px_rgba(251,191,36,0.35),0_14px_30px_-10px_rgba(249,115,22,0.45)] animate-[pulse_1.2s_ease-in-out_0s_4]'
+                        : ''}
+                      onSaveFavorite={handleSaveFavorite}
+                    />
                     </div>
                   </div>
 

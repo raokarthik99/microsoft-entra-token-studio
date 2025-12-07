@@ -72,7 +72,7 @@
     </div>
 
     <!-- Status Icon -->
-    <svelte:component this={config.icon} class="h-4 w-4 shrink-0 {config.iconClass}" />
+    <config.icon class="h-4 w-4 shrink-0 {config.iconClass}" />
 
     <!-- Collapse Toggle -->
     {#if collapsible}
