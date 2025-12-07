@@ -2,7 +2,7 @@
 
 **A local developer workbench for generating, inspecting, and testing Microsoft Entra access tokens.**
 
-Built with SvelteKit 2, Svelte 5, TypeScript, and shadcn components.
+Built with SvelteKit 2, Svelte 5, TypeScript, shadcn components, MSAL, and Azure SDKs.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
@@ -13,6 +13,9 @@ Built with SvelteKit 2, Svelte 5, TypeScript, and shadcn components.
 </div>
 
 > ⚠️ **Local-only, developer-supervised use.** This app handles real credentials and live access tokens. Run it on your own machine, keep browser storage under your control, and never deploy it as a shared or multi-user service.
+
+![Entra Token Studio Screenshot](static/entra-token-studio-screenshot.png)
+![About Page Screenshot](static/entra-about-page.png)
 
 ---
 
