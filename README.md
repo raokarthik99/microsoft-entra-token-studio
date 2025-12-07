@@ -14,8 +14,9 @@ Built with SvelteKit 2, Svelte 5, TypeScript, shadcn components, MSAL, and Azure
 
 > ⚠️ **Local-only, developer-supervised use.** This app handles real credentials and live access tokens. Run it on your own machine, keep browser storage under your control, and never deploy it as a shared or multi-user service.
 
-![Entra Token Studio Screenshot](static/entra-token-studio-screenshot.png)
 ![About Page Screenshot](static/entra-about-page.png)
+
+![Entra Token Studio Screenshot](static/entra-token-studio-screenshot.png)
 
 ---
 
@@ -28,8 +29,9 @@ If you've worked in an enterprise environment with Microsoft Entra ID (formerly 
 1. **Azure Portal is powerful but overwhelming.** Entra provides enterprise-grade identity management, but the sheer number of features makes day-to-day developer tasks—like testing if "App A can talk to App B"—surprisingly difficult to discover and navigate.
 
 2. **No quick way to generate tokens.** Azure Portal lets you create app registrations and configure credentials (secrets/certificates), but there's no built-in way to quickly issue OAuth tokens for testing. Developers resort to:
+
    - Writing one-off PowerShell or Python scripts
-   - Using curl with manually constructed token requests  
+   - Using curl with manually constructed token requests
    - Copying tokens from browser DevTools
    - Asking colleagues for "that script someone wrote"
 
@@ -64,16 +66,16 @@ If you've worked in an enterprise environment with Microsoft Entra ID (formerly 
 
 ## Features
 
-| Feature | Description |
-|---------|-------------|
-| **Multi-App Workspace** | Configure multiple Entra app registrations, switch between them with a dropdown, and keep per-app colors, tags, and notes |
-| **App Tokens** | Server-side client credentials flow supporting Azure Key Vault certificates and secrets |
-| **User Tokens** | Browser-side Authorization Code + PKCE via MSAL.js with silent acquisition and popup fallback |
-| **Token Intelligence** | Live expiry badges, floating token dock, full-screen inspector, decoded claims search/filter, and per-claim copy |
-| **Favorites & History** | Save frequently used configurations with tags/colors/descriptions; pin up to 5 favorites for one-click reissue |
-| **Smart Suggestions** | Quick-pick inputs for scopes/resources sourced from favorites, history, and built-in Graph/Azure presets with admin-consent badges |
-| **Data Portability** | Export/import all local data (history, favorites, app configs) with security acknowledgments and validation |
-| **Theme Support** | Light, dark, and system theme options |
+| Feature                 | Description                                                                                                                        |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| **Multi-App Workspace** | Configure multiple Entra app registrations, switch between them with a dropdown, and keep per-app colors, tags, and notes          |
+| **App Tokens**          | Server-side client credentials flow supporting Azure Key Vault certificates and secrets                                            |
+| **User Tokens**         | Browser-side Authorization Code + PKCE via MSAL.js with silent acquisition and popup fallback                                      |
+| **Token Intelligence**  | Live expiry badges, floating token dock, full-screen inspector, decoded claims search/filter, and per-claim copy                   |
+| **Favorites & History** | Save frequently used configurations with tags/colors/descriptions; pin up to 5 favorites for one-click reissue                     |
+| **Smart Suggestions**   | Quick-pick inputs for scopes/resources sourced from favorites, history, and built-in Graph/Azure presets with admin-consent badges |
+| **Data Portability**    | Export/import all local data (history, favorites, app configs) with security acknowledgments and validation                        |
+| **Theme Support**       | Light, dark, and system theme options                                                                                              |
 
 ---
 
@@ -83,11 +85,11 @@ Before using Entra Token Studio, you need:
 
 ### 1. Development Tools
 
-| Tool | Version | Installation |
-|------|---------|--------------|
-| **Node.js** | 18+ (LTS) | [nodejs.org/en/download](https://nodejs.org/en/download/) |
-| **pnpm** | Latest | `npm install -g pnpm` |
-| **OpenSSL** | Any | Usually pre-installed on macOS/Linux; [Windows install guide](https://slproweb.com/products/Win32OpenSSL.html) |
+| Tool        | Version   | Installation                                                                                                   |
+| ----------- | --------- | -------------------------------------------------------------------------------------------------------------- |
+| **Node.js** | 18+ (LTS) | [nodejs.org/en/download](https://nodejs.org/en/download/)                                                      |
+| **pnpm**    | Latest    | `npm install -g pnpm`                                                                                          |
+| **OpenSSL** | Any       | Usually pre-installed on macOS/Linux; [Windows install guide](https://slproweb.com/products/Win32OpenSSL.html) |
 
 > **Why OpenSSL?** Modern PKCS#12 certificates (like Azure Key Vault self-signed certs) use AES-256-CBC encryption that requires OpenSSL CLI as a fallback when the pure-JS parser can't handle them.
 
@@ -95,11 +97,11 @@ Before using Entra Token Studio, you need:
 
 You need a way to authenticate to Azure for Key Vault access. Choose one:
 
-| Method | Best For | Setup |
-|--------|----------|-------|
-| **Azure CLI** | Terminal-focused workflow | [Install Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli) → Run `az login` |
-| **VS Code Azure Extension** | VS Code users | Install [Azure Account extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode.azure-account) → Sign in via Command Palette |
-| **Managed Identity** | Azure-hosted environments | Automatically available if running on Azure VMs, App Service, etc. |
+| Method                      | Best For                  | Setup                                                                                                                                        |
+| --------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Azure CLI**               | Terminal-focused workflow | [Install Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli) → Run `az login`                                          |
+| **VS Code Azure Extension** | VS Code users             | Install [Azure Account extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode.azure-account) → Sign in via Command Palette |
+| **Managed Identity**        | Azure-hosted environments | Automatically available if running on Azure VMs, App Service, etc.                                                                           |
 
 The studio uses [`DefaultAzureCredential`](https://learn.microsoft.com/en-us/javascript/api/@azure/identity/defaultazurecredential) which automatically discovers your credentials in this order.
 
@@ -110,6 +112,7 @@ The studio uses [`DefaultAzureCredential`](https://learn.microsoft.com/en-us/jav
 1. Go to [Azure Portal](https://portal.azure.com) → **Microsoft Entra ID** → **App registrations**
 2. Click **+ New registration** (or select an existing app)
 3. Configure the app:
+
    - **Name**: A descriptive name for your app
    - **Supported account types**: Select based on your needs (usually "Single tenant")
    - **Redirect URI**: Add `http://localhost:5173/auth/callback` as a **Single-page application (SPA)** redirect
@@ -147,7 +150,7 @@ For Entra Token Studio to fetch your credentials:
 1. Go to your Key Vault → **Access control (IAM)** → **+ Add role assignment**
 2. Assign one of these roles to your identity (the account you'll use with `az login` or VS Code):
    - **Key Vault Secrets User** — for client secrets
-   - **Key Vault Certificates User** — for certificates  
+   - **Key Vault Certificates User** — for certificates
    - **Key Vault Administrator** — for both (broader access)
 
 📚 [Microsoft Docs: Assign Key Vault access](https://learn.microsoft.com/en-us/azure/key-vault/general/rbac-guide)
@@ -190,6 +193,7 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 ### VS Code Workflow
 
 1. **Clone the repository**
+
    ```bash
    git clone https://github.com/raokarthik99/entra-token-client.git
    cd entra-token-client
@@ -197,6 +201,7 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
    ```
 
 2. **Install dependencies**
+
    ```bash
    pnpm install
    ```
@@ -308,15 +313,16 @@ For user-context authentication:
 
 ## Data Boundaries & Security
 
-| Data Type | Storage Location | Notes |
-|-----------|------------------|-------|
-| **Tokens & History** | Browser IndexedDB | Local only; never leaves your machine |
-| **Favorites & Preferences** | Browser IndexedDB | Local only |
-| **App Configurations** | Browser IndexedDB | Stores IDs and metadata only |
-| **Credentials** | Azure Key Vault | Secrets/certificates fetched at runtime, never stored locally |
-| **MSAL Cache** | localStorage | Cleared on logout |
+| Data Type                   | Storage Location  | Notes                                                         |
+| --------------------------- | ----------------- | ------------------------------------------------------------- |
+| **Tokens & History**        | Browser IndexedDB | Local only; never leaves your machine                         |
+| **Favorites & Preferences** | Browser IndexedDB | Local only                                                    |
+| **App Configurations**      | Browser IndexedDB | Stores IDs and metadata only                                  |
+| **Credentials**             | Azure Key Vault   | Secrets/certificates fetched at runtime, never stored locally |
+| **MSAL Cache**              | localStorage      | Cleared on logout                                             |
 
 **Security principles:**
+
 - Secrets and certificates are never written to IndexedDB or exposed to the browser
 - No tokens or secrets are intentionally logged
 - Export requires explicit security acknowledgments before downloading
@@ -329,13 +335,13 @@ For user-context authentication:
 
 ### Commands
 
-| Command | Description |
-|---------|-------------|
-| `pnpm dev` | Start dev server with HMR |
-| `pnpm check` | Run `svelte-kit sync` + `svelte-check` with strict TypeScript |
-| `pnpm check:watch` | Run type checking in watch mode |
-| `pnpm build` | Production build to verify SSR stability |
-| `pnpm preview` | Serve the built app locally |
+| Command            | Description                                                   |
+| ------------------ | ------------------------------------------------------------- |
+| `pnpm dev`         | Start dev server with HMR                                     |
+| `pnpm check`       | Run `svelte-kit sync` + `svelte-check` with strict TypeScript |
+| `pnpm check:watch` | Run type checking in watch mode                               |
+| `pnpm build`       | Production build to verify SSR stability                      |
+| `pnpm preview`     | Serve the built app locally                                   |
 
 ### Project Structure
 
@@ -378,15 +384,15 @@ src/
 
 ## Troubleshooting
 
-| Issue | Solution |
-|-------|----------|
-| **Redirect loop or mismatch** | Ensure `http://localhost:5173/auth/callback` is registered as a SPA redirect in your Entra app |
-| **Key Vault access denied** | Run `az login` (or sign in via VS Code) and ensure you have Key Vault Secrets/Certificates User role |
-| **App token fails** | Verify Tenant ID, Client ID, and credential name are correct; restart after `.env` changes |
-| **Scope/resource errors** | App tokens use resources with `/.default`; user tokens use specific scopes with consent |
-| **Popups blocked** | Allow popups for `localhost` in your browser settings |
-| **OpenSSL errors** | Ensure OpenSSL is installed and in your PATH; required for PKCS#12 certificates |
-| **Consent errors** | Check the scopes panel for guidance; you may need admin consent for certain scopes |
+| Issue                         | Solution                                                                                             |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------- |
+| **Redirect loop or mismatch** | Ensure `http://localhost:5173/auth/callback` is registered as a SPA redirect in your Entra app       |
+| **Key Vault access denied**   | Run `az login` (or sign in via VS Code) and ensure you have Key Vault Secrets/Certificates User role |
+| **App token fails**           | Verify Tenant ID, Client ID, and credential name are correct; restart after `.env` changes           |
+| **Scope/resource errors**     | App tokens use resources with `/.default`; user tokens use specific scopes with consent              |
+| **Popups blocked**            | Allow popups for `localhost` in your browser settings                                                |
+| **OpenSSL errors**            | Ensure OpenSSL is installed and in your PATH; required for PKCS#12 certificates                      |
+| **Consent errors**            | Check the scopes panel for guidance; you may need admin consent for certain scopes                   |
 
 ---
 
@@ -406,7 +412,7 @@ MIT. See [LICENSE](LICENSE) for details.
 
 **Built with ❤️ by developers, for developers.**
 
-*Because generating an OAuth token shouldn't require a treasure hunt through documentation.*
+_Because generating an OAuth token shouldn't require a treasure hunt through documentation._
 
 [Report an Issue](https://github.com/raokarthik99/entra-token-client/issues) · [Request a Feature](https://github.com/raokarthik99/entra-token-client/issues)
 
