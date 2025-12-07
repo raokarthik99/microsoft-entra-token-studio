@@ -313,23 +313,16 @@
         <div class="rounded-lg border bg-muted/25 p-4">
           <p class="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Client App</p>
           {#if activeToken?.appName}
-            <div class="flex items-center gap-2 mt-1">
+            <div class="mt-1 flex items-center gap-2">
               <div 
-                class="w-3 h-3 rounded-full shrink-0" 
+                class="w-2.5 h-2.5 rounded-full shrink-0" 
                 style="background-color: {activeToken.appColor || '#10b981'}"
               ></div>
-              <span class="text-sm font-semibold text-foreground">{activeToken.appName}</span>
+              <span class="text-sm font-semibold text-foreground truncate">{activeToken.appName}</span>
             </div>
-            <Tooltip.Root delayDuration={0}>
-              <Tooltip.Trigger>
-                <span class="text-xs text-muted-foreground mt-1 cursor-help inline-block">
-                  {activeToken.appId ? `ID: ${activeToken.appId.slice(0, 20)}...` : 'App context preserved'}
-                </span>
-              </Tooltip.Trigger>
-              <Tooltip.Content>
-                <p class="font-mono text-xs">{activeToken.appId}</p>
-              </Tooltip.Content>
-            </Tooltip.Root>
+            {#if activeToken.appId}
+              <p class="mt-1 font-mono text-[11px] text-muted-foreground truncate">{activeToken.appId}</p>
+            {/if}
           {:else}
             <div class="text-sm font-semibold text-foreground">Legacy token</div>
             <p class="text-xs text-muted-foreground">No app context available</p>

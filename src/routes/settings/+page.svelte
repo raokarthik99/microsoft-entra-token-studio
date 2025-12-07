@@ -18,6 +18,7 @@ import { appRegistry } from '$lib/states/app-registry.svelte';
   import { dataExportService } from '$lib/services/data-export';
   import type { ImportPreview } from '$lib/types';
   import { Loader2, Download, Upload, FileJson, Clock3, Star } from "@lucide/svelte";
+  import ConfirmDialog from "$lib/components/confirm-dialog.svelte";
 
   function getInitials(name: string) {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
@@ -26,7 +27,21 @@ import { appRegistry } from '$lib/states/app-registry.svelte';
   // Import/Export State
   let isExporting = $state(false);
   let isImporting = $state(false);
+
   let importPreview = $state<ImportPreview | null>(null);
+
+  // Confirmation state
+  let confirmOpen = $state(false);
+  let confirmTitle = $state("");
+  let confirmDescription = $state("");
+  let confirmAction = $state<() => Promise<void>>(async () => {});
+
+  function openConfirm(title: string, desc: string, action: () => Promise<void>) {
+    confirmTitle = title;
+    confirmDescription = desc;
+    confirmAction = action;
+    confirmOpen = true;
+  }
 
   async function handleExport() {
     isExporting = true;
@@ -103,31 +118,39 @@ import { appRegistry } from '$lib/states/app-registry.svelte';
   }
 
   async function clearAllData() {
-    if (!confirm('This will clear all history, saved preferences, and sign you out. Are you sure?')) return;
+    openConfirm(
+      'Delete all data?',
+      'This will delete all history, saved preferences, and sign you out. Are you sure?',
+      async () => {
+        // Clear MSAL cached accounts (sign out)
+        const service = $authServiceStore;
+        if (service) {
+          service.clearCachedAccounts();
+        }
+        auth.reset();
 
-    // Clear MSAL cached accounts (sign out)
-    const service = $authServiceStore;
-    if (service) {
-      service.clearCachedAccounts();
-    }
-    auth.reset();
-
-    // Clear app storage
-    await clientStorage.clearAll();
-    historyState.items = [];
-    favoritesState.items = [];
-    await identityPreference.reset();
-    window.location.reload();
+        // Clear app storage
+        await clientStorage.clearAll();
+        historyState.items = [];
+        favoritesState.items = [];
+        await identityPreference.reset();
+        window.location.reload();
+      }
+    );
   }
 
   function clearCachedIdentity() {
-    if (confirm('This will sign you out and clear cached identity. You will need to sign in again.')) {
-      const service = $authServiceStore;
-      if (service) {
-        service.clearCachedAccounts();
-        toast.success('Cached identity cleared');
+    openConfirm(
+      'Clear cached identity?',
+      'This will sign you out and clear cached identity. You will need to sign in again.',
+      async () => {
+        const service = $authServiceStore;
+        if (service) {
+          service.clearCachedAccounts();
+          toast.success('Cached identity cleared');
+        }
       }
-    }
+    );
   }
 
   async function handleIdentityPreferenceChange(value: string) {
@@ -175,7 +198,11 @@ import { appRegistry } from '$lib/states/app-registry.svelte';
                 {#if signedInApp}
                   <div class="flex items-center gap-1.5 pt-0.5">
                     <span class="h-2 w-2 rounded-full" style="background-color: {signedInApp.color}"></span>
-                    <span>Signed in via: <span class="font-medium text-foreground">{signedInApp.name}</span></span>
+                    <span>
+                      Signed in via:
+                      <span class="font-medium text-foreground">{signedInApp.name}</span>
+                      <span class="font-mono text-xs text-muted-foreground">({signedInApp.clientId})</span>
+                    </span>
                   </div>
                 {/if}
               </div>
@@ -306,7 +333,6 @@ import { appRegistry } from '$lib/states/app-registry.svelte';
             </div>
           </div>
 
-          <!-- Import Preview Section -->
           {#if importPreview}
             <div class="mt-4 rounded-lg border border-primary/20 bg-primary/5 p-4 animate-in fade-in slide-in-from-top-2">
               <div class="flex items-start gap-3">
@@ -360,15 +386,22 @@ import { appRegistry } from '$lib/states/app-registry.svelte';
 
         <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-muted/30 p-4">
           <div class="space-y-1">
-            <Label>Clear data</Label>
+            <Label>Delete data</Label>
             <p class="text-sm text-muted-foreground">Remove history, saved preferences, and sign out from this browser.</p>
           </div>
           <Button variant="destructive" onclick={clearAllData} class="gap-2">
             <Trash2 class="h-4 w-4" />
-            Clear all
+            Delete All
           </Button>
         </div>
       </Card.Content>
     </Card.Root>
   </div>
+  
+  <ConfirmDialog
+    bind:open={confirmOpen}
+    title={confirmTitle}
+    description={confirmDescription}
+    onConfirm={confirmAction}
+  />
 </div>

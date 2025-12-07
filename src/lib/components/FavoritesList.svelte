@@ -436,7 +436,7 @@
       <div class="flex items-center gap-2">
         {#if enableSelection && onDeleteMany && selectedCount > 0}
           <Button
-            variant="secondary"
+            variant="destructive"
             size="sm"
             class="gap-2"
             onclick={handleBulkDelete}

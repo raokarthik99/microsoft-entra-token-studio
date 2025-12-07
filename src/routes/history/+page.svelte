@@ -10,6 +10,7 @@
   import { Trash2, History } from "@lucide/svelte";
   import { toast } from "svelte-sonner";
   import { clientStorage, CLIENT_STORAGE_KEYS } from '$lib/services/client-storage';
+  import ConfirmDialog from "$lib/components/confirm-dialog.svelte";
 
   const lastUpdated = $derived(historyState.items[0]?.timestamp ? new Date(historyState.items[0].timestamp).toLocaleString() : null);
   const favoriteTags = $derived(
@@ -19,6 +20,19 @@
   let favoriteOpen = $state(false);
   let favoriteDraft: HistoryItem | null = $state(null);
   let pinMode = $state(false);
+
+  // Confirmation state
+  let confirmOpen = $state(false);
+  let confirmTitle = $state("");
+  let confirmDescription = $state("");
+  let confirmAction = $state<() => Promise<void>>(async () => {});
+
+  function openConfirm(title: string, desc: string, action: () => Promise<void>) {
+    confirmTitle = title;
+    confirmDescription = desc;
+    confirmAction = action;
+    confirmOpen = true;
+  }
 
   type FavoriteFormValue = Omit<FavoriteItem, 'id' | 'timestamp' | 'createdAt' | 'useCount'> & {
     useCount?: number;
@@ -58,11 +72,21 @@
   }
 
   async function deleteHistoryItem(item: HistoryItem) {
-    await historyState.delete(item);
+    openConfirm("Delete history item?", "This action cannot be undone.", async () => {
+      await historyState.delete(item);
+    });
   }
 
   async function deleteHistoryItems(items: HistoryItem[]) {
-    await historyState.deleteMany(items);
+    openConfirm(`Delete ${items.length} items?`, "This action cannot be undone.", async () => {
+      await historyState.deleteMany(items);
+    });
+  }
+
+  async function handleClearAll() {
+    openConfirm("Delete all history?", "This action cannot be undone.", async () => {
+      await historyState.clear();
+    });
   }
 
   function isFavorited(item: HistoryItem) {
@@ -157,9 +181,9 @@
       {#if lastUpdated}
         <span class="text-xs text-muted-foreground">Updated {lastUpdated}</span>
       {/if}
-      <Button variant="outline" size="sm" onclick={() => historyState.clear()} disabled={historyState.items.length === 0} class="gap-2">
+      <Button variant="destructive" size="sm" onclick={handleClearAll} disabled={historyState.items.length === 0} class="gap-2">
         <Trash2 class="h-4 w-4" />
-        Clear All
+        Delete All
       </Button>
     </div>
   </div>
@@ -212,4 +236,11 @@
     favoriteDraft = null;
     pinMode = false;
   }}
+/>
+
+<ConfirmDialog
+  bind:open={confirmOpen}
+  title={confirmTitle}
+  description={confirmDescription}
+  onConfirm={confirmAction}
 />

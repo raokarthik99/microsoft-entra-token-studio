@@ -3,6 +3,7 @@
   import AppsTable from "$lib/components/apps-table.svelte";
   import AppFormDialog from "$lib/components/app-form-dialog.svelte";
   import { toast } from "svelte-sonner";
+  import ConfirmDialog from "$lib/components/confirm-dialog.svelte";
   import type { AppConfig } from "$lib/types";
   import { Button } from "$lib/shadcn/components/ui/button";
   import { Badge } from "$lib/shadcn/components/ui/badge";
@@ -20,6 +21,19 @@
 
   let dialogOpen = $state(false);
   let editingApp = $state<AppConfig | null>(null);
+
+  // Confirmation state
+  let confirmOpen = $state(false);
+  let confirmTitle = $state("");
+  let confirmDescription = $state("");
+  let confirmAction = $state<() => Promise<void>>(async () => {});
+
+  function openConfirm(title: string, desc: string, action: () => Promise<void>) {
+    confirmTitle = title;
+    confirmDescription = desc;
+    confirmAction = action;
+    confirmOpen = true;
+  }
 
   const apps = $derived(appRegistry.apps);
   const activeAppId = $derived(appRegistry.activeAppId);
@@ -46,49 +60,55 @@
   }
 
   async function handleDelete(app: AppConfig) {
-    // Simple confirmation via native dialog for now
-    if (!confirm(`Delete "${app.name}"? This action cannot be undone.`)) {
-      return;
-    }
-
-    try {
-      await appRegistry.remove(app.id);
-      toast.success(`Deleted ${app.name}`);
-    } catch (error) {
-      toast.error('Failed to delete app');
-    }
+    openConfirm(
+      `Delete "${app.name}"?`,
+      "This action cannot be undone.",
+      async () => {
+        try {
+          await appRegistry.remove(app.id);
+          toast.success(`Deleted ${app.name}`);
+        } catch (error) {
+          toast.error('Failed to delete app');
+        }
+      }
+    );
   }
 
   async function handleDeleteMany(selectedApps: AppConfig[]) {
     if (!selectedApps.length) return;
 
-    const list = selectedApps.map((app) => `• ${app.name}`).join("\n");
     const label = selectedApps.length === 1 ? "app" : "apps";
-    const confirmed = confirm(`Delete ${selectedApps.length} ${label}?\n\n${list}`);
-
-    if (!confirmed) return;
-
-    try {
-      await appRegistry.removeMany(selectedApps.map((app) => app.id));
-      toast.success(`Deleted ${selectedApps.length} ${label}`);
-    } catch (error) {
-      toast.error('Failed to delete apps');
-    }
+    
+    openConfirm(
+      `Delete ${selectedApps.length} ${label}?`,
+      "This action cannot be undone.",
+      async () => {
+        try {
+          await appRegistry.removeMany(selectedApps.map((app) => app.id));
+          toast.success(`Deleted ${selectedApps.length} ${label}`);
+        } catch (error) {
+          toast.error('Failed to delete apps');
+        }
+      }
+    );
   }
 
   async function handleClearAll() {
     if (!apps.length) return;
 
-    const confirmed = confirm('Clear all apps? This removes every configured app and clears your active selection.');
-    if (!confirmed) return;
-
-    try {
-      await appRegistry.clear();
-      toast.success('Cleared all apps');
-    } catch (error) {
-      console.error('Failed to clear apps', error);
-      toast.error('Failed to clear apps');
-    }
+    openConfirm(
+      'Delete all apps?',
+      'This removes every configured app and clears your active selection.',
+      async () => {
+        try {
+          await appRegistry.clear();
+          toast.success('Cleared all apps');
+        } catch (error) {
+          console.error('Failed to clear apps', error);
+          toast.error('Failed to clear apps');
+        }
+      }
+    );
   }
 
   function handleDialogClose(open: boolean) {
@@ -103,10 +123,17 @@
   <title>Apps | Entra Token Studio</title>
 </svelte:head>
 
-<AppFormDialog 
+  <AppFormDialog 
   bind:open={dialogOpen} 
   onOpenChange={handleDialogClose}
   editingApp={editingApp}
+/>
+
+<ConfirmDialog
+  bind:open={confirmOpen}
+  title={confirmTitle}
+  description={confirmDescription}
+  onConfirm={confirmAction}
 />
 
 <div class="flex flex-1 flex-col h-full">
@@ -114,7 +141,6 @@
     {#if !hasApps}
       <!-- Onboarding Experience for First-Time Users -->
       <div class="mx-auto max-w-2xl space-y-8 py-4">
-        <!-- Hero Section -->
         <div class="text-center space-y-4">
           <div class="flex justify-center">
             <div class="flex h-20 w-20 items-center justify-center rounded-2xl bg-muted p-3">
@@ -237,14 +263,14 @@
         </div>
         <div class="flex items-center gap-2">
           <Button
-            variant="outline"
+            variant="destructive"
             size="sm"
             class="gap-2"
             onclick={handleClearAll}
             disabled={apps.length === 0}
           >
             <Trash2 class="h-4 w-4" />
-            Clear All
+            Delete All
           </Button>
         </div>
       </div>

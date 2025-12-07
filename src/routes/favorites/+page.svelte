@@ -8,6 +8,7 @@
   import { Star, Trash2 } from "@lucide/svelte";
   import { onMount } from "svelte";
   import { clientStorage, CLIENT_STORAGE_KEYS } from '$lib/services/client-storage';
+  import ConfirmDialog from "$lib/components/confirm-dialog.svelte";
 
   type FavoriteFormValue = Omit<FavoriteItem, 'id' | 'timestamp' | 'createdAt' | 'useCount'> & {
     useCount?: number;
@@ -29,6 +30,19 @@
 
   let editOpen = $state(false);
   let editing: FavoriteItem | null = $state(null);
+
+  // Confirmation state
+  let confirmOpen = $state(false);
+  let confirmTitle = $state("");
+  let confirmDescription = $state("");
+  let confirmAction = $state<() => Promise<void>>(async () => {});
+
+  function openConfirm(title: string, desc: string, action: () => Promise<void>) {
+    confirmTitle = title;
+    confirmDescription = desc;
+    confirmAction = action;
+    confirmOpen = true;
+  }
 
   onMount(() => {
     favoritesState.load();
@@ -77,11 +91,21 @@
   }
 
   async function deleteFavorite(item: FavoriteItem) {
-    await favoritesState.delete(item);
+    openConfirm("Delete favorite?", "This action cannot be undone.", async () => {
+      await favoritesState.delete(item);
+    });
   }
 
   async function deleteFavorites(items: FavoriteItem[]) {
-    await favoritesState.deleteMany(items);
+    openConfirm(`Delete ${items.length} items?`, "This action cannot be undone.", async () => {
+      await favoritesState.deleteMany(items);
+    });
+  }
+
+  async function handleClearAll() {
+    openConfirm("Delete all favorites?", "This action cannot be undone.", async () => {
+      await favoritesState.clear();
+    });
   }
 </script>
 
@@ -106,14 +130,14 @@
         <span class="text-xs text-muted-foreground">Updated {lastUpdated}</span>
       {/if}
       <Button
-        variant="outline"
+        variant="destructive"
         size="sm"
         class="gap-2"
-        onclick={() => favoritesState.clear()}
+        onclick={handleClearAll}
         disabled={favoritesState.items.length === 0}
       >
         <Trash2 class="h-4 w-4" />
-        Clear All
+        Delete All
       </Button>
     </div>
   </div>
@@ -147,5 +171,12 @@
       editOpen = false;
       editing = null;
     }}
+  />
+
+  <ConfirmDialog
+    bind:open={confirmOpen}
+    title={confirmTitle}
+    description={confirmDescription}
+    onConfirm={confirmAction}
   />
 </div>
