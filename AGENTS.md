@@ -84,7 +84,7 @@
 - Copy `.env.example` to `.env` and set `PORT` and `REDIRECT_URI` for server configuration.
 - **App credentials**: For production, store credentials in Azure Key Vault (secret or certificate). For local development you may use `CLIENT_SECRET` or `CERTIFICATE_PATH` in `.env`; never commit these.
 - The app only stores tenant/client IDs and per-app metadata in IndexedDB; secrets and certificates stay in environment variables or Azure Key Vault.
-- **Adding apps via UI**: When no apps exist, use the **Add App** button in the header or open `/apps` → enter Entra details and Key Vault or local credential configuration. The app validates Key Vault access before saving.
+- **Adding apps via UI**: When no apps exist, use the **Connect Client App** button in the header or open `/apps` → enter Entra details and Key Vault or local credential configuration. The app validates Key Vault access before saving.
 - **Key Vault setup**: Create a Key Vault, store your client secret or certificate, and grant your identity access (Key Vault Administrator or appropriate read roles).
 - **OpenSSL requirement**: Modern PKCS#12 certificates (e.g., Azure Key Vault self-signed) use AES-256-CBC encryption. OpenSSL CLI is used as a fallback when the pure-JS parser can't handle them.
 - `REDIRECT_URI` should match the Entra registration; if omitted, the app falls back to `${origin}/auth/callback`.

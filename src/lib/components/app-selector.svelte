@@ -68,7 +68,7 @@
       {/if}
       <DropdownMenu.Item class="cursor-pointer gap-2" onclick={navigateToApps}>
         <Plus class="h-4 w-4" />
-        Add app...
+        Connect client app...
       </DropdownMenu.Item>
       {#if hasApps}
         <DropdownMenu.Item class="cursor-pointer gap-2" onclick={navigateToApps}>

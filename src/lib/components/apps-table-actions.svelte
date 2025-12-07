@@ -48,7 +48,7 @@
       <DropdownMenu.Separator />
       <DropdownMenu.Item onclick={() => onDelete(app)} class="gap-2 text-destructive focus:text-destructive">
         <Trash2 class="h-4 w-4" />
-        Delete
+        Disconnect
       </DropdownMenu.Item>
     {/if}
   </DropdownMenu.Content>

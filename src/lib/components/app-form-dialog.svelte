@@ -63,7 +63,7 @@
   const redirectUri = $derived(typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : '/auth/callback');
 
   const isEditing = $derived(!!editingApp);
-  const dialogTitle = $derived(isEditing ? 'Edit App Connection' : 'Add App Connection');
+  const dialogTitle = $derived(isEditing ? 'Edit Client App Connection' : 'Connect Client App');
   const submitLabel = $derived(validating ? 'Validating & Saving...' : isEditing ? 'Save Changes' : 'Validate & Save Connection');
 
   const isFormValid = $derived(
@@ -237,7 +237,7 @@
             placeholder="e.g. Production Graph Client"
             required
             disabled={validating}
-            autocomplete="off"
+            autocomplete="on"
           />
         </div>
 
@@ -319,7 +319,7 @@
               class="font-mono text-sm"
               required
               disabled={validating}
-              autocomplete="off"
+              autocomplete="on"
             />
           </div>
           
@@ -342,7 +342,7 @@
               class="font-mono text-sm"
               required
               disabled={validating}
-              autocomplete="off"
+              autocomplete="on"
             />
           </div>
         </div>
@@ -505,7 +505,7 @@
               required
               class="font-mono text-sm bg-background"
               disabled={validating}
-              autocomplete="off"
+              autocomplete="on"
             />
           {:else}
             <Label for="certName" class="flex items-center gap-1">
@@ -526,7 +526,7 @@
               required
               class="font-mono text-sm bg-background"
               disabled={validating}
-              autocomplete="off"
+              autocomplete="on"
             />
           {/if}
         </div>

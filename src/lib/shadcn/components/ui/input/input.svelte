@@ -16,6 +16,7 @@
 		files = $bindable(),
 		class: className,
 		"data-slot": dataSlot = "input",
+		autocomplete = "on",
 		...restProps
 	}: Props = $props();
 </script>
@@ -33,6 +34,7 @@
 		type="file"
 		bind:files
 		bind:value
+		{autocomplete}
 		{...restProps}
 	/>
 {:else}
@@ -47,6 +49,7 @@
 		)}
 		{type}
 		bind:value
+		{autocomplete}
 		{...restProps}
 	/>
 {/if}

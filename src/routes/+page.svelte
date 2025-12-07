@@ -660,7 +660,7 @@
   function ensureSetupReady() {
     if (configReady) return true;
     toast.warning('Add an app to start issuing tokens', {
-      description: 'Click "Add App" in the header to configure your first Entra app registration.',
+      description: 'Click "Connect Client App" in the header to configure your first Entra app registration.',
     });
     return false;
   }
@@ -721,7 +721,7 @@
     <div class="space-y-3">
       {#if appRegistry.hasApps && appRegistry.activeApp}
         <div class="space-y-1">
-          <Label class="text-sm font-medium text-foreground">Active application</Label>
+          <Label class="text-sm font-medium text-foreground">Active Client Application</Label>
           <p class="text-xs text-muted-foreground">Select the client application to use for generating tokens to access other apps and resources.</p>
         </div>
         <!-- Interactive App Selector Dropdown -->
@@ -771,7 +771,7 @@
             <DropdownMenu.Separator />
             <DropdownMenu.Item class="cursor-pointer gap-2" onclick={navigateToApps}>
               <Plus class="h-4 w-4" />
-              Add app...
+              Connect client app...
             </DropdownMenu.Item>
             <DropdownMenu.Item class="cursor-pointer gap-2" onclick={navigateToApps}>
               <Settings class="h-4 w-4" />
@@ -784,7 +784,7 @@
         <div class="w-full rounded-lg border border-dashed border-muted-foreground/30 bg-muted/30 px-4 py-3">
           <div class="flex items-center justify-center gap-2 text-sm text-muted-foreground">
             <Info class="h-4 w-4" />
-            <span>Click <strong>"Add App"</strong> in the header to configure your first Entra app registration.</span>
+          <span>Click <strong>"Connect Client App"</strong> in the header to configure your first Entra app registration.</span>
           </div>
         </div>
       {/if}

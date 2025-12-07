@@ -72,10 +72,10 @@
 
   <div class="flex items-center gap-2">
     {#if !appRegistry.hasApps}
-      <!-- No apps configured: Show "Add App" CTA -->
+      <!-- No apps configured: Show "Connect Client App" CTA -->
       <Button variant="default" size="sm" class="gap-2" onclick={handleAddAppClick}>
         <Plus class="h-4 w-4" />
-        Add App
+        Connect Client App
       </Button>
     {:else}
       <!-- Apps exist: Show app selector -->
@@ -121,7 +121,7 @@
           <DropdownMenu.Separator />
           <DropdownMenu.Item class="cursor-pointer gap-2" onclick={handleAddAppClick}>
             <Plus class="h-4 w-4" />
-            Add app...
+            Connect client app...
           </DropdownMenu.Item>
           <DropdownMenu.Item class="cursor-pointer gap-2" onclick={() => goto('/apps')}>
             <Settings class="h-4 w-4" />

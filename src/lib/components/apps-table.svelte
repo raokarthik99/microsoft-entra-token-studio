@@ -269,7 +269,7 @@
             onclick={handleBulkDelete}
           >
             <Trash2 class="h-4 w-4" />
-            {`Delete ${selectedCount} selected`}
+            {`Disconnect ${selectedCount} selected`}
           </Button>
         {/if}
         {#if isFiltered}
@@ -284,7 +284,7 @@
         {#if onAdd}
           <Button size="sm" class="gap-2" onclick={onAdd}>
             <Plus class="h-4 w-4" />
-            Add App
+            Connect Client App
           </Button>
         {/if}
       </div>
@@ -428,7 +428,7 @@
                     {#if apps.length === 0 && onAdd}
                       <Button size="sm" class="gap-2 mt-2" onclick={onAdd}>
                         <Plus class="h-4 w-4" />
-                        Add Your First App
+                        Connect Your First Client App
                       </Button>
                     {/if}
                   </div>

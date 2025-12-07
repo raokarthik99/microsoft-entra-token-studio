@@ -19,6 +19,7 @@ import { appRegistry } from '$lib/states/app-registry.svelte';
   import type { ImportPreview } from '$lib/types';
   import { Loader2, Download, Upload, FileJson, Clock3, Star } from "@lucide/svelte";
   import ConfirmDialog from "$lib/components/confirm-dialog.svelte";
+  import { Cloud, LayoutGrid, Settings2, AlertTriangle } from "@lucide/svelte";
 
   function getInitials(name: string) {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
@@ -36,12 +37,26 @@ import { appRegistry } from '$lib/states/app-registry.svelte';
   let confirmDescription = $state("");
   let confirmAction = $state<() => Promise<void>>(async () => {});
 
-  function openConfirm(title: string, desc: string, action: () => Promise<void>) {
-    confirmTitle = title;
-    confirmDescription = desc;
-    confirmAction = action;
-    confirmOpen = true;
-  }
+  // Delete all data state with detailed preview
+  let deleteDataConfirmOpen = $state(false);
+  
+  // Derive counts for the delete confirmation
+  const deletePreviewCounts = $derived({
+    historyCount: historyState.items.length,
+    favoritesCount: favoritesState.items.length,
+    pinnedCount: favoritesState.items.filter(f => f.isPinned).length,
+    appsCount: appRegistry.apps.length,
+    activeAppName: appRegistry.activeApp?.name ?? null,
+    isAuthenticated: $auth.isAuthenticated,
+    userName: $auth.user?.username ?? null
+  });
+
+  const hasAnyData = $derived(
+    deletePreviewCounts.historyCount > 0 ||
+    deletePreviewCounts.favoritesCount > 0 ||
+    deletePreviewCounts.appsCount > 0 ||
+    deletePreviewCounts.isAuthenticated
+  );
 
   async function handleExport() {
     isExporting = true;
@@ -118,39 +133,37 @@ import { appRegistry } from '$lib/states/app-registry.svelte';
   }
 
   async function clearAllData() {
-    openConfirm(
-      'Delete all data?',
-      'This will delete all history, saved preferences, and sign you out. Are you sure?',
-      async () => {
-        // Clear MSAL cached accounts (sign out)
-        const service = $authServiceStore;
-        if (service) {
-          service.clearCachedAccounts();
-        }
-        auth.reset();
+    deleteDataConfirmOpen = true;
+  }
 
-        // Clear app storage
-        await clientStorage.clearAll();
-        historyState.items = [];
-        favoritesState.items = [];
-        await identityPreference.reset();
-        window.location.reload();
-      }
-    );
+  async function handleDeleteAllConfirm() {
+    // Clear MSAL cached accounts (sign out)
+    const service = $authServiceStore;
+    if (service) {
+      service.clearCachedAccounts();
+    }
+    auth.reset();
+
+    // Clear app storage
+    await clientStorage.clearAll();
+    historyState.items = [];
+    favoritesState.items = [];
+    await identityPreference.reset();
+    await appRegistry.clear();
+    window.location.reload();
   }
 
   function clearCachedIdentity() {
-    openConfirm(
-      'Clear cached identity?',
-      'This will sign you out and clear cached identity. You will need to sign in again.',
-      async () => {
-        const service = $authServiceStore;
-        if (service) {
-          service.clearCachedAccounts();
-          toast.success('Cached identity cleared');
-        }
+    confirmTitle = 'Clear cached identity?';
+    confirmDescription = 'This will sign you out and clear cached identity. You will need to sign in again.';
+    confirmAction = async () => {
+      const service = $authServiceStore;
+      if (service) {
+        service.clearCachedAccounts();
+        toast.success('Cached identity cleared');
       }
-    );
+    };
+    confirmOpen = true;
   }
 
   async function handleIdentityPreferenceChange(value: string) {
@@ -404,4 +417,82 @@ import { appRegistry } from '$lib/states/app-registry.svelte';
     description={confirmDescription}
     onConfirm={confirmAction}
   />
+  
+  <!-- Delete All Data Confirmation with Detailed Preview -->
+  <ConfirmDialog
+    bind:open={deleteDataConfirmOpen}
+    title="Delete all data?"
+    confirmText="Delete All"
+    onConfirm={handleDeleteAllConfirm}
+  >
+    {#snippet descriptionContent()}
+      <div class="space-y-4">
+        <p>This will permanently delete all local data and sign you out of this browser.</p>
+        
+        {#if hasAnyData}
+          <div class="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 space-y-3">
+            <div class="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-medium text-xs uppercase tracking-wide">
+              <AlertTriangle class="h-3.5 w-3.5" />
+              The following will be removed
+            </div>
+            <ul class="space-y-2 text-sm">
+              {#if deletePreviewCounts.historyCount > 0}
+                <li class="flex items-center gap-2">
+                  <Clock3 class="h-4 w-4 text-muted-foreground" />
+                  <span>
+                    <span class="font-medium">{deletePreviewCounts.historyCount}</span>
+                    history {deletePreviewCounts.historyCount === 1 ? 'entry' : 'entries'}
+                  </span>
+                </li>
+              {/if}
+              {#if deletePreviewCounts.favoritesCount > 0}
+                <li class="flex items-center gap-2">
+                  <Star class="h-4 w-4 text-muted-foreground" />
+                  <span>
+                    <span class="font-medium">{deletePreviewCounts.favoritesCount}</span>
+                    {deletePreviewCounts.favoritesCount === 1 ? 'favorite' : 'favorites'}
+                    {#if deletePreviewCounts.pinnedCount > 0}
+                      <span class="text-muted-foreground">({deletePreviewCounts.pinnedCount} pinned)</span>
+                    {/if}
+                  </span>
+                </li>
+              {/if}
+              {#if deletePreviewCounts.appsCount > 0}
+                <li class="flex items-center gap-2">
+                  <Cloud class="h-4 w-4 text-muted-foreground" />
+                  <span>
+                    <span class="font-medium">{deletePreviewCounts.appsCount}</span>
+                    connected client {deletePreviewCounts.appsCount === 1 ? 'app' : 'apps'}
+                  </span>
+                </li>
+              {/if}
+              {#if deletePreviewCounts.isAuthenticated}
+                <li class="flex items-center gap-2">
+                  <User class="h-4 w-4 text-muted-foreground" />
+                  <span>
+                    Signed-in session
+                    {#if deletePreviewCounts.userName}
+                      <span class="text-muted-foreground">({deletePreviewCounts.userName})</span>
+                    {/if}
+                  </span>
+                </li>
+              {/if}
+            </ul>
+            <div class="pt-1 border-t border-amber-500/20">
+              <p class="text-xs text-muted-foreground flex items-center gap-1.5">
+                <Settings2 class="h-3 w-3" />
+                Theme preferences and other settings will also be reset
+              </p>
+            </div>
+          </div>
+        {:else}
+          <div class="rounded-md border bg-muted/30 p-3">
+            <p class="text-sm text-muted-foreground">No data to delete. This will reset preferences and sign you out.</p>
+          </div>
+        {/if}
+        
+        <p class="text-xs text-muted-foreground">This action cannot be undone.</p>
+      </div>
+    {/snippet}
+  </ConfirmDialog>
 </div>

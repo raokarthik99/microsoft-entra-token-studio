@@ -63,8 +63,8 @@ Playground for generating and inspecting Microsoft Entra access tokens. Built wi
    ```
    Open http://localhost:5173 — first-time users with no apps configured are automatically redirected to the **Apps** page for onboarding.
 
-5. **Add Your First App**
-   - Click **Add App** in the header or go to the **Apps** page
+5. **Connect Your First Client App**
+   - Click **Connect Client App** in the header or go to the **Apps** page
    - Enter your Entra app registration details (Tenant ID, Client ID)
    - Provide your Azure Key Vault URI and credential name, or choose a local `.env` credential path for development
    - The app validates Key Vault access before saving
@@ -117,7 +117,7 @@ All app credentials are configured through the UI and stored securely:
 - **Multiple apps** can be configured and switched between in the header
 
 To add an app:
-1. Click **Add App** in the header (or open the **Apps** page)
+1. Click **Connect Client App** in the header (or open the **Apps** page)
 2. Enter your Entra app registration details
 3. Provide your Azure Key Vault URI
 4. Select credential type (Secret or Certificate) and enter the Key Vault secret/certificate name
@@ -247,7 +247,7 @@ The app uses `DefaultAzureCredential` from `@azure/identity` for Key Vault acces
 - History table search/filter/sort works; Load displays token details; Reissue issues a fresh token; Delete removes items.
 - Real-time expiry updates occur every minute; expired/expiring tokens show prominent reissue buttons.
 - Floating token dock remains visible and accessible.
-- Multi-app: Can add, edit, switch between, and delete app configurations.
+- Multi-app: Can add, edit, switch between, and disconnect app configurations.
 - Key Vault validation: App configuration validates Key Vault access before saving.
 - Favorites can be created, edited, and deleted from both the main page and favorites page.
 - Favorites filtering by type, status, tags, and colors works correctly.
