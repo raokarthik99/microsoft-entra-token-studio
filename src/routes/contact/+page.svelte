@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Github } from "@lucide/svelte";
+  import { Github, MessageSquare, ShieldAlert, GitPullRequest, CheckCircle, XCircle, AlertTriangle, Clock, Bug, Lightbulb } from "@lucide/svelte";
 </script>
 
 <svelte:head>
@@ -7,107 +7,240 @@
   <meta name="description" content="How to reach the maintainers, ask questions, and report issues for Entra Token Studio." />
 </svelte:head>
 
-<div class="mx-auto flex w-full max-w-6xl flex-col gap-10 px-4 py-8 md:py-12">
+<div class="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-8 md:py-12">
+  <!-- Hero Section -->
   <section class="rounded-3xl border border-primary/20 bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-950 px-6 py-8 shadow-2xl ring-1 ring-primary/10">
-    <div class="space-y-3">
-      <p class="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-primary">
-        We keep tokens local · No telemetry
-      </p>
-      <h1 class="text-3xl font-semibold text-white md:text-4xl">Get in touch</h1>
+    <div class="space-y-4">
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-primary">
+          Open Source Community
+        </span>
+        <span class="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-400">
+          No Telemetry
+        </span>
+      </div>
+      <h1 class="text-3xl font-semibold text-white md:text-4xl">Get in Touch</h1>
       <p class="max-w-3xl text-base leading-relaxed text-slate-200">
-        Questions, ideas, or issues? Choose the path that best fits. Please avoid sharing secrets, tokens, or tenant-specific data—screenshots and repro steps are enough.
+        Questions, ideas, or issues? Choose the path that best fits. Please avoid sharing secrets, tokens, or tenant-specific data—screenshots with redactions and repro steps are enough.
       </p>
-    </div>
-    <div class="mt-6 grid gap-4 md:grid-cols-3">
-      <a
-        class="group rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white shadow hover:border-primary/40 hover:bg-primary/10 transition"
-        href="https://github.com/raokarthik99/entra-token-client/issues/new/choose"
-        target="_blank"
-        rel="noreferrer"
-      >
-        <p class="font-semibold inline-flex items-center gap-2">
-          <Github class="h-4 w-4" />
-          Create an issue
-        </p>
-        <p class="mt-1 text-slate-200">Bugs, regressions, or feature requests with repro details.</p>
-      </a>
-      <a
-        class="group rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white shadow hover:border-primary/40 hover:bg-primary/10 transition"
-        href="https://github.com/raokarthik99/entra-token-client/discussions"
-        target="_blank"
-        rel="noreferrer"
-      >
-        <p class="font-semibold inline-flex items-center gap-2">
-          <Github class="h-4 w-4" />
-          Start a discussion
-        </p>
-        <p class="mt-1 text-slate-200">Usage questions, tips, or design feedback.</p>
-      </a>
-      <a
-        class="group rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white shadow hover:border-primary/40 hover:bg-primary/10 transition"
-        href="https://github.com/raokarthik99/entra-token-client/security/advisories/new"
-        target="_blank"
-        rel="noreferrer"
-      >
-        <p class="font-semibold inline-flex items-center gap-2">
-          <Github class="h-4 w-4" />
-          Security reports
-        </p>
-        <p class="mt-1 text-slate-200">Responsible disclosure for vulnerabilities or data risks.</p>
-      </a>
-      <a
-        class="group rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white shadow hover:border-primary/40 hover:bg-primary/10 transition"
-        href="https://github.com/raokarthik99/entra-token-client"
-        target="_blank"
-        rel="noreferrer"
-      >
-        <p class="font-semibold inline-flex items-center gap-2">
-          <Github class="h-4 w-4" />
-          Contribute on GitHub
-        </p>
-        <p class="mt-1 text-slate-200">Read the code, open PRs, or suggest improvements.</p>
-      </a>
     </div>
   </section>
 
+  <!-- Contact Channels -->
+  <section class="grid gap-4 md:grid-cols-2">
+    <a
+      class="group flex flex-col rounded-2xl border-2 border-blue-500/20 bg-card/70 p-5 shadow-sm transition hover:border-blue-500/40 hover:shadow-md"
+      href="https://github.com/raokarthik99/entra-token-client/issues/new/choose"
+      target="_blank"
+      rel="noreferrer"
+    >
+      <div class="flex items-center gap-3">
+        <div class="rounded-lg bg-blue-500/10 p-2.5 ring-1 ring-blue-500/20">
+          <Bug class="h-5 w-5 text-blue-400" />
+        </div>
+        <div>
+          <p class="font-semibold text-foreground flex items-center gap-2">
+            Report an Issue
+            <Github class="h-4 w-4 text-muted-foreground" />
+          </p>
+          <p class="text-xs text-muted-foreground">Bugs, regressions, or unexpected behavior</p>
+        </div>
+      </div>
+      <p class="mt-3 text-sm text-muted-foreground">
+        Found something broken? Open an issue with repro steps. Include browser/OS info and whether you used Key Vault or local credentials.
+      </p>
+      <p class="mt-auto pt-3 text-xs text-blue-400 group-hover:text-blue-300">Open issue template →</p>
+    </a>
+
+    <a
+      class="group flex flex-col rounded-2xl border-2 border-purple-500/20 bg-card/70 p-5 shadow-sm transition hover:border-purple-500/40 hover:shadow-md"
+      href="https://github.com/raokarthik99/entra-token-client/discussions"
+      target="_blank"
+      rel="noreferrer"
+    >
+      <div class="flex items-center gap-3">
+        <div class="rounded-lg bg-purple-500/10 p-2.5 ring-1 ring-purple-500/20">
+          <MessageSquare class="h-5 w-5 text-purple-400" />
+        </div>
+        <div>
+          <p class="font-semibold text-foreground flex items-center gap-2">
+            Start a Discussion
+            <Github class="h-4 w-4 text-muted-foreground" />
+          </p>
+          <p class="text-xs text-muted-foreground">Questions, ideas, or design feedback</p>
+        </div>
+      </div>
+      <p class="mt-3 text-sm text-muted-foreground">
+        Have a question about usage or want to suggest a feature? Discussions are the place for open-ended conversations.
+      </p>
+      <p class="mt-auto pt-3 text-xs text-purple-400 group-hover:text-purple-300">Join discussions →</p>
+    </a>
+
+    <a
+      class="group flex flex-col rounded-2xl border-2 border-red-500/20 bg-card/70 p-5 shadow-sm transition hover:border-red-500/40 hover:shadow-md"
+      href="https://github.com/raokarthik99/entra-token-client/security/advisories/new"
+      target="_blank"
+      rel="noreferrer"
+    >
+      <div class="flex items-center gap-3">
+        <div class="rounded-lg bg-red-500/10 p-2.5 ring-1 ring-red-500/20">
+          <ShieldAlert class="h-5 w-5 text-red-400" />
+        </div>
+        <div>
+          <p class="font-semibold text-foreground flex items-center gap-2">
+            Security Report
+            <Github class="h-4 w-4 text-muted-foreground" />
+          </p>
+          <p class="text-xs text-muted-foreground">Vulnerabilities or data privacy concerns</p>
+        </div>
+      </div>
+      <p class="mt-3 text-sm text-muted-foreground">
+        Found a security issue? Use private disclosure. We'll respond promptly and credit responsible disclosures.
+      </p>
+      <p class="mt-auto pt-3 text-xs text-red-400 group-hover:text-red-300">Report privately →</p>
+    </a>
+
+    <a
+      class="group flex flex-col rounded-2xl border-2 border-emerald-500/20 bg-card/70 p-5 shadow-sm transition hover:border-emerald-500/40 hover:shadow-md"
+      href="https://github.com/raokarthik99/entra-token-client"
+      target="_blank"
+      rel="noreferrer"
+    >
+      <div class="flex items-center gap-3">
+        <div class="rounded-lg bg-emerald-500/10 p-2.5 ring-1 ring-emerald-500/20">
+          <GitPullRequest class="h-5 w-5 text-emerald-400" />
+        </div>
+        <div>
+          <p class="font-semibold text-foreground flex items-center gap-2">
+            Contribute
+            <Github class="h-4 w-4 text-muted-foreground" />
+          </p>
+          <p class="text-xs text-muted-foreground">Code, docs, or design improvements</p>
+        </div>
+      </div>
+      <p class="mt-3 text-sm text-muted-foreground">
+        Want to help? Fork the repo, make your changes, and open a PR. We prioritize safety, clarity, and UX improvements.
+      </p>
+      <p class="mt-auto pt-3 text-xs text-emerald-400 group-hover:text-emerald-300">View repository →</p>
+    </a>
+  </section>
+
+  <!-- What to Include / Do Not Send -->
   <section class="grid gap-6 md:grid-cols-2">
-    <div class="rounded-3xl border border-border bg-card/70 p-6 shadow-sm">
-      <h2 class="text-xl font-semibold text-foreground">What to include</h2>
-      <ul class="mt-3 space-y-2 text-sm leading-relaxed text-muted-foreground">
-        <li>• Clear description of the goal, expected result, and what happened instead.</li>
-        <li>• Steps to reproduce (no real tenant IDs or client secrets—use placeholders).</li>
-        <li>• Whether you used an app token or user token, and which flow (auth code + PKCE or client credentials).</li>
-        <li>• Browser and OS details, plus whether you were using Key Vault or local .env credentials.</li>
+    <div class="rounded-2xl border border-border bg-card/70 p-6 shadow-sm">
+      <h2 class="text-lg font-semibold text-foreground flex items-center gap-2">
+        <CheckCircle class="h-5 w-5 text-emerald-500" />
+        What to Include
+      </h2>
+      <ul class="mt-4 space-y-3">
+        <li class="flex items-start gap-3 text-sm text-muted-foreground">
+          <CheckCircle class="h-4 w-4 shrink-0 mt-0.5 text-emerald-500" />
+          <span>Clear description of goal, expected result, and what happened instead</span>
+        </li>
+        <li class="flex items-start gap-3 text-sm text-muted-foreground">
+          <CheckCircle class="h-4 w-4 shrink-0 mt-0.5 text-emerald-500" />
+          <span>Steps to reproduce (use placeholders like <code class="rounded bg-muted px-1 py-0.5 text-xs">tenant-id-here</code>)</span>
+        </li>
+        <li class="flex items-start gap-3 text-sm text-muted-foreground">
+          <CheckCircle class="h-4 w-4 shrink-0 mt-0.5 text-emerald-500" />
+          <span>Token type used (app/user) and flow (auth code, client credentials)</span>
+        </li>
+        <li class="flex items-start gap-3 text-sm text-muted-foreground">
+          <CheckCircle class="h-4 w-4 shrink-0 mt-0.5 text-emerald-500" />
+          <span>Browser, OS, and credential source (Key Vault / local .env)</span>
+        </li>
+        <li class="flex items-start gap-3 text-sm text-muted-foreground">
+          <CheckCircle class="h-4 w-4 shrink-0 mt-0.5 text-emerald-500" />
+          <span>Screenshots with sensitive values redacted</span>
+        </li>
       </ul>
     </div>
-    <div class="rounded-3xl border border-destructive/30 bg-destructive/5 p-6 shadow-sm">
-      <h2 class="text-xl font-semibold text-destructive">Please do not send</h2>
-      <ul class="mt-3 space-y-2 text-sm leading-relaxed text-destructive/90">
-        <li>• Live tokens, client secrets, or certificate material.</li>
-        <li>• Tenant IDs tied to sensitive environments (use redacted examples).</li>
-        <li>• Screenshots that expose access tokens or Key Vault names.</li>
+
+    <div class="rounded-2xl border border-destructive/30 bg-destructive/5 p-6 shadow-sm">
+      <h2 class="text-lg font-semibold text-destructive flex items-center gap-2">
+        <XCircle class="h-5 w-5" />
+        Please Do Not Send
+      </h2>
+      <ul class="mt-4 space-y-3">
+        <li class="flex items-start gap-3 text-sm text-destructive/90">
+          <XCircle class="h-4 w-4 shrink-0 mt-0.5 text-destructive" />
+          <span>Live access tokens, refresh tokens, or auth codes</span>
+        </li>
+        <li class="flex items-start gap-3 text-sm text-destructive/90">
+          <XCircle class="h-4 w-4 shrink-0 mt-0.5 text-destructive" />
+          <span>Client secrets or certificate private keys</span>
+        </li>
+        <li class="flex items-start gap-3 text-sm text-destructive/90">
+          <XCircle class="h-4 w-4 shrink-0 mt-0.5 text-destructive" />
+          <span>Real tenant IDs for production environments</span>
+        </li>
+        <li class="flex items-start gap-3 text-sm text-destructive/90">
+          <XCircle class="h-4 w-4 shrink-0 mt-0.5 text-destructive" />
+          <span>Key Vault URIs or secret names from sensitive vaults</span>
+        </li>
       </ul>
-      <p class="mt-3 text-xs text-destructive/80">
-        This is a local-first project with no telemetry; keep security reports private until confirmed and fixed.
-      </p>
+      <div class="mt-4 rounded-lg border border-destructive/20 bg-destructive/5 p-3">
+        <p class="text-xs text-destructive/80 flex items-start gap-2">
+          <AlertTriangle class="h-4 w-4 shrink-0 mt-0.5" />
+          <span>This project has no telemetry. Keep security reports private until confirmed and fixed.</span>
+        </p>
+      </div>
     </div>
   </section>
 
-  <section class="rounded-3xl border border-primary/10 bg-primary/5 p-6 shadow-inner">
-    <h2 class="text-xl font-semibold text-foreground">Collaboration notes</h2>
-    <div class="mt-3 grid gap-4 md:grid-cols-3">
-      <div class="space-y-2 text-sm text-muted-foreground">
-        <p class="text-foreground font-semibold">Openness</p>
-        <p>MIT licensed for broad reuse. Contributions that improve clarity, UX, or safety are prioritized.</p>
+  <!-- Response Expectations -->
+  <section class="rounded-2xl border border-primary/10 bg-primary/5 p-6 shadow-inner">
+    <h2 class="text-lg font-semibold text-foreground flex items-center gap-2">
+      <Clock class="h-5 w-5 text-primary" />
+      Response Expectations
+    </h2>
+    <div class="mt-4 grid gap-4 md:grid-cols-3">
+      <div class="rounded-xl border border-border bg-background/60 p-4">
+        <div class="flex items-center gap-2">
+          <div class="h-2 w-2 rounded-full bg-red-500"></div>
+          <p class="text-sm font-semibold text-foreground">Security Issues</p>
+        </div>
+        <p class="mt-2 text-sm text-muted-foreground">Highest priority. We aim to acknowledge within 24-48 hours and provide updates throughout resolution.</p>
       </div>
-      <div class="space-y-2 text-sm text-muted-foreground">
-        <p class="text-foreground font-semibold">Respect for privacy</p>
-        <p>No analytics or call-home code. History and favorites stay in your browser; secrets stay in Key Vault or .env.</p>
+      <div class="rounded-xl border border-border bg-background/60 p-4">
+        <div class="flex items-center gap-2">
+          <div class="h-2 w-2 rounded-full bg-amber-500"></div>
+          <p class="text-sm font-semibold text-foreground">Bug Reports</p>
+        </div>
+        <p class="mt-2 text-sm text-muted-foreground">High priority. We triage within a few days and prioritize based on impact and reproducibility.</p>
       </div>
-      <div class="space-y-2 text-sm text-muted-foreground">
-        <p class="text-foreground font-semibold">Response expectations</p>
-        <p>We respond as quickly as we can, prioritizing security, data handling, and regressions first.</p>
+      <div class="rounded-xl border border-border bg-background/60 p-4">
+        <div class="flex items-center gap-2">
+          <div class="h-2 w-2 rounded-full bg-blue-500"></div>
+          <p class="text-sm font-semibold text-foreground">Features & Questions</p>
+        </div>
+        <p class="mt-2 text-sm text-muted-foreground">As time allows. We engage with discussions and evaluate feature requests for fit and scope.</p>
       </div>
+    </div>
+  </section>
+
+  <!-- Collaboration Notes -->
+  <section class="grid gap-4 md:grid-cols-3">
+    <div class="rounded-2xl border border-border bg-card/70 p-4 shadow-sm">
+      <p class="text-sm font-semibold text-foreground flex items-center gap-2">
+        <Lightbulb class="h-4 w-4 text-primary" />
+        Openness
+      </p>
+      <p class="mt-2 text-sm text-muted-foreground">MIT licensed for broad reuse. Contributions that improve clarity, UX, or safety are prioritized.</p>
+    </div>
+    <div class="rounded-2xl border border-border bg-card/70 p-4 shadow-sm">
+      <p class="text-sm font-semibold text-foreground flex items-center gap-2">
+        <ShieldAlert class="h-4 w-4 text-primary" />
+        Privacy Respect
+      </p>
+      <p class="mt-2 text-sm text-muted-foreground">No analytics or call-home code. History stays in your browser; secrets stay in Key Vault or .env.</p>
+    </div>
+    <div class="rounded-2xl border border-border bg-card/70 p-4 shadow-sm">
+      <p class="text-sm font-semibold text-foreground flex items-center gap-2">
+        <Github class="h-4 w-4 text-primary" />
+        Community Driven
+      </p>
+      <p class="mt-2 text-sm text-muted-foreground">Built by developers, for developers. Your feedback shapes the roadmap.</p>
     </div>
   </section>
 </div>
