@@ -12,7 +12,8 @@
     cancelText = "Cancel",
     onConfirm,
     onCancel,
-    destructive = true
+    destructive = true,
+    confirmDisabled = false
   } = $props<{
     open?: boolean;
     title: string;
@@ -23,6 +24,7 @@
     onConfirm: () => void | Promise<void>;
     onCancel?: () => void;
     destructive?: boolean;
+    confirmDisabled?: boolean;
   }>();
 
   async function handleConfirm() {
@@ -52,6 +54,7 @@
       <AlertDialog.Cancel onclick={handleCancel}>{cancelText}</AlertDialog.Cancel>
       <AlertDialog.Action 
         onclick={handleConfirm}
+        disabled={confirmDisabled}
         class={destructive ? buttonVariants({ variant: "destructive" }) : ""}
       >
         {confirmText}

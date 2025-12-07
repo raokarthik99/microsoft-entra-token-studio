@@ -2,7 +2,7 @@
   import * as Card from "$lib/shadcn/components/ui/card";
   import { Button } from "$lib/shadcn/components/ui/button";
   import { Label } from "$lib/shadcn/components/ui/label";
-  import { Trash2, LogOut, User } from "@lucide/svelte";
+  import { Trash2, LogOut, User, ShieldAlert } from "@lucide/svelte";
   import * as Select from "$lib/shadcn/components/ui/select";
   import { setMode, userPrefersMode } from "mode-watcher";
   import { Badge } from "$lib/shadcn/components/ui/badge";
@@ -31,6 +31,20 @@ import { appRegistry } from '$lib/states/app-registry.svelte';
 
   let importPreview = $state<ImportPreview | null>(null);
 
+  // Export confirmation state
+  let exportConfirmOpen = $state(false);
+  let exportAck1 = $state(false); // Tokens are sensitive
+  let exportAck2 = $state(false); // Delete after import
+  let exportAck3 = $state(false); // Never share tokens
+
+  const canExport = $derived(exportAck1 && exportAck2 && exportAck3);
+
+  function resetExportAcknowledgments() {
+    exportAck1 = false;
+    exportAck2 = false;
+    exportAck3 = false;
+  }
+
   // Confirmation state
   let confirmOpen = $state(false);
   let confirmTitle = $state("");
@@ -58,7 +72,13 @@ import { appRegistry } from '$lib/states/app-registry.svelte';
     deletePreviewCounts.isAuthenticated
   );
 
-  async function handleExport() {
+  function handleExport() {
+    // Reset acknowledgments and open the confirmation dialog
+    resetExportAcknowledgments();
+    exportConfirmOpen = true;
+  }
+
+  async function performExport() {
     isExporting = true;
     try {
       const data = await dataExportService.exportAllData();
@@ -492,6 +512,70 @@ import { appRegistry } from '$lib/states/app-registry.svelte';
         {/if}
         
         <p class="text-xs text-muted-foreground">This action cannot be undone.</p>
+      </div>
+    {/snippet}
+  </ConfirmDialog>
+
+  <!-- Export Data Security Acknowledgment Dialog -->
+  <ConfirmDialog
+    bind:open={exportConfirmOpen}
+    title="Security Notice: Export Data"
+    confirmText={isExporting ? 'Exporting...' : 'Export Data'}
+    destructive={false}
+    onConfirm={performExport}
+    confirmDisabled={!canExport}
+  >
+    {#snippet descriptionContent()}
+      <div class="space-y-4">
+        <div class="rounded-md border border-amber-500/30 bg-amber-500/10 p-3">
+          <div class="flex items-start gap-2">
+            <ShieldAlert class="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+            <p class="text-sm text-amber-600 dark:text-amber-400">
+              The exported file will contain sensitive tokens. Please read and acknowledge the following before proceeding.
+            </p>
+          </div>
+        </div>
+
+        <div class="space-y-3">
+          <label class="flex items-start gap-3 cursor-pointer group">
+            <input
+              type="checkbox"
+              bind:checked={exportAck1}
+              class="mt-0.5 h-4 w-4 rounded border-border text-primary focus:ring-primary focus:ring-offset-background"
+            />
+            <span class="text-sm text-foreground leading-tight">
+              I understand the exported file contains <strong>sensitive access tokens</strong>. Even though they are short-lived, they can still be used to access resources until they expire.
+            </span>
+          </label>
+
+          <label class="flex items-start gap-3 cursor-pointer group">
+            <input
+              type="checkbox"
+              bind:checked={exportAck2}
+              class="mt-0.5 h-4 w-4 rounded border-border text-primary focus:ring-primary focus:ring-offset-background"
+            />
+            <span class="text-sm text-foreground leading-tight">
+              I will <strong>delete the exported file immediately</strong> after importing it into a new device or browser.
+            </span>
+          </label>
+
+          <label class="flex items-start gap-3 cursor-pointer group">
+            <input
+              type="checkbox"
+              bind:checked={exportAck3}
+              class="mt-0.5 h-4 w-4 rounded border-border text-primary focus:ring-primary focus:ring-offset-background"
+            />
+            <span class="text-sm text-foreground leading-tight">
+              I will <strong>never share this file</strong> with others. Tokens are personal to my identity and should not be shared, even with trusted developers.
+            </span>
+          </label>
+        </div>
+
+        {#if !canExport}
+          <p class="text-xs text-muted-foreground">
+            Please acknowledge all items above to proceed with the export.
+          </p>
+        {/if}
       </div>
     {/snippet}
   </ConfirmDialog>
