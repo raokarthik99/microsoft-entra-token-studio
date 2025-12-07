@@ -104,18 +104,7 @@
     return [];
   })());
 
-  const resourcePresets = [
-    { label: 'Microsoft Graph', value: 'https://graph.microsoft.com' },
-    { label: 'Azure Resource Manager', value: 'https://management.azure.com' },
-    { label: 'Custom API (.default)', value: 'api://your-api/.default' },
-  ];
 
-  const scopePresets = [
-    { label: 'Profile (User.Read)', value: 'User.Read' },
-    { label: 'Mail + offline access', value: 'User.Read Mail.Read offline_access' },
-    { label: 'Admin: Directory.Read.All', value: 'Directory.Read.All' },
-    { label: 'Custom API scope', value: 'api://your-api/user.read' },
-  ];
 
   const hasResult = $derived(Boolean(result));
   const lastRun = $derived(historyState.items[0] ?? null);
@@ -629,13 +618,7 @@
     await historyState.delete(item);
   }
 
-  function applyResourcePreset(value: string) {
-    resource = value;
-  }
 
-  function applyScopePreset(value: string) {
-    scopes = value;
-  }
 
   async function handleSelectApp(appId: string) {
     await appRegistry.setActive(appId);
@@ -1036,20 +1019,7 @@
                       </Collapsible.Root>
                     </div>
                     
-                    <div class="space-y-1.5">
-                      <Label class="text-xs text-muted-foreground">Presets</Label>
-                      <div class="flex flex-wrap gap-2">
-                        {#each scopePresets as preset}
-                          <button 
-                            type="button" 
-                            class="inline-flex items-center rounded-full border bg-background px-2.5 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                            onclick={() => applyScopePreset(preset.value)}
-                          >
-                            {preset.label}
-                          </button>
-                        {/each}
-                      </div>
-                    </div>
+
                   </div>
                   <div class="rounded-lg border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
                     Consent is handled by Microsoft Identity. A popup may appear if permission is needed.
@@ -1130,20 +1100,7 @@
                       />
                     </div>
                     
-                    <div class="space-y-1.5">
-                      <Label class="text-xs text-muted-foreground">Presets</Label>
-                      <div class="flex flex-wrap gap-2">
-                        {#each resourcePresets as preset}
-                          <button 
-                            type="button" 
-                            class="inline-flex items-center rounded-full border bg-background px-2.5 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                            onclick={() => applyResourcePreset(preset.value)}
-                          >
-                            {preset.label}
-                          </button>
-                        {/each}
-                    </div>
-                  </div>
+
 
                   <!-- App Permissions Guide -->
                   <Collapsible.Root bind:open={appHelpOpen} class="mt-1">
