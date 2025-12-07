@@ -14,9 +14,9 @@ Built with SvelteKit 2, Svelte 5, TypeScript, shadcn components, MSAL, and Azure
 
 > ⚠️ **Local-only, developer-supervised use.** This app handles real credentials and live access tokens. Run it on your own machine, keep browser storage under your control, and never deploy it as a shared or multi-user service.
 
-![About Page Screenshot](static/entra-about-page.png)
+![About Page Screenshot](static/about-page.png)
 
-![Entra Token Studio Screenshot](static/entra-token-studio-screenshot.png)
+![Entra Token Studio Screenshot](static/playground.png)
 
 ---
 
