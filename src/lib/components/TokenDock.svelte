@@ -26,7 +26,6 @@
     Play,
     Star,
     StarOff,
-    Sparkles,
     Pin,
     PinOff
   } from '@lucide/svelte';
@@ -344,7 +343,7 @@
               <div class="space-y-2 text-sm text-muted-foreground">
                 <p class="leading-relaxed">Issue an app or user token and it will stay docked here for quick copy.</p>
                 <Button size="sm" variant="default" class="gap-2" onclick={startGenerating}>
-                  <Sparkles class="h-4 w-4" />
+                  <Play class="h-4 w-4" />
                   Start generating
                 </Button>
               </div>

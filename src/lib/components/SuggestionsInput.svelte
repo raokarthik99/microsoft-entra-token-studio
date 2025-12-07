@@ -7,7 +7,8 @@
   import { 
     Pin, 
     Clock, 
-    Sparkles, 
+    Zap, 
+    Lightbulb, 
     Star, 
     AlertTriangle,
   } from "@lucide/svelte";
@@ -130,8 +131,8 @@
       case 'pinned': return Pin;
       case 'favorite': return Star;
       case 'history': return Clock;
-      case 'preset': return Sparkles;
-      default: return Sparkles;
+      case 'preset': return Lightbulb;
+      default: return Lightbulb;
     }
   }
 </script>
@@ -165,7 +166,7 @@
       <!-- Dropdown header -->
       <div class="flex items-center gap-2 px-3 py-2.5 border-b border-border/30 bg-gradient-to-r from-primary/5 to-transparent">
         <div class="flex items-center justify-center h-5 w-5 rounded-md bg-primary/15">
-          <Sparkles class="h-3 w-3 text-primary" />
+          <Zap class="h-3 w-3 text-primary" />
         </div>
         <span class="text-xs font-semibold text-foreground/80">Quick picks</span>
         <div class="ml-auto flex items-center gap-1.5 text-[10px] text-muted-foreground/70 bg-muted/40 px-2 py-1 rounded-md">

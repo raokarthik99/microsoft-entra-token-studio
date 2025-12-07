@@ -5,7 +5,7 @@
   import { Badge } from '$lib/shadcn/components/ui/badge';
   import { Button } from '$lib/shadcn/components/ui/button';
   import { toast } from 'svelte-sonner';
-  import { Key, Lock, CheckCircle2, AlertTriangle, FileKey, ShieldCheck, ExternalLink, Copy, Info, Shield, Zap, Terminal, ChevronDown, ChevronRight, Sparkles } from '@lucide/svelte';
+  import { Key, Lock, CheckCircle2, AlertTriangle, FileKey, ShieldCheck, ExternalLink, Copy, Info, Shield, Zap, Terminal, ChevronDown, ChevronRight } from '@lucide/svelte';
   import type { CredentialValidationStatus, HealthStatus } from '$lib/types';
 
   interface Props {

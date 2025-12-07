@@ -17,7 +17,8 @@
     Shield,
     KeyRound,
     ArrowRight,
-    Sparkles,
+    Search,
+    Zap,
     Trash2,
     History,
     Star,
@@ -303,7 +304,7 @@
             <div class="group rounded-xl border bg-card/50 p-5 transition-all hover:bg-card hover:shadow-md hover:border-emerald-500/30 hover:-translate-y-0.5">
               <div class="flex items-start gap-3">
                 <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 group-hover:bg-emerald-500/20 transition-colors">
-                  <Sparkles class="h-5 w-5 text-emerald-500" />
+                  <Search class="h-5 w-5 text-emerald-500" />
                 </div>
                 <div class="min-w-0">
                   <h3 class="font-medium text-sm">Inspect Claims</h3>
@@ -609,7 +610,7 @@
         class="group flex items-center gap-4 rounded-xl border border-primary/20 bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 p-4 transition-all hover:border-primary/40 hover:shadow-md hover:shadow-primary/5"
       >
         <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 transition-transform group-hover:scale-105">
-          <Sparkles class="h-6 w-6 text-primary" />
+          <Zap class="h-6 w-6 text-primary" />
         </div>
         <div class="flex-1 min-w-0">
           <div class="flex items-center gap-2">
