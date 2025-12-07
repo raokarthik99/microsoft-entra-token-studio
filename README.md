@@ -14,6 +14,15 @@ Local, single-user lab for generating and inspecting Microsoft Entra access toke
 - Data portability: import/export all IndexedDB data (history, favorites, preferences, app configs) with validation and replace semantics.
 - First-run onboarding: automatic redirect to `/apps` when no apps exist, guided setup, and credential health checks.
 
+## Tech stack
+
+- SvelteKit 2 with Svelte 5 runes and TypeScript.
+- shadcn-svelte components plus Tailwind utility classes (via Vite plugin) and bits-ui primitives.
+- Vite tooling with pnpm, strict `svelte-check`, and TypeScript-aware builds.
+- Authentication: `@azure/msal-node` for confidential clients and `@azure/msal-browser` for PKCE flows.
+- Azure SDK: `@azure/identity`, `@azure/keyvault-certificates`, `@azure/keyvault-secrets` for Key Vault access.
+- Persistence and parsing: `idb-keyval` for IndexedDB storage, `node-forge` + OpenSSL CLI fallback for PEM/PKCS#12 certificates.
+
 ## How token flows work
 
 - **App tokens**: Server-side client credential flow using `@azure/msal-node`. Certificates support PEM and PKCS#12 with OpenSSL fallback for modern encryption. Authentication method is auto-selected in this order: Key Vault certificate → local certificate file → Key Vault secret → local client secret.
@@ -35,40 +44,9 @@ Local, single-user lab for generating and inspecting Microsoft Entra access toke
 - Microsoft Entra tenant with permission to register apps.
 - Azure Key Vault containing your client secret or certificate, and Azure identity access (CLI login, VS Code, or managed identity via `DefaultAzureCredential`).
 
-## Setup
+## Quickstart
 
-1) **Clone and install**
-```bash
-git clone <repository-url>
-cd entra-token-client
-pnpm install
-```
-
-2) **Configure environment**
-```bash
-cp .env.example .env
-```
-Set at least:
-- `PORT` — dev server port (defaults to 5173).
-- `REDIRECT_URI` — SPA redirect (defaults to `http://localhost:5173/auth/callback`).
-
-3) **Choose an app token credential source**
-- **Azure Key Vault (recommended)**  
-  - `AZURE_KEYVAULT_URI` — `https://your-vault.vault.azure.net`  
-  - `AZURE_KEYVAULT_CERT_NAME` — certificate name **or**  
-  - `AZURE_KEYVAULT_SECRET_NAME` — client secret name  
-  - Optional: `CERTIFICATE_PFX_PASSPHRASE` if the PFX is protected.
-- **Local development (single-user only)**  
-  - `TENANT_ID` and `CLIENT_ID` for your app registration.  
-  - Either `CLIENT_SECRET` **or** `CERTIFICATE_PATH` (PEM or PFX; supports `CERTIFICATE_PFX_PASSPHRASE`).
-
-The server auto-picks the first available method. Restart the dev server after changing credentials.
-
-4) **Run the app**
-```bash
-pnpm dev
-```
-Open `http://localhost:5173`. With no apps configured, you'll be redirected to `/apps` to connect your first client app.
+TODO
 
 ## Onboarding and everyday use
 

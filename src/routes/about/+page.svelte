@@ -107,13 +107,8 @@
         <h3 class="text-xl font-semibold text-foreground">Project notes</h3>
         <p class="text-sm text-muted-foreground">Context for contributors and adopters.</p>
       </div>
-      <div class="flex flex-wrap gap-2 text-xs font-medium text-primary">
-        <span class="rounded-full border border-primary/20 bg-primary/10 px-3 py-1">SvelteKit 2 + Svelte 5 runes</span>
-        <span class="rounded-full border border-primary/20 bg-primary/10 px-3 py-1">TypeScript-first</span>
-        <span class="rounded-full border border-primary/20 bg-primary/10 px-3 py-1">Shadcn UI</span>
-      </div>
     </div>
-    <div class="mt-5 grid gap-5 md:grid-cols-3">
+    <div class="mt-5 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
       <div class="space-y-2 text-sm text-muted-foreground">
         <p class="text-foreground font-semibold">Scope</p>
         <p>Single-user, local dev tooling. Not intended for shared hosting or multi-tenant production deployments.</p>
@@ -125,6 +120,10 @@
       <div class="space-y-2 text-sm text-muted-foreground">
         <p class="text-foreground font-semibold">Open source</p>
         <p>Licensed under MIT for broad reuse. Contributions that improve safety, clarity, or developer experience are welcome.</p>
+      </div>
+      <div class="space-y-2 text-sm text-muted-foreground">
+        <p class="text-foreground font-semibold">Tech stack</p>
+        <p>Vite + pnpm build pipeline; Tailwind with shadcn-svelte and bits-ui primitives; MSAL (Node/Browser) for auth; Azure SDK for Key Vault; idb-keyval for IndexedDB; node-forge with OpenSSL fallback for PEM/PKCS#12 parsing.</p>
       </div>
     </div>
   </section>
