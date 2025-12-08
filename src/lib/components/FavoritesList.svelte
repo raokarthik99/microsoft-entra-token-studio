@@ -183,18 +183,12 @@
       const aPinned = Boolean(a.favorite.isPinned);
       const bPinned = Boolean(b.favorite.isPinned);
 
-      if (aPinned && bPinned) {
-        const aPinnedAt = a.favorite.pinnedAt ?? 0;
-        const bPinnedAt = b.favorite.pinnedAt ?? 0;
-        if (aPinnedAt !== bPinnedAt) {
-          return bPinnedAt - aPinnedAt;
-        }
-      }
-
+      // Pinned items always come before unpinned items
       if (aPinned !== bPinned) {
         return aPinned ? -1 : 1;
       }
 
+      // Both pinned or both unpinned: apply column-based sorting
       const direction = sortDirection === "asc" ? 1 : -1;
       switch (sortKey) {
         case "name": {

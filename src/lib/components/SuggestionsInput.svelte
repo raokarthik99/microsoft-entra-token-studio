@@ -143,7 +143,7 @@
 >
   <div class="relative">
       <Input
-        bind:this={inputRef}
+        bind:ref={inputRef}
         type="text"
         {id}
         bind:value

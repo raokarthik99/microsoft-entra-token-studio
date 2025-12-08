@@ -114,6 +114,18 @@ export class FavoritesState {
         return this.findMatch(type, target) !== undefined;
     }
 
+    /**
+     * Update the tokenData for a matching favorite.
+     * Called when a new token is issued for the same type/target to keep
+     * the favorite's status (expiry, etc.) in sync with the latest token.
+     */
+    async updateTokenData(type: FavoriteItem['type'], target: string, tokenData: FavoriteItem['tokenData']): Promise<void> {
+        const match = this.findMatch(type, target);
+        if (!match) return;
+        
+        await this.update(match.id, { tokenData });
+    }
+
     async pin(id: string) {
         const target = this.items.find((fav) => fav.id === id);
         if (!target) {

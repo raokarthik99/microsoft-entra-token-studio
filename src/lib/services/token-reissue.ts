@@ -1,6 +1,9 @@
 /**
  * Centralized token reissue service.
- * Provides consistent navigation-based reissue flow with proper URL parameter management.
+ * Provides consistent reissue flow that works both via navigation and when already on the playground.
+ * 
+ * When navigating TO the playground from another page, we use URL params + onMount.
+ * When ALREADY on the playground, we use a custom event to trigger token issuance directly.
  */
 
 import { goto } from '$app/navigation';
@@ -12,6 +15,23 @@ export interface ReissueContext {
   type: 'App Token' | 'User Token';
   target: string;
   appId?: string;
+}
+
+/** Custom event name for reissue requests when already on the playground */
+export const REISSUE_EVENT = 'playground:reissue';
+
+/** Type for the reissue event detail */
+export interface ReissueEventDetail {
+  context: ReissueContext;
+}
+
+/**
+ * Check if we're currently on the playground page.
+ */
+function isOnPlaygroundPage(): boolean {
+  if (typeof window === 'undefined') return false;
+  const pathname = window.location.pathname;
+  return pathname === '/' || pathname === '';
 }
 
 /**
@@ -42,12 +62,35 @@ async function switchToAppIfExists(appId: string | undefined): Promise<void> {
 }
 
 /**
- * Core reissue function. Navigates to the playground with autorun params.
+ * Dispatch a reissue event for when we're already on the playground.
+ * The playground listens for this and triggers token issuance directly.
+ */
+function dispatchReissueEvent(context: ReissueContext): void {
+  if (typeof window === 'undefined') return;
+  
+  const event = new CustomEvent<ReissueEventDetail>(REISSUE_EVENT, {
+    detail: { context },
+    bubbles: true,
+  });
+  window.dispatchEvent(event);
+}
+
+/**
+ * Core reissue function. 
+ * - If already on the playground, dispatches an event to trigger token issuance directly.
+ * - If on another page, navigates to the playground with autorun params.
  */
 export async function reissue(context: ReissueContext): Promise<void> {
   await switchToAppIfExists(context.appId);
-  const params = buildReissueParams(context);
-  await goto(`/?${params.toString()}`);
+  
+  if (isOnPlaygroundPage()) {
+    // Already on playground - dispatch event for direct handling
+    dispatchReissueEvent(context);
+  } else {
+    // Navigate to playground with autorun params
+    const params = buildReissueParams(context);
+    await goto(`/?${params.toString()}`);
+  }
 }
 
 /**
@@ -67,15 +110,22 @@ export async function reissueFromHistory(item: HistoryItem): Promise<void> {
 export async function reissueFromFavorite(favorite: FavoriteItem): Promise<void> {
   await switchToAppIfExists(favorite.appId);
   
-  // Increment use count before navigation
+  // Increment use count before triggering reissue
   await favoritesState.incrementUse(favorite.id);
   
-  const params = buildReissueParams({
+  const context: ReissueContext = {
     type: favorite.type,
     target: favorite.target
-  });
+  };
   
-  await goto(`/?${params.toString()}`);
+  if (isOnPlaygroundPage()) {
+    // Already on playground - dispatch event for direct handling
+    dispatchReissueEvent(context);
+  } else {
+    // Navigate to playground with autorun params
+    const params = buildReissueParams(context);
+    await goto(`/?${params.toString()}`);
+  }
 }
 
 /**

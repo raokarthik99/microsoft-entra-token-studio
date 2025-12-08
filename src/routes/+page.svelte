@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, tick } from 'svelte';
+  import { onMount, onDestroy, tick } from 'svelte';
   import type { HistoryItem, TokenData, FavoriteItem, HealthStatus, CredentialValidationStatus } from '$lib/types';
   import { parseJwt, getTokenStatus } from '$lib/utils';
   import { historyState } from '$lib/states/history.svelte';
@@ -28,7 +28,7 @@
   import * as Tooltip from "$lib/shadcn/components/ui/tooltip";
   import { goto } from '$app/navigation';
   import { clientStorage, CLIENT_STORAGE_KEYS } from '$lib/services/client-storage';
-  import { clearReissueParams } from '$lib/services/token-reissue';
+  import { clearReissueParams, REISSUE_EVENT, type ReissueEventDetail, type ReissueContext } from '$lib/services/token-reissue';
   
   import { 
     User,
@@ -220,7 +220,31 @@
     }
   });
 
+  /**
+   * Handle reissue events dispatched when already on the playground.
+   * This enables idempotent reissue from any location.
+   */
+  async function handleReissueEvent(event: CustomEvent<ReissueEventDetail>) {
+    const { context } = event.detail;
+    
+    // Switch tab and update input based on token type
+    if (context.type === 'App Token') {
+      activeTab = 'app-token';
+      resourceInput = context.target;
+      await tick();
+      handleAppSubmit();
+    } else {
+      activeTab = 'user-token';
+      scopesInput = context.target;
+      await tick();
+      handleUserSubmit();
+    }
+  }
+
   onMount(() => {
+    // Listen for reissue events (when already on playground)
+    window.addEventListener(REISSUE_EVENT, handleReissueEvent as unknown as EventListener);
+
     (async () => {
       const urlParams = new URLSearchParams(window.location.search);
       const tabParam = urlParams.get('tab');
@@ -272,6 +296,13 @@
       // Clear URL params immediately after reading to prevent stale autorun on refresh
       clearReissueParams();
     })();
+  });
+
+  onDestroy(() => {
+    // Clean up reissue event listener
+    if (typeof window !== 'undefined') {
+      window.removeEventListener(REISSUE_EVENT, handleReissueEvent as unknown as EventListener);
+    }
   });
 
   // Removed loadHistory function
@@ -352,6 +383,8 @@
         }
         await addToHistory(historyItem);
         tokenDockState.setToken(historyItem);
+        // Sync favorite's token data if this target is already favorited
+        await favoritesState.updateTokenData(historyItem.type, historyItem.target, historyItem.tokenData);
         toast.success("App token acquired successfully");
       } else {
         const errorMsg = data.details ? `${data.error}: ${data.details}` : data.error || 'Failed to fetch token';
@@ -418,6 +451,8 @@
       }
       await addToHistory(historyItem);
       tokenDockState.setToken(historyItem);
+      // Sync favorite's token data if this target is already favorited
+      await favoritesState.updateTokenData(historyItem.type, historyItem.target, historyItem.tokenData);
       toast.success("User token acquired successfully");
     } catch (err: any) {
       console.error('Token acquisition failed', err);
