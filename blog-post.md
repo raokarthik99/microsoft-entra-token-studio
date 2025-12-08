@@ -1,26 +1,40 @@
 # Entra Token Studio: A Local Developer Workbench for Microsoft Entra ID
 
-**TL;DR:** A local-first tool for generating and inspecting Microsoft Entra (Azure AD) access tokens. Keeps credentials in Key Vault, stores history in IndexedDB, and implements both client credentials and authorization code flows with proper security boundaries.
+_Or: stop copy‑pasting access tokens from dev tools._
+
+**TL;DR:** Entra Token Studio is a **local‑first workbench** for generating and inspecting Microsoft Entra (Azure AD) access tokens. It keeps credentials in **Azure Key Vault**, stores history in **IndexedDB**, and supports both **client credentials** and **authorization code + PKCE** flows with strict security boundaries.
 
 [GitHub](https://github.com/raokarthik99/microsoft-entra-token-studio) · [MIT License](https://github.com/raokarthik99/microsoft-entra-token-studio/blob/main/LICENSE)
 
 ---
 
-## Background
+## Why This Exists
 
-Working with Microsoft Entra ID in enterprise environments means dealing with OAuth 2.0 flows, app registrations, and access tokens constantly. Yet the tooling gap between "I configured an app in Azure Portal" and "I need a token to test this API endpoint" remains surprisingly wide.
+If you work with Microsoft Entra ID long enough, you start to build a personal museum of hacks:
 
-The typical workflow involves scattered PowerShell scripts, curl commands with certificate parameters, or digging through browser DevTools to extract tokens from authenticated sessions. Each developer maintains their own collection of helpers, and knowledge transfer usually happens via Slack messages containing base64-encoded certificates.
+- Half‑remembered `az account get-access-token` commands  
+- PowerShell scripts that only one person on the team knows how to fix  
+- Postman collections with expired certificates and mystery client IDs  
+- Slack messages full of base64 blobs and “just run this once” instructions  
 
-This tool addresses that gap directly: a browser-based workbench that handles credential management through Key Vault, implements OAuth flows correctly, and provides visibility into token contents—all running locally with no external dependencies beyond Azure.
+The gap between:
+
+- “I configured an app registration in Azure Portal”  
+and  
+- “I have a token I trust to debug this API”  
+
+is still surprisingly wide.
+
+Entra Token Studio is my attempt to close that gap with something I actually enjoy using: a **browser UI that runs locally**, speaks fluent Entra, respects security boundaries, and makes tokens feel _boring_ again (in a good way).
 
 ---
 
-## The Architecture: A "Local-First" Bridge
+## What Entra Token Studio Is (In One Picture)
 
-The core architectural idea is simple: valid OAuth tokens are difficult to craft manually but easy to request if you have the right plumbing.
+At a high level, the app is a **secure local bridge** between:
 
-Entra Token Studio acts as a secure **local bridge** between your configuration (in Azure) and your daily development work (in your IDE/Terminal).
+- Your **Entra app registrations + Key Vault credentials**, and  
+- Your **day‑to‑day development work** (APIs, CLIs, Postman, etc.)
 
 ```mermaid
 graph LR
@@ -48,109 +62,127 @@ graph LR
     style Debug fill:#fff3e0,stroke:#e65100
 ```
 
-### Security First: The "No-Touch" Model
+You configure apps once, wire them up to Key Vault, and then issue tokens on demand—without re‑teaching yourself all the OAuth incantations every time.
 
-The most critical architectural decision was the security boundary. To be safe for daily use, we needed a guarantee: **Long-lived credentials never touch the browser storage.**
+---
 
-The app implements a "stateless server" pattern for credentials:
-1.  **Browser**: "I need a token for App X." (No secrets sent)
-2.  **Local Server**: "I know App X uses Key Vault. I'll fetch the cert, exchange it for a token, and drop the cert immediately."
-3.  **Azure**: "Here is the token."
-4.  **Local Server**: "Here is the token, Browser." (No secrets returned)
+## How It Works (Without Hand‑Waving)
 
-This is effectively a **local-only Backend-for-Frontend (BFF)** that handles the dangerous cryptography so your browser doesn't have to. 
+### A “No‑Touch” Security Model
 
-For app tokens (client credentials flow), the SvelteKit server-side action:
-1. Receives a request specifying tenant, client ID, resource, and credential reference
-2. Fetches the certificate or secret from Key Vault using `DefaultAzureCredential`
-3. Performs the OAuth token request against Entra ID
-4. Returns only the issued access token to the browser
+The most important design decision was simple:
 
-For user tokens (authorization code + PKCE), MSAL.js handles the flow entirely client-side—no secrets involved, as PKCE eliminates the need for a client secret.
+> **Long‑lived credentials never live in the browser.**
 
-### Technology Choices
+Instead, the app uses a local‑only **Backend‑for‑Frontend (BFF)** pattern:
+
+1. **Browser**: “I need a token for App X with resource Y.”  
+2. **SvelteKit server**: “I know App X uses Key Vault entry Z. I’ll fetch that cert/secret, exchange it for a token, and then drop the credential.”  
+3. **Azure AD**: Issues the token.  
+4. **Server → Browser**: Only the **access token** crosses the boundary—no secrets, no certificates.
+
+For app tokens (client credentials flow), the server:
+
+1. Receives a request with tenant ID, client ID, resource, and a **credential reference** (not the secret itself).  
+2. Uses `DefaultAzureCredential` to access Key Vault and fetch either:
+   - A client secret, or  
+   - A certificate (PEM or PKCS#12/PFX).  
+3. Exchanges it for an access token against Microsoft Entra ID.  
+4. Returns **only the access token** to the browser.
+
+For user tokens (authorization code + PKCE), the flow is the opposite:
+
+- The **browser handles everything** via MSAL.js.  
+- There are **no client secrets** involved—PKCE (RFC 7636) binds the authorization code to the original request using a code verifier/challenge.  
+- The SvelteKit server sits this one out entirely.
+
+### Under the Hood: Technology Choices
 
 | Layer | Choice | Rationale |
 |-------|--------|-----------|
-| **Framework** | SvelteKit 2, Svelte 5 | Server actions, form handling, minimal client bundle |
-| **Components** | shadcn-svelte | Accessible, composable, no vendor lock-in |
-| **Azure SDK** | `@azure/msal-node`, `@azure/identity` | Official SDKs, handles token caching and refresh |
-| **Key Vault** | `@azure/keyvault-certificates`, `@azure/keyvault-secrets` | Direct API, supports both cert types |
-| **Client Storage** | `idb-keyval` (IndexedDB) | Structured persistence, larger quota than localStorage |
+| **Framework** | SvelteKit 2 + Svelte 5 | Server actions, flexible routing, minimal client bundle |
+| **UI** | shadcn-svelte | Accessible, composable, unopinionated styling |
+| **Entra (server)** | `@azure/msal-node` | Robust confidential client support and token handling |
+| **Key Vault access** | `@azure/identity`, `@azure/keyvault-secrets`, `@azure/keyvault-certificates` | Uses `DefaultAzureCredential`, supports secrets and certs |
+| **Client storage** | `idb-keyval` (IndexedDB) | Structured local data with more room than `localStorage` |
 
-The choice of SvelteKit specifically enables clean separation: form actions run server-side with full Node.js capability (OpenSSL bindings for PFX parsing, filesystem access), while the client remains a thin presentation layer.
+SvelteKit’s split between **server routes** and **client components** keeps the boundaries honest: anything that touches credentials lives server‑side; the browser is a thin, reactive shell for input, display, and local history.
 
 ---
 
-## Features in Detail
+## A Guided Tour of the Workbench
 
-### Connecting App Registrations
+Let’s walk through a typical session: connect an app, issue tokens, debug, and save your favorite setups.
 
-Each connected app represents an Entra app registration with associated Key Vault credentials. The connection form validates Key Vault reachability before persisting.
+### 1. Connect an Entra App Registration
+
+The first stop is the **Apps** page: this is where you tell Entra Token Studio _which_ app registrations you want to work with and _where_ their credentials live in Key Vault.
 
 ![Connecting an app registration](static/demo-app-setup.webp)
 
-Configuration includes:
-- **Tenant ID / Client ID**: Standard Entra identifiers
-- **Key Vault URI**: Points to the vault containing credentials
-- **Credential Type**: Certificate (PFX) or client secret
-- **Credential Name**: The certificate or secret name in Key Vault
+Each app configuration includes:
 
-Apps are stored in IndexedDB with optional color coding for visual differentiation when switching between environments (dev/staging/prod).
+- **Tenant ID & Client ID** – the usual Entra identifiers  
+- **Key Vault URI** – the vault that holds your cert or client secret  
+- **Credential name** – the secret or certificate name inside that vault  
 
+Before saving, the app performs a **Key Vault reachability/permissions check** so you find out immediately if RBAC is misconfigured.
 
+Apps are persisted in **IndexedDB** and can be color‑coded to visually distinguish environments (dev/staging/prod) when switching between them.
 
-The resource input supports common Azure endpoints:
-- `https://graph.microsoft.com` – Microsoft Graph
-- `https://management.azure.com` – Azure Resource Manager
-- `https://vault.azure.net` – Key Vault data plane
-- `https://database.windows.net` – Azure SQL
+The resource input supports commonly used endpoints out of the box:
+
+- `https://graph.microsoft.com` – Microsoft Graph  
+- `https://management.azure.com` – Azure Resource Manager  
+- `https://vault.azure.net` – Key Vault data plane  
+- `https://database.windows.net` – Azure SQL  
 
 ---
 
-### Token Inspection
+### 2. Issue a Token and Inspect Its Claims
 
-Once issued, tokens are decoded client-side (JWTs are base64, no secrets involved) and displayed in a searchable, filterable view.
+Once an app is connected, you head to the **Playground** to actually issue tokens.
+
+Tokens are decoded client‑side (JWTs are just base64) and rendered in a **searchable, filterable, full‑screenable** view:
 
 ![Claims inspection and filtering](static/demo-claims.webp)
 
-The claims viewer:
-- Filters claims by key or value
-- Highlights important claims (`aud`, `iss`, `exp`, `roles`, `scp`)
-- Supports full-screen expansion for complex tokens
-- Provides one-click copy for individual claim values
+The claims inspector:
 
+- Filters by key or value so you can quickly find a specific claim.  
+- Highlights important claims like `aud`, `iss`, `exp`, `roles`, and `scp`.  
+- Supports a **full‑screen mode** for complex tokens.  
+- Offers one‑click copy for individual claim values when you need to paste them into logs, tests, or docs.
 
-
-The floating status dock shows token expiration countdown, which is useful when testing APIs that validate `exp` claims strictly.
-
----
-
-### User Token Issuance (Authorization Code + PKCE)
-
-For delegated permission scenarios, the tool implements Authorization Code flow with PKCE using MSAL.js.
-
-**Why PKCE matters:** Public clients (browser apps, native apps) cannot securely store client secrets. PKCE (RFC 7636) mitigates authorization code interception attacks by binding the token request to the original authorization request through a cryptographic code verifier.
-
-
-
-This runs entirely client-side. The SvelteKit server is not involved.
+A floating **status dock** tracks token expiry in real time so you can see at a glance whether the token you’re using in Postman is still valid or just barely hanging on.
 
 ---
 
-### History and Favorites
+### 3. User Tokens via Authorization Code + PKCE
 
-Every token issuance logs to IndexedDB with:
-- Timestamp
-- App reference
-- Flow type (app/user)
-- Resource/scopes
-- Token hash (for deduplication, not the actual token)
-- Full token (encrypted at rest)
+Not everything is app‑only—sometimes you need to debug an API that behaves differently based on user identity.
 
-### The Developer Workflow
+For that, Entra Token Studio supports delegated access using **Authorization Code + PKCE** via MSAL.js:
 
-The tool is designed around a repeatable "configure → issue → debug" cycle:
+- The browser initiates the login and consent flow.  
+- A code challenge/verifier pair ensures the authorization code can’t be replayed elsewhere.  
+- No client secret is required because this is a **public client** scenario.  
+
+Once MSAL completes the flow, the resulting access token is treated like any other in the UI: it shows up in the claims viewer, history, and favorites.
+
+---
+
+### 4. History, Favorites, and a Repeatable Dev Loop
+
+Every time you issue a token, the app logs a history entry in IndexedDB with:
+
+- Timestamp  
+- App reference  
+- Flow type (app vs. user)  
+- Resource and scopes  
+- A token hash (for deduping), plus the full token payload  
+
+The intended workflow looks something like this:
 
 ```mermaid
 graph TD
@@ -178,44 +210,87 @@ graph TD
     style Start fill:#e3f2fd,stroke:#1565c0
 ```
 
+From the **History** view:
+
 ![History with action menu](static/demo-history.webp)
 
-From history, you can:
-- **Load**: View token details without re-issuing
-- **Reissue**: Generate a fresh token with same parameters
-- **Favorite**: Save for quick access with custom labels
+You can:
 
-Favorites support tags and can be pinned to the navigation bar (up to 5) for one-click access to frequently-used configurations.
+- **Load** a previous token to inspect it again.  
+- **Reissue** a fresh token with the same parameters.  
+- **Promote** a useful combo into a **Favorite** with a name, description, color, and tags.
+
+Favorites are first‑class citizens:
 
 ![History page with token entries](static/history-full.png)
 
+- They show up in a dedicated **Favorites** page.  
+- You can pin your top entries for one‑click access.  
+- Quick‑pick inputs surface pinned favorites, recents, and Graph/Azure presets—with admin‑consent badges for sensitive scopes.
+
 ---
 
-## Authentication Flow Comparison
+## App vs. User Tokens at a Glance
 
 | Aspect | App Token | User Token |
 |--------|-----------|------------|
-| **OAuth Grant** | Client Credentials | Authorization Code + PKCE |
-| **Credential Location** | Key Vault (server-side) | None (PKCE eliminates secrets) |
-| **User Interaction** | None | Browser sign-in |
+| **OAuth grant** | Client Credentials | Authorization Code + PKCE |
+| **Credential location** | Azure Key Vault (server‑side) | None (PKCE, public client) |
+| **User interaction** | None | Browser sign‑in required |
 | **Permissions** | Application permissions | Delegated permissions |
-| **Token Contains** | App identity only | User claims (UPN, groups, etc.) |
-| **Use Case** | Backend services, daemons | APIs with user context |
-
-
+| **Token contains** | App identity only | User claims (UPN, groups, etc.) |
+| **Typical use** | Daemons, background services, automation | APIs that behave differently per user |
 
 ---
 
-## Setup
+## When to Reach for This Tool
+
+Entra Token Studio is built for:
+
+- **Local development and debugging** of APIs that use Entra tokens.  
+- Teams that want a **repeatable, documented way** to get tokens without tribal knowledge.  
+- Developers who prefer a **visual claims inspector** over staring at base64‑encoded blobs.  
+
+It is _not_ designed for:
+
+- Hosting as a shared, multi‑tenant internal service.  
+- Persisting long‑lived credentials outside Azure Key Vault.  
+- Production traffic or unattended automation jobs.
+
+### What It Does
+
+- Stores app configurations, favorites, and token history in **browser IndexedDB**.  
+- Fetches credentials from **Key Vault at request time** and discards them after use.  
+- Implements **PKCE** for user flows (no secrets in the browser).  
+- Talks only to Azure resources you configure—no telemetry, tracking, or third‑party APIs.
+
+### What It Explicitly Avoids
+
+- Persisting Key Vault credentials locally.  
+- Logging tokens or secrets on the server.  
+- Shipping analytics libraries or phone‑home behavior.  
+
+Security‑wise, the best practices still apply:
+
+1. **Treat tokens as credentials.** They represent access, not just “debug artifacts.”  
+2. **Use short‑lived tokens** where possible (1‑hour default is usually fine for local dev).  
+3. **Clear local data** (history, favorites, apps) on shared machines.  
+4. **Audit Key Vault access logs** for production scenarios.
+
+---
+
+## Getting It Running Locally (How)
 
 ### Prerequisites
+
+You’ll need:
 
 | Requirement | Purpose |
 |-------------|---------|
 | **Node.js 18+** | Runtime (LTS recommended) |
 | **pnpm** | Package manager |
-| **OpenSSL** | PFX certificate parsing |
-| **Azure CLI** or **VS Code Azure ext** | `DefaultAzureCredential` chain |
+| **OpenSSL** | PKCS#12/PFX certificate parsing |
+| **Azure CLI** or **VS Code Azure extension** | For `DefaultAzureCredential` (dev) |
 
 ### Installation
 
@@ -226,36 +301,39 @@ pnpm install
 cp .env.example .env
 ```
 
-### Azure Authentication
+### Authenticating to Azure
 
 The server uses `DefaultAzureCredential`, which tries (in order):
-1. Environment variables (`AZURE_CLIENT_ID`, etc.)
-2. Managed Identity (if running in Azure)
-3. Visual Studio Code credential (Azure extension)
-4. Azure CLI credential (`az login`)
-5. Azure PowerShell credential
 
+1. Environment variables (`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_CLIENT_SECRET`, etc.)  
+2. Managed Identity (if you ever host this in Azure).  
+3. Visual Studio Code Azure Account extension.  
+4. Azure CLI (`az login`).  
+5. Azure PowerShell.
 
-
-For local development, `az login` is sufficient:
+For local development, `az login` is enough:
 
 ```bash
 az login
 pnpm dev
 ```
 
-### Required RBAC
+### Key Vault RBAC
 
-Your identity needs access to Key Vault secrets/certificates:
+Your identity must be able to read secrets and/or certificates from the Key Vault that holds your app’s credentials.
+
+For secrets:
 
 ```bash
-# For secrets
 az role assignment create \
   --role "Key Vault Secrets User" \
   --assignee <your-object-id> \
   --scope /subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.KeyVault/vaults/<vault>
+```
 
-# For certificates
+For certificates:
+
+```bash
 az role assignment create \
   --role "Key Vault Certificates User" \
   --assignee <your-object-id> \
@@ -264,85 +342,69 @@ az role assignment create \
 
 ---
 
-## Entra App Registration Configuration
+## Wiring Up Entra App Registrations (When)
 
-For user token flows (PKCE), the app registration requires:
+To use the **user token** flow (Authorization Code + PKCE), your Entra app registration needs a few specific settings.
 
 ### Redirect URI
 
-Add `http://localhost:5173/auth/callback` as a **Single-page application (SPA)** redirect URI.
+Add the following as a **Single‑page application (SPA)** redirect URI:
 
-> **Critical:** Must be SPA type, not Web. Web redirect URIs expect CORS headers that localhost won't provide correctly, and more importantly, the authorization endpoint behavior differs for SPA vs. Web apps.
+```text
+http://localhost:5173/auth/callback
+```
+
+> **Important:** Use the **SPA** app type, not “Web”. Web app redirect URIs come with different expectations around CORS and authentication flows; using SPA ensures MSAL.js behaves correctly in the browser.
 
 ### API Permissions
 
-Add delegated scopes as needed. Common examples:
-- `User.Read` (sign-in and profile)
-- `Mail.Read` (read email)
-- `Files.ReadWrite` (OneDrive access)
+Add delegated scopes based on what you plan to test. Common examples:
 
-For app-only tokens, add application permissions instead and grant admin consent.
+- `User.Read` – sign‑in and profile  
+- `Mail.Read` – read mail  
+- `Files.ReadWrite` – OneDrive access  
+
+For **app‑only** tokens, configure **application permissions** instead and grant admin consent.
 
 ### Certificates
 
-For certificate-based auth:
-1. Generate or upload a certificate in Key Vault (self-signed works for dev)
-2. Download the public portion (.cer)
-3. Upload to the app registration's **Certificates & secrets** blade
-4. Reference the certificate name in the tool's app configuration
+For certificate‑based app authentication:
+
+1. Create or upload a certificate in **Key Vault** (self‑signed is fine for dev).  
+2. Download the **public** portion (`.cer`).  
+3. Upload that to your app registration’s **Certificates & secrets** blade.  
+4. In Entra Token Studio, reference the **Key Vault certificate name** in the app configuration.
+
+The server supports both **PEM** and **PKCS#12/PFX** formats, and falls back to the local **OpenSSL** CLI for modern PFX encryption that pure JS libraries can’t parse.
 
 ---
 
-## Security Considerations
+## Under the Hood: Project Layout
 
-### What This Tool Does
+If you’d like to poke around or extend the app, here’s the high‑level structure:
 
-- Stores app configurations and tokens in browser IndexedDB
-- Fetches credentials from Key Vault at runtime only
-- Implements PKCE for user flows (no client secrets in browser)
-- Runs entirely locally—no external API calls except to Azure
-
-### What This Tool Does Not Do
-
-- Persist credentials locally (Key Vault is the source of truth)
-- Log tokens server-side
-- Include telemetry, analytics, or error reporting
-- Support multi-user or shared hosting
-
-### Recommendations
-
-1. **Clear local data** when done, especially on shared machines
-2. **Treat access tokens as credentials**—they grant access to resources
-3. **Use short-lived tokens** when possible (default is 1 hour)
-4. **Audit Key Vault access logs** in production scenarios
-
----
-
-### Project Structure
-
-```
+```text
 src/
 ├── lib/
-│   ├── components/       # Svelte components (forms, modals, claims viewer)
-│   ├── services/         # Azure SDK wrappers (auth, keyvault)
-│   ├── stores/           # Svelte 5 state (history, favorites, apps)
-│   └── shadcn/           # UI component library
+│   ├── components/       # Svelte components (forms, modals, claims viewer, favorites, history)
+│   ├── services/         # Azure SDK wrappers (auth, key vault, data export)
+│   ├── states/           # Svelte 5 runes-based state (apps, history, favorites, suggestions)
+│   ├── stores/           # Misc stores (e.g., time, auth)
+│   └── shadcn/           # UI component library primitives
 ├── routes/
-│   ├── +page.svelte      # Main playground
-│   ├── apps/             # App management
+│   ├── +page.svelte      # Playground dashboard (flows, decoded output, history preview)
+│   ├── apps/             # App management & onboarding
 │   ├── history/          # Token history
-│   └── favorites/        # Saved configurations
-└── hooks.server.ts       # Server middleware
+│   ├── favorites/        # Saved configurations
+│   ├── settings/         # Theme, data clearing, import/export
+│   └── auth/             # Auth callback handler
+└── lib/server/           # Key Vault, certificate parsing, MSAL confidential client
 ```
 
----
-
-## Contributing
-
-MIT licensed. See [AGENTS.md](https://github.com/raokarthik99/microsoft-entra-token-studio/blob/main/AGENTS.md) for development guidelines.
-
-Issues and PRs welcome.
+State is managed with **Svelte 5 runes**, IndexedDB via `idb-keyval`, and a handful of focused services for history, favorites, and quick‑pick suggestions.
 
 ---
 
-[GitHub](https://github.com/raokarthik99/microsoft-entra-token-studio) · [Report Issue](https://github.com/raokarthik99/microsoft-entra-token-studio/issues)
+## Conclusion
+
+Entra Token Studio is meant to be the tool you reach for when you’re in the middle of debugging an Entra‑protected API and just want a clean, trustworthy way to get tokens, inspect them, and iterate quickly—without reinventing all the OAuth and Key Vault plumbing each time. If that sounds like the kind of friction you’ve run into before, clone the repo, point it at your Key Vault, and let it handle the hard parts while you focus on your application code.
