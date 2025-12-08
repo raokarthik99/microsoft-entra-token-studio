@@ -6,45 +6,56 @@ _Bridging the gap between Azure Portal configuration and the tokens you actually
 
 [**View on GitHub**](https://github.com/raokarthik99/microsoft-entra-token-studio)
 
-![Entra Token Studio Welcome](static/welcome-page.png)
-
 ---
 
-## The Problem: Getting Tokens Shouldn't Be This Hard
+## The Problem
 
-You've just finished configuring an app registration in Azure Portal. Permissions are granted, certificates uploaded, resources defined. Now you need a token to verify it works.
+If you work with Microsoft Entra ID (formerly Azure AD), you've hit this workflow a hundred times:
 
-This is where things go sideways.
+You've configured an app registration in Azure Portal. Permissions granted, certificates uploaded, resources defined. Now you need a token to verify it works.
 
-You write a quick script using `az account get-access-token`, paste the result into jwt.ms, realize the audience is wrong, fix it, discover the scopes are missing, add them, and by the time you have a valid token—it's expired. The cycle repeats until frustration wins.
+You fumble through CLI one-liners, write throwaway scripts, or copy tokens from browser dev tools. Half the time you're debugging OAuth flows instead of the actual API you wanted to test. The token expires before you finish inspecting it. Your teammate asks how to get a token for the same app and you say "DM me, I have a script somewhere."
 
-**Who is this post for?** Developers and platform engineers working with Microsoft Entra ID who regularly issue tokens for testing, debugging, or integration validation. I'll assume you're familiar with OAuth 2.0 concepts like client credentials, authorization code flow, and the general structure of JWTs.
+**Entra Token Studio** solves this: a local workbench that bridges the gap between Azure Portal configuration and the tokens you actually need. Configure your apps once, issue tokens on demand, inspect claims thoroughly, and save what works.
 
-**What will you learn?** How I designed and built Entra Token Studio—a local-first tool that eliminates the friction between configuring Azure resources and getting tokens into your hands. By the end, you'll understand the security trade-offs, the architecture decisions, and whether this tool fits your workflow.
+![Entra Token Studio Welcome](static/welcome-page.png)
+
+**Who is this for?** Developers and platform engineers working with Microsoft Entra ID who regularly issue tokens for testing, debugging, or integration validation. I'll assume familiarity with OAuth 2.0 concepts—client credentials, authorization code flow, JWTs.
+
+**What will you learn?** How I designed Entra Token Studio—the security trade-offs, architecture decisions, and whether it fits your workflow.
 
 ---
 
 ## Why Existing Approaches Fall Short
 
-Most teams I've worked with evolve some combination of these patterns for token issuance:
+Most teams evolve some combination of these patterns:
 
 1. **CLI one-liners** — `az account get-access-token --resource X` works, but breaks the moment you need certificates, custom scopes, or anything beyond the happy path
 2. **Throwaway scripts** — Python, PowerShell, or Node scripts that hardcode tenant IDs, fumble with certificate parsing, and rot as OAuth libraries update
 3. **Postman collections** — Powerful, but credential management is a nightmare; client secrets end up in shared workspaces or committed to version control
 4. **Browser dev tools** — Copy tokens from network tabs, paste into jwt.ms, hope they're still valid when you finish debugging
 
-None of these are _wrong_, but they share a common failure mode: **credentials end up in places they shouldn't**, and **knowledge becomes tribal**. The developer who wrote "the script" leaves, the Postman collection's certificates expire, and the next person starts from scratch.
+These share a common failure: **credentials end up where they shouldn't**, and **knowledge becomes tribal**. The developer who wrote "the script" leaves, the Postman collection's certificates expire, and someone starts from scratch.
 
-### The Knowledge Silo Problem
+---
 
-Over time, every team accumulates token-related folklore:
+## Why a Tool, Not an Agent
 
-- Half-remembered CLI flags in personal notes
-- PowerShell scripts only one person can summon
-- Slack threads of base64 blobs and "run this once" instructions
-- Internal wikis with TSGs accurate for last quarter's setup
+Given this problem, why build a dedicated tool instead of just asking an AI agent for help whenever you need a token?
 
-When production breaks at 2 AM and you need to validate whether App A can reach API B, you're searching chat history for incantations instead of solving the problem.
+Over the past year, I've been sitting with a simple question: when should we use agents, and when should we just build better tools?
+
+Agents are useful for discovery and "I have no idea where to start" moments. But for workflows you repeat daily, they're the wrong fit—you end up asking the same questions repeatedly, burning GPUs and dollars to rediscover answers you already know.
+
+Large platforms like Azure and Entra cover the first 90% of developer needs well. The messy last 10% turns into ad-hoc scripts, tribal knowledge, and "DM me, I have a script somewhere." Token issuance sits squarely in that gap—too small to become a first-party feature, too internal to justify a product, and too repetitive for an agent to solve efficiently.
+
+Every time you ask an agent for help, you're burning tokens to re-establish context about your tenant, apps, and credential locations. The cost compounds across a team.
+
+### Agents as Build Capital
+
+I spent a focused week using coding agents to explore patterns, refine the security model, iterate on architecture, and write the code. That consumed a few million LLM tokens. But the result is a local tool that runs with zero ongoing LLM cost and can be reused across teams.
+
+That distinction matters: **agents as build capital** (use them to create, then benefit indefinitely) versus **agents as operational overhead** (paying per question, forever).
 
 ---
 
