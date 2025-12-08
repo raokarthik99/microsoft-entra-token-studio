@@ -198,6 +198,8 @@ For delegated access, Entra Token Studio supports **Authorization Code + PKCE**:
 3. PKCE ensures the authorization code can't be intercepted or replayed
 4. Token arrives back in the app, decoded and ready
 
+![User token issuance flow](static/demo-user-token.webp)
+
 No client secrets required. No server involvement. Just the pure public-client OAuth flow that modern SPAs use.
 
 Once you have a user token, it's treated exactly like app tokens in the UI — same claims viewer, same history tracking, same favorites system.
@@ -224,11 +226,11 @@ From history, you can:
 - **Reissue** a fresh token with identical parameters
 - **Promote** useful combinations into **Favorites**
 
-Favorites are first-class citizens:
+Favorites are first-class citizens. You can give them names, descriptions, colors, and **pin** your most-used ones for instant one-click access right from the sidebar:
 
-![History page with token entries](static/history-full.png)
+![Pinned token in sidebar](static/demo-pinned-token.webp)
 
-You can give them names, descriptions, colors, and tags. Pin your most-used ones for one-click access. The quick-pick input even surfaces pinned favorites, recent tokens, and common Graph/Azure presets.
+The quick-pick input even surfaces pinned favorites, recent tokens, and common Graph/Azure presets.
 
 The intended workflow becomes a tight loop:
 
