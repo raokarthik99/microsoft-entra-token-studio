@@ -93,6 +93,10 @@
       await favoritesState.clear();
     });
   }
+
+  async function handlePin(item: FavoriteItem, pin: boolean) {
+    await favoritesState.setPinned(item.id, pin);
+  }
 </script>
 
 <svelte:head>
@@ -137,6 +141,7 @@
         onEdit={startEdit}
         onDelete={deleteFavorite}
         onDeleteMany={deleteFavorites}
+        onPin={handlePin}
         enableToolbar={true}
         enableSelection={true}
         compact={false}

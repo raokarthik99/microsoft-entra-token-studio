@@ -347,6 +347,9 @@
           appName: appRegistry.activeApp?.name,
           appColor: appRegistry.activeApp?.color,
         };
+        if (appRegistry.activeApp) {
+          void appRegistry.markUsed(appRegistry.activeApp.id);
+        }
         await addToHistory(historyItem);
         tokenDockState.setToken(historyItem);
         toast.success("App token acquired successfully");
@@ -410,6 +413,9 @@
         appColor: appRegistry.activeApp?.color,
       };
 
+      if (appRegistry.activeApp) {
+        void appRegistry.markUsed(appRegistry.activeApp.id);
+      }
       await addToHistory(historyItem);
       tokenDockState.setToken(historyItem);
       toast.success("User token acquired successfully");

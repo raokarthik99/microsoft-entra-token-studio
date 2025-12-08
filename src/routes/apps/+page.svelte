@@ -615,7 +615,6 @@
         <div class="flex-1 min-w-0">
           <div class="flex items-center gap-2">
             <h3 class="font-semibold text-foreground">Ready to generate tokens!</h3>
-            <Badge variant="secondary" class="text-[10px]">Next step</Badge>
           </div>
           <p class="text-sm text-muted-foreground mt-0.5">
             Head to the Playground to issue user tokens (delegated) or app tokens (daemon) using your configured apps.

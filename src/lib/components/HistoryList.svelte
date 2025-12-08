@@ -381,7 +381,7 @@
                 </div>
               </TableHead>
             {/if}
-            <TableHead class="w-[140px]">
+            <TableHead class="w-[110px]">
               <button
                 type="button"
                 class="flex items-center gap-1 text-xs font-semibold text-muted-foreground"
@@ -402,7 +402,7 @@
                 {/if}
               </button>
             </TableHead>
-            <TableHead class="w-[120px]">
+            <TableHead class="w-[100px]">
               <span class="text-xs font-semibold text-muted-foreground">App</span>
             </TableHead>
             <TableHead>
@@ -426,7 +426,7 @@
                 {/if}
               </button>
             </TableHead>
-            <TableHead class="w-[160px]">
+            <TableHead class="w-[140px]">
               <button
                 type="button"
                 class="flex items-center gap-1 text-xs font-semibold text-muted-foreground"
@@ -447,7 +447,7 @@
                 {/if}
               </button>
             </TableHead>
-            <TableHead class="w-[200px]">
+            <TableHead class="w-[160px]">
               <button
                 type="button"
                 class="flex items-center gap-1 text-xs font-semibold text-muted-foreground"
@@ -468,7 +468,7 @@
                 {/if}
               </button>
             </TableHead>
-            <TableHead class="w-[180px]">
+            <TableHead class="w-[160px]">
               <button
                 type="button"
                 class="flex items-center gap-1 text-xs font-semibold text-muted-foreground"
@@ -489,7 +489,7 @@
                 {/if}
               </button>
             </TableHead>
-            <TableHead class="w-[140px] text-right pr-4">Actions</TableHead>
+            <TableHead class="w-[80px] text-right pr-4">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>

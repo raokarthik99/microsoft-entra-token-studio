@@ -7,7 +7,7 @@
   import * as Tooltip from "$lib/shadcn/components/ui/tooltip";
   import { ArrowUpDown, ArrowUp, ArrowDown, Search, Filter, Cloud, Plus, KeyRound, Shield, Tags, Trash2 } from "@lucide/svelte";
   import AppsTableActions from "./apps-table-actions.svelte";
-  import ColorDot from "./color-dot.svelte";
+
   import { cn, getReadableExpiry } from "$lib/utils";
   import { time } from "$lib/stores/time";
   import type { AppConfig } from "$lib/types";
@@ -311,7 +311,7 @@
                 </div>
               </TableHead>
             {/if}
-            <TableHead class="w-[60px]">Color</TableHead>
+
             <TableHead>
               <button
                 type="button"
@@ -333,7 +333,7 @@
                 {/if}
               </button>
             </TableHead>
-            <TableHead class="w-[240px]">
+            <TableHead class="w-[180px]">
               <button
                 type="button"
                 class="flex items-center gap-1 text-xs font-semibold text-muted-foreground"
@@ -354,7 +354,7 @@
                 {/if}
               </button>
             </TableHead>
-            <TableHead class="w-[140px]">
+            <TableHead class="w-[110px]">
               <button
                 type="button"
                 class="flex items-center gap-1 text-xs font-semibold text-muted-foreground"
@@ -375,8 +375,8 @@
                 {/if}
               </button>
             </TableHead>
-            <TableHead class="w-[200px]">Key Vault</TableHead>
-            <TableHead class="w-[160px]">
+            <TableHead class="w-[160px]">Key Vault</TableHead>
+            <TableHead class="w-[140px]">
               <button
                 type="button"
                 class="flex items-center gap-1 text-xs font-semibold text-muted-foreground"
@@ -458,18 +458,15 @@
                     </div>
                   </TableCell>
                 {/if}
-                <TableCell class="align-middle">
-                  <div class="flex items-center gap-2">
-                    <ColorDot
-                      color={row.app.color || "#10b981"}
-                      size={12}
-                      ring={isActive}
-                      title={row.app.color || "App color"}
-                    />
-                  </div>
-                </TableCell>
+
                 <TableCell class="align-middle">
                   <div class="flex items-center gap-2 min-w-0">
+                    <span
+                      class="inline-block h-2.5 w-2.5 rounded-full border border-border/60 shrink-0"
+                      style={`background-color: ${row.app.color || '#10b981'}`}
+                      aria-hidden="true"
+                      title={row.app.color || "App color"}
+                    ></span>
                     <span class="font-medium leading-tight truncate" title={row.app.name}>{row.app.name}</span>
                   </div>
                   {#if row.app.description}

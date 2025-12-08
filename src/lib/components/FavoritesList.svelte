@@ -6,7 +6,7 @@
   import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "$lib/shadcn/components/ui/table";
   import * as DropdownMenu from "$lib/shadcn/components/ui/dropdown-menu";
   import { buttonVariants } from "$lib/shadcn/components/ui/button/button.svelte";
-  import { Star, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, Play, Eye, Pencil, Trash2, MoreHorizontal, Copy, Pin } from "@lucide/svelte";
+  import { Star, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, Play, Eye, Pencil, Trash2, MoreHorizontal, Copy, Pin, PinOff } from "@lucide/svelte";
   import type { FavoriteItem } from "$lib/types";
   import TokenStatusBadge from "./TokenStatusBadge.svelte";
   import { cn, getReadableExpiry, getTokenStatus } from "$lib/utils";
@@ -40,7 +40,8 @@
     compact = false,
     emptyCtaHref = undefined,
     emptyCtaLabel = undefined,
-    emptyCtaOnClick = undefined
+    emptyCtaOnClick = undefined,
+    onPin = undefined
   } = $props<{
     items: FavoriteItem[];
     onUse: (item: FavoriteItem) => void;
@@ -54,6 +55,7 @@
     emptyCtaHref?: string;
     emptyCtaLabel?: string;
     emptyCtaOnClick?: () => void;
+    onPin?: (item: FavoriteItem, pin: boolean) => void;
   }>();
 
   let searchQuery = $state("");
@@ -478,6 +480,10 @@
                 </div>
               </TableHead>
             {/if}
+            <TableHead class="w-[110px]">Type</TableHead>
+            <TableHead class="w-[100px]">
+              <span class="text-xs font-semibold text-muted-foreground">App</span>
+            </TableHead>
             <TableHead>
               <button
                 type="button"
@@ -496,12 +502,8 @@
                 {/if}
               </button>
             </TableHead>
-            <TableHead class="w-[140px]">Type</TableHead>
-            <TableHead class="w-[120px]">
-              <span class="text-xs font-semibold text-muted-foreground">App</span>
-            </TableHead>
-            <TableHead class="w-[180px]">Status</TableHead>
-            <TableHead class="w-[180px]">
+            <TableHead class="w-[160px]">Status</TableHead>
+            <TableHead class="w-[140px]">
               <button
                 type="button"
                 class="flex items-center gap-1 text-xs font-semibold text-muted-foreground"
@@ -519,7 +521,7 @@
                 {/if}
               </button>
             </TableHead>
-            <TableHead class="w-[190px]">
+            <TableHead class="w-[160px]">
               <button
                 type="button"
                 class="flex items-center gap-1 text-xs font-semibold text-muted-foreground"
@@ -537,7 +539,7 @@
                 {/if}
               </button>
             </TableHead>
-            <TableHead class="w-[120px] text-right pr-4">Actions</TableHead>
+            <TableHead class="w-[80px] text-right pr-4">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -601,6 +603,29 @@
                   </TableCell>
                 {/if}
                 <TableCell class="align-top">
+                  <Badge
+                    variant={row.favorite.type === "App Token" ? "secondary" : "outline"}
+                    class="text-xs font-medium"
+                  >
+                    {row.favorite.type}
+                  </Badge>
+                </TableCell>
+                <TableCell class="align-top">
+                  {#if row.favorite.appName}
+                    <div class="flex items-center gap-2">
+                      <div 
+                        class="w-2.5 h-2.5 rounded-full shrink-0" 
+                        style="background-color: {row.favorite.appColor || '#10b981'}"
+                      ></div>
+                      <span class="text-xs text-muted-foreground truncate max-w-[80px]" title={row.favorite.appName}>
+                        {row.favorite.appName}
+                      </span>
+                    </div>
+                  {:else}
+                    <span class="text-xs text-muted-foreground italic">Legacy</span>
+                  {/if}
+                </TableCell>
+                <TableCell class="align-top">
                   <div class="space-y-1">
                     <div class="flex items-start gap-2">
                       {#if row.favorite.color}
@@ -636,29 +661,6 @@
                       <p class="text-xs text-muted-foreground leading-snug">{row.favorite.description}</p>
                     {/if}
                   </div>
-                </TableCell>
-                <TableCell class="align-top">
-                  <Badge
-                    variant={row.favorite.type === "App Token" ? "secondary" : "outline"}
-                    class="text-xs font-medium"
-                  >
-                    {row.favorite.type}
-                  </Badge>
-                </TableCell>
-                <TableCell class="align-top">
-                  {#if row.favorite.appName}
-                    <div class="flex items-center gap-2">
-                      <div 
-                        class="w-2.5 h-2.5 rounded-full shrink-0" 
-                        style="background-color: {row.favorite.appColor || '#10b981'}"
-                      ></div>
-                      <span class="text-xs text-muted-foreground truncate max-w-[80px]" title={row.favorite.appName}>
-                        {row.favorite.appName}
-                      </span>
-                    </div>
-                  {:else}
-                    <span class="text-xs text-muted-foreground italic">Legacy</span>
-                  {/if}
                 </TableCell>
                 <TableCell class="align-top">
                   {#if row.expiresOn}
@@ -721,6 +723,20 @@
                           <Pencil class="mr-2 h-4 w-4" />
                           <span>Edit</span>
                         </DropdownMenu.Item>
+                      {/if}
+
+                      {#if onPin}
+                         {#if row.favorite.isPinned}
+                            <DropdownMenu.Item onclick={() => onPin?.(row.favorite, false)}>
+                              <PinOff class="mr-2 h-4 w-4" />
+                              <span>Unpin</span>
+                            </DropdownMenu.Item>
+                         {:else}
+                            <DropdownMenu.Item onclick={() => onPin?.(row.favorite, true)}>
+                              <Pin class="mr-2 h-4 w-4" />
+                              <span>Pin</span>
+                            </DropdownMenu.Item>
+                         {/if}
                       {/if}
 
                       <DropdownMenu.Separator />
