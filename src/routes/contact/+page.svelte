@@ -10,7 +10,9 @@
 
 <div class="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-8 md:py-12">
   <!-- Hero Section -->
-  <section class="rounded-3xl border border-primary/20 bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-950 px-6 py-8 shadow-2xl ring-1 ring-primary/10">
+  <section
+    class="rounded-3xl border border-border/80 bg-gradient-to-br from-white via-slate-50 to-slate-100 px-6 py-8 shadow-2xl ring-1 ring-border/70 dark:border-primary/20 dark:from-indigo-950 dark:via-slate-900 dark:to-slate-950 dark:ring-primary/10"
+  >
     <div class="space-y-4">
       <div class="flex flex-wrap items-center gap-2">
         <span class="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-primary">
@@ -20,8 +22,8 @@
           No Telemetry
         </span>
       </div>
-      <h1 class="text-3xl font-semibold text-white md:text-4xl">Get in Touch</h1>
-      <p class="max-w-3xl text-base leading-relaxed text-slate-200">
+      <h1 class="text-3xl font-semibold text-foreground dark:text-white md:text-4xl">Get in Touch</h1>
+      <p class="max-w-3xl text-base leading-relaxed text-muted-foreground dark:text-slate-200">
         Questions, ideas, or issues? Choose the path that best fits. Please avoid sharing secrets, tokens, or tenant-specific data—screenshots with redactions and repro steps are enough.
       </p>
     </div>

@@ -10,7 +10,9 @@
 
 <div class="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-8 md:py-12">
   <!-- Hero Section -->
-  <section class="rounded-3xl border border-primary/20 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 px-6 py-8 shadow-2xl ring-1 ring-primary/10">
+  <section
+    class="rounded-3xl border border-border/80 bg-gradient-to-br from-white via-slate-50 to-slate-100 px-6 py-8 shadow-2xl ring-1 ring-border/70 dark:border-primary/20 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950 dark:ring-primary/10"
+  >
     <div class="space-y-4">
       <div class="flex flex-wrap items-center gap-2">
         <span class="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-400">
@@ -20,12 +22,12 @@
         <span class="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-primary">
           Local Storage Only
         </span>
-        <span class="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-amber-400">
+        <span class="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
           Zero Telemetry
         </span>
       </div>
-      <h1 class="text-3xl font-semibold text-white md:text-4xl">Privacy & Terms</h1>
-      <p class="max-w-3xl text-base leading-relaxed text-slate-200">
+      <h1 class="text-3xl font-semibold text-foreground dark:text-white md:text-4xl">Privacy & Terms</h1>
+      <p class="max-w-3xl text-base leading-relaxed text-muted-foreground dark:text-slate-200">
         Entra Token Studio is local-first and open source. Tokens live in your browser, credentials stay in Azure Key Vault or your own .env during development, and no telemetry is collected. Use it responsibly and only in environments you control.
       </p>
     </div>
@@ -80,9 +82,9 @@
       </div>
 
       <!-- Server Column -->
-      <div class="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-5">
+      <div class="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-5">
         <div class="flex items-center gap-2 mb-4">
-          <Server class="h-5 w-5 text-amber-400" />
+          <Server class="h-5 w-5 text-amber-600 dark:text-amber-400" />
           <h3 class="font-semibold text-foreground">Dev Server</h3>
         </div>
         <ul class="space-y-3">
@@ -108,7 +110,7 @@
             </div>
           </li>
         </ul>
-        <p class="mt-4 text-xs text-amber-400/80 border-t border-amber-500/20 pt-3">
+        <p class="mt-4 text-xs text-amber-600/80 dark:text-amber-400/80 border-t border-amber-500/20 pt-3">
           ✓ Runs on localhost. No external hosting.
         </p>
       </div>
@@ -231,7 +233,7 @@
       </div>
       <div class="rounded-xl border border-border bg-background/60 p-4 space-y-2">
         <p class="text-sm font-semibold text-foreground flex items-center gap-2">
-          <AlertTriangle class="h-4 w-4 text-amber-500" />
+          <AlertTriangle class="h-4 w-4 text-amber-600 dark:text-amber-400" />
           No Affiliation
         </p>
         <p class="text-sm text-muted-foreground">Entra Token Studio is an independent project and is not affiliated with, endorsed by, or connected to Microsoft Corporation.</p>
@@ -274,9 +276,9 @@
         </p>
         <p class="mt-2 text-sm text-muted-foreground">Use, copy, modify, merge, publish, and distribute the software freely.</p>
       </div>
-      <div class="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
-        <p class="text-sm font-semibold text-amber-400 flex items-center gap-2">
-          <AlertTriangle class="h-4 w-4" />
+      <div class="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4">
+        <p class="text-sm font-semibold text-amber-700 dark:text-amber-300 flex items-center gap-2">
+          <AlertTriangle class="h-4 w-4 text-amber-700 dark:text-amber-300" />
           You Must
         </p>
         <p class="mt-2 text-sm text-muted-foreground">Include the MIT copyright and permission notice in substantial portions of the software.</p>
