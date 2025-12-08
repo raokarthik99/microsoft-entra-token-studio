@@ -1,6 +1,12 @@
+![Entra Token Studio Hero](static/entra-token-studio-hero.png)
+
 # Microsoft Entra Token Studio: A Local Workbench for OAuth Token Debugging
 
-*Bridging the gap between Azure Portal configuration and the tokens you actually need, without fumbling through dev tools, Postman, or one-off scripts.*
+_Bridging the gap between Azure Portal configuration and the tokens you actually need, without fumbling through dev tools, Postman, or one-off scripts._
+
+[**View on GitHub**](https://github.com/raokarthik99/microsoft-entra-token-studio)
+
+![Entra Token Studio Welcome](static/welcome-page.png)
 
 ---
 
@@ -27,7 +33,7 @@ Most teams I've worked with evolve some combination of these patterns for token 
 3. **Postman collections** — Powerful, but credential management is a nightmare; client secrets end up in shared workspaces or committed to version control
 4. **Browser dev tools** — Copy tokens from network tabs, paste into jwt.ms, hope they're still valid when you finish debugging
 
-None of these are *wrong*, but they share a common failure mode: **credentials end up in places they shouldn't**, and **knowledge becomes tribal**. The developer who wrote "the script" leaves, the Postman collection's certificates expire, and the next person starts from scratch.
+None of these are _wrong_, but they share a common failure mode: **credentials end up in places they shouldn't**, and **knowledge becomes tribal**. The developer who wrote "the script" leaves, the Postman collection's certificates expire, and the next person starts from scratch.
 
 ### The Knowledge Silo Problem
 
@@ -181,7 +187,7 @@ A floating **status dock** tracks token expiry in real time. You'll know at a gl
 
 ### Step 4: User Tokens (Delegated Permissions)
 
-Not every scenario uses app-only tokens. Sometimes you need to test APIs that behave differently based on *who* is calling—their group memberships, specific permissions, or user principal name.
+Not every scenario uses app-only tokens. Sometimes you need to test APIs that behave differently based on _who_ is calling—their group memberships, specific permissions, or user principal name.
 
 For delegated access, Entra Token Studio supports **Authorization Code + PKCE**:
 
@@ -489,8 +495,8 @@ Entra Token Studio addresses a specific gap: the friction between configuring id
 
 **Links**
 
-[GitHub Repository](https://github.com/raokarthik99/microsoft-entra-token-studio) · [MIT License](https://github.com/raokarthik99/microsoft-entra-token-studio/blob/main/LICENSE)
+[View on GitHub](https://github.com/raokarthik99/microsoft-entra-token-studio) · [MIT License](https://github.com/raokarthik99/microsoft-entra-token-studio/blob/main/LICENSE)
 
 ---
 
-*Built with SvelteKit, shadcn-svelte, and enough late-night debugging sessions to motivate building something better.*
+_Built with SvelteKit, shadcn-svelte, and enough late-night debugging sessions to motivate building something better._
