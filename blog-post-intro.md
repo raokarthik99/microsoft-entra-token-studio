@@ -37,7 +37,7 @@ It’s exactly the kind of problem that:
 
 So the workflow stays manual, sometimes for years.
 
-Over time, I've learned its better to **not just use agents to run workflows. But rather to use them to discover, design, and build better tools for those workflows.** So instead of calling an agent every time I needed a token, I spent a focused week using coding agents heavily to:
+Over time, I've learned it's better to **not just use agents to run workflows. But rather to use them to discover, design, and build better tools for those workflows.** So instead of calling an agent every time I needed a token, I spent a focused week using coding agents heavily to:
 
 Yes, that probably consumed a few million LLM tokens. But the result is a local tool that now runs with zero LLM cost and can be reused across teams.
 
