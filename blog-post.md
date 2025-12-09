@@ -182,6 +182,8 @@ Use app tokens when you need to authenticate as the application itself—backgro
 
 No more copying base64 from network tabs. No terminal juggling. The token appears, already decoded.
 
+![App token issuance flow](static/demo-app-token.webp)
+
 #### User Tokens (Delegated Permissions)
 
 Use user tokens when the API behavior depends on _who_ is calling—role-based access, per-user data, or delegated permission scopes like `User.Read` or `Mail.Read`.
