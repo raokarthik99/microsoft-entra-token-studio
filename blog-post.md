@@ -164,24 +164,55 @@ Common resource presets are available for frequently-used endpoints:
 
 ---
 
-### Step 2: Issue a Token
+### Step 2: Issue Tokens
 
-Head to the **Playground**. Select your app, specify the resource, and click "Issue Token."
+The **Playground** is your token workbench. Select an app, specify what you need, and click "Issue Token." Entra Token Studio supports two distinct flows depending on your scenario.
 
-The flow is:
+#### App Tokens (Service-to-Service)
 
-1. Request goes to the local server
-2. Server pulls the credential from Key Vault (using your Azure identity)
-3. Server exchanges the credential for a token with Entra ID
-4. Token arrives in your browser, decoded and ready
+Use app tokens when you need to authenticate as the application itself—background jobs, daemons, or service-to-service API calls where no user is involved.
+
+**How it works:**
+
+1. You select your app and specify the target resource (e.g., `https://graph.microsoft.com`)
+2. Request goes to the local server
+3. Server pulls the credential from Key Vault using your Azure identity
+4. Server exchanges the credential for a token via Entra ID's **client credentials** flow
+5. Token arrives in your browser, decoded and ready
 
 No more copying base64 from network tabs. No terminal juggling. The token appears, already decoded.
+
+#### User Tokens (Delegated Permissions)
+
+Use user tokens when the API behavior depends on _who_ is calling—role-based access, per-user data, or delegated permission scopes like `User.Read` or `Mail.Read`.
+
+**How it works:**
+
+1. Click "User Token" and specify your scopes
+2. Browser initiates a standard Entra login flow
+3. **PKCE** (Proof Key for Code Exchange) cryptographically binds the authorization code to your session
+4. Token arrives back in the app, decoded and ready
+
+![User token issuance flow](static/demo-user-token.webp)
+
+No client secrets required. No server involvement. This is the same public-client OAuth flow that modern SPAs use.
+
+#### Quick Reference: Which Flow Do I Need?
+
+| Scenario | Token Type | Why |
+|----------|-----------|-----|
+| Testing a daemon/background job | **App Token** | No user context; runs as the service identity |
+| Calling Graph API for "the current user" | **User Token** | Needs delegated permissions; behavior varies per user |
+| Validating app permissions are granted | **App Token** | Permissions are application-level, not user-consented |
+| Testing per-user authorization logic | **User Token** | Token includes user claims (UPN, groups, roles) |
+
+Both token types flow into the same next steps—inspect claims, track history, save favorites.
 
 ---
 
 ### Step 3: Inspect Claims
 
-This is where the tool provides the most value. The **claims inspector** transforms opaque JSON into something navigable:
+Once you have a token, the **claims inspector** transforms opaque JSON into something navigable:
 
 ![Claims inspection and filtering](static/demo-claims.webp)
 
@@ -196,26 +227,7 @@ A floating **status dock** tracks token expiry in real time. You'll know at a gl
 
 ---
 
-### Step 4: User Tokens (Delegated Permissions)
-
-Not every scenario uses app-only tokens. Sometimes you need to test APIs that behave differently based on _who_ is calling—their group memberships, specific permissions, or user principal name.
-
-For delegated access, Entra Token Studio supports **Authorization Code + PKCE**:
-
-1. Click "User Token"
-2. Browser initiates a standard Entra login flow
-3. PKCE ensures the authorization code can't be intercepted or replayed
-4. Token arrives back in the app, decoded and ready
-
-![User token issuance flow](static/demo-user-token.webp)
-
-No client secrets required. No server involvement. This is the same public-client OAuth flow that modern SPAs use.
-
-User tokens are treated identically to app tokens in the UI—same claims viewer, same history tracking, same favorites system.
-
----
-
-### Step 5: History and Favorites
+### Step 4: History and Favorites
 
 Every token you issue gets logged to **History**:
 
