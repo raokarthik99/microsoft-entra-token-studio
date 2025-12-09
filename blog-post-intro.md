@@ -12,6 +12,8 @@ But for the workflows you repeat every single day? It’s often the wrong fit.
 
 Since agentic AI became the main story, it feels like many teams have lost the habit of making small, thoughtful product improvements.
 
+Instead of sweating the last 10% of UX, many products chase flashy AI features—like bolting on a chatbot and calling it “agentic”—that look impressive in presentations but don’t actually help people get real work done. At the same time, there’s an unhealthy obsession with removing humans from the loop entirely, instead of using software to genuinely support and augment human work.
+
 Meanwhile, the unglamorous improvements that would actually make daily workflows smoother are often delayed. Core flows remain clunky or fragile, while the chatbot gets the attention, budget, and praise.
 
 ### The last 10% problem
