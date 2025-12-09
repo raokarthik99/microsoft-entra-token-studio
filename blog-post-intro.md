@@ -10,7 +10,7 @@ Agents compress all of that into an “ask me anything” interface. That’s ge
 
 But for the workflows you repeat every single day? It’s often the wrong fit.
 
-You end up asking the same questions again and again, spending tokens to rediscover answers you already know, and paying hidden costs in environment setup, resource lookups, and context gathering.
+You end up asking the same questions again and again, burning GPUs to rediscover answers you already know, and paying hidden costs in environment setup, resource lookups, and context gathering.
 
 ### The irony that’s hard to ignore
 
@@ -61,7 +61,7 @@ It should not erase them or force everything through an expensive chat window.
 
 ### The last 10% problem
 
-In large platforms like Azure and Entra, the product usually covers the first 90% of the job well.
+In large platforms like Azure and its offshoot platforms like Entra, the product usually covers the first 90% of the job well.
 
 The messy last 10% turns into:
 * ad-hoc scripts
