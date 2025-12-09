@@ -55,6 +55,6 @@ It sits squarely in that “last 10%” gap:
 
 Once it’s set up, it runs locally with no LLM usage and effectively zero ongoing cost. It’s just a dev tool you can reuse and share.
 
-🔗 GitHub: [microsoft-entra-token-studio](https://github.com/raokarthik99/microsoft-entra-token-studio)
+🔗 Get into the details and how to get started here: [Introducing Microsoft Entra Token Studio](https://todo)
 
 If you’ve ever thought “I just need a token” and then spent half an hour in docs, scripts, and internal threads, I’d be keen to hear how you handle that today—and what would make that last 10% smoother for you.
