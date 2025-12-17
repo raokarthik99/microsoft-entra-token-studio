@@ -81,7 +81,6 @@
       await navigator.clipboard.writeText(value);
       toast.success(`${label} copied`);
     } catch (error) {
-      console.error("Failed to copy value", error);
       toast.error(`Could not copy ${label.toLowerCase()}`);
     }
   }

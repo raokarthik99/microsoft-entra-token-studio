@@ -140,7 +140,6 @@ export async function fetchSecretFromKeyVault(): Promise<string> {
     const message = err.message || 'Failed to fetch secret from Key Vault';
     cachedError = message;
     secretFetched = true;
-    console.error(`[KeyVault] Error: ${message}`);
     throw new Error(message);
   }
 }

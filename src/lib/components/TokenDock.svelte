@@ -108,7 +108,6 @@
       await favoritesState.load();
       toast.success(pinMode ? 'Pinned and added to favorites' : 'Added to favorites');
     } catch (err) {
-      console.error('Failed to add favorite', err);
       toast.error('Could not add to favorites');
     } finally {
       favoriteDraft = null;
@@ -168,7 +167,6 @@
       toast.success('Copied to clipboard');
       setTimeout(() => (copied = false), 1800);
     } catch (err) {
-      console.error('Failed to copy token', err);
       toast.error('Failed to copy token');
     }
   }

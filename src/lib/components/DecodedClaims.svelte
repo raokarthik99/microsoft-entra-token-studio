@@ -41,7 +41,6 @@
       toast.success(`Copied ${key} to clipboard`);
       setTimeout(() => copiedKey = null, 2000);
     } catch (err) {
-      console.error('Failed to copy', err);
       toast.error("Failed to copy");
     }
   }

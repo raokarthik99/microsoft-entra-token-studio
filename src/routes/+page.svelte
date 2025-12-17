@@ -65,6 +65,9 @@
     ShieldAlert,
   } from "@lucide/svelte";
   import { auth, authServiceStore } from '$lib/stores/auth';
+  import { tauriUser, setTauriUser } from '$lib/states/tauri-user';
+  import { isTauriMode } from '$lib/utils/runtime';
+  import { identityPreference } from '$lib/states/identity.svelte';
 
   type FlowTab = 'app-token' | 'user-token';
 
@@ -91,8 +94,8 @@
   let appHelpOpen = $state(false);
   let lastErrorSource: 'user-token' | 'app-token' | 'external' | null = $state(null);
 
-  // Derived state for active account
-  const activeAccount = $derived($auth.user);
+  // Derived state for active account (checks both msal-browser and Tauri sidecar auth)
+  const activeAccount = $derived($auth.user || (isTauriMode() ? $tauriUser : null));
 
 
   const decodedClaims = $derived(result ? parseJwt(result.accessToken) : null);
@@ -285,7 +288,7 @@
           await loadHistoryItem(pendingLoad);
           await clientStorage.remove(CLIENT_STORAGE_KEYS.pendingTokenLoad);
         } catch (e) {
-          console.error('Failed to load pending token', e);
+          // Silently ignore
         }
       }
 
@@ -340,7 +343,6 @@
         
         window.history.replaceState({}, document.title, window.location.pathname);
       } catch (e) {
-        console.error('Failed to parse token', e);
         error = 'Failed to parse token from URL';
         lastErrorSource = 'external';
         tokenDockState.setError('Failed to parse token from URL');
@@ -369,55 +371,45 @@
     tokenDockState.setLoading({ type: 'App Token', target: resourceInput });
 
     try {
-      const res = await fetch('/api/token/app', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          appConfig: {
-            clientId: appRegistry.activeApp.clientId,
-            tenantId: appRegistry.activeApp.tenantId,
-            keyVault: appRegistry.activeApp.keyVault,
-          },
-          resource: resourceInput,
-        }),
-      });
-      const data = await res.json();
-      
-      if (res.ok) {
-        result = data;
-        const issuedAt = Date.now();
-        const historyItem: HistoryItem = {
-          type: 'App Token',
-          target: resourceInput,
-          timestamp: issuedAt,
-          tokenData: JSON.parse(JSON.stringify(data)),
-          // App context for multi-app support
-          appId: appRegistry.activeApp?.id,
-          appName: appRegistry.activeApp?.name,
-          appColor: appRegistry.activeApp?.color,
-        };
-        if (appRegistry.activeApp) {
-          void appRegistry.markUsed(appRegistry.activeApp.id);
-        }
-        await addToHistory(historyItem);
-        tokenDockState.setToken(historyItem);
-        // Sync favorite's token data if this target is already favorited
-        await favoritesState.updateTokenData(historyItem.type, historyItem.target, historyItem.tokenData);
-        toast.success("App token acquired successfully");
-      } else {
-        const errorMsg = data.details ? `${data.error}: ${data.details}` : data.error || 'Failed to fetch token';
-        error = errorMsg;
-        lastErrorSource = 'app-token';
-        tokenDockState.setError(errorMsg);
-        toast.error(errorMsg);
-        if (data.setupRequired) {
-          await goto('/apps?from=playground');
-        }
+      const { acquireAppToken } = await import('$lib/services/tauri-api');
+      const data = await acquireAppToken(
+        {
+          clientId: appRegistry.activeApp.clientId,
+          tenantId: appRegistry.activeApp.tenantId,
+          keyVault: appRegistry.activeApp.keyVault,
+        },
+        resourceInput,
+      );
+
+      result = data;
+      const issuedAt = Date.now();
+      const historyItem: HistoryItem = {
+        type: 'App Token',
+        target: resourceInput,
+        timestamp: issuedAt,
+        tokenData: JSON.parse(JSON.stringify(data)),
+        // App context for multi-app support
+        appId: appRegistry.activeApp?.id,
+        appName: appRegistry.activeApp?.name,
+        appColor: appRegistry.activeApp?.color,
+      };
+      if (appRegistry.activeApp) {
+        void appRegistry.markUsed(appRegistry.activeApp.id);
       }
+      await addToHistory(historyItem);
+      tokenDockState.setToken(historyItem);
+      // Sync favorite's token data if this target is already favorited
+      await favoritesState.updateTokenData(historyItem.type, historyItem.target, historyItem.tokenData);
+      toast.success("App token acquired successfully");
     } catch (err: any) {
-      error = err.message;
+      const message = err?.message ?? 'Failed to acquire token';
+      error = message;
       lastErrorSource = 'app-token';
-      tokenDockState.setError(err.message);
+      tokenDockState.setError(message);
+      toast.error(message);
+      if (err?.setupRequired) {
+        await goto('/apps?from=playground');
+      }
     } finally {
       loading = false;
     }
@@ -426,6 +418,10 @@
   async function handleUserSubmit(forceSwitch: boolean = false) {
     if (!ensureSetupReady()) return;
     if (!scopesInput) return;
+    if (!appRegistry.activeApp) {
+      toast.error('No active app configured');
+      return;
+    }
     await clientStorage.set(CLIENT_STORAGE_KEYS.activeTab, 'user-token');
     loading = true;
     error = null;
@@ -434,21 +430,58 @@
     tokenDockState.setLoading({ type: 'User Token', target: scopesInput });
 
     try {
-      const service = $authServiceStore;
-      if (!service) throw new Error('Auth service not initialized');
-      
       const scopeArray = scopesInput.split(/[ ,]+/).filter(Boolean);
-      // getToken handles unauthenticated users automatically (prompts sign-in)
-      // If forceSwitch is true, we force an interactive prompt to allow switching accounts
-      const options = forceSwitch 
-        ? { forceInteraction: true, prompt: 'select_account' as const }
-        : {}; // Don't pass forceInteraction: false, let getToken decide
-      const tokenResponse = await service.getToken(scopeArray, options);
+      let tokenResponse: { accessToken: string; tokenType: string; expiresOn?: Date | string; scopes?: string[] };
+
+      if (isTauriMode()) {
+        // Tauri mode: Use sidecar with msal-node (opens system browser)
+        const { acquireUserToken } = await import('$lib/services/tauri-api');
+        const prompt =
+          forceSwitch || identityPreference.shouldAskEveryTime
+            ? 'select_account'
+            : undefined;
+        const response = await acquireUserToken(
+          appRegistry.activeApp.clientId,
+          appRegistry.activeApp.tenantId,
+          scopeArray,
+          prompt,
+          $tauriUser?.homeAccountId,
+        );
+        tokenResponse = {
+          accessToken: response.accessToken,
+          tokenType: response.tokenType || 'Bearer',
+          expiresOn: response.expiresOn,
+          scopes: response.scopes,
+        };
+
+        // Update desktop session metadata for UI display (no tokens persisted)
+        if (response.account) {
+          setTauriUser(response.account, appRegistry.activeApp);
+        }
+      } else {
+        // Web mode: Use msal-browser with popup
+        const service = $authServiceStore;
+        if (!service) throw new Error('Auth service not initialized');
+        
+        const options =
+          forceSwitch || identityPreference.shouldAskEveryTime
+            ? { forceInteraction: true, prompt: 'select_account' as const }
+            : {};
+        const msalResponse = await service.getToken(scopeArray, options);
+        tokenResponse = {
+          accessToken: msalResponse.accessToken,
+          tokenType: msalResponse.tokenType,
+          expiresOn: msalResponse.expiresOn,
+          scopes: msalResponse.scopes,
+        };
+      }
       
       result = {
         accessToken: tokenResponse.accessToken,
         tokenType: tokenResponse.tokenType,
-        expiresOn: tokenResponse.expiresOn?.toISOString(),
+        expiresOn: tokenResponse.expiresOn instanceof Date 
+          ? tokenResponse.expiresOn.toISOString() 
+          : tokenResponse.expiresOn,
         scopes: tokenResponse.scopes,
       };
       
@@ -458,7 +491,6 @@
         target: scopesInput,
         timestamp: issuedAt,
         tokenData: JSON.parse(JSON.stringify(result!)),
-        // App context for multi-app support
         appId: appRegistry.activeApp?.id,
         appName: appRegistry.activeApp?.name,
         appColor: appRegistry.activeApp?.color,
@@ -469,13 +501,10 @@
       }
       await addToHistory(historyItem);
       tokenDockState.setToken(historyItem);
-      // Sync favorite's token data if this target is already favorited
       await favoritesState.updateTokenData(historyItem.type, historyItem.target, historyItem.tokenData);
       toast.success("User token acquired successfully");
     } catch (err: any) {
-      console.error('Token acquisition failed', err);
       const message = err?.message ?? 'Failed to acquire token';
-      // Don't show error toast for cancelled sign-in
       if (message !== 'Sign-in was cancelled') {
         error = message;
         lastErrorSource = 'user-token';
@@ -516,7 +545,6 @@
       toast.success("Copied to clipboard");
       setTimeout(() => copied = false, 2000);
     } catch (err) {
-      console.error('Failed to copy', err);
       toast.error("Failed to copy to clipboard");
     }
   }
@@ -598,7 +626,6 @@
       await favoritesState.load();
       toast.success(favoritePinMode ? 'Pinned and added to favorites' : 'Added to favorites');
     } catch (err) {
-      console.error('Failed to add favorite', err);
       toast.error('Could not add to favorites');
     } finally {
       favoriteDraft = null;
@@ -1357,7 +1384,7 @@
                   </Collapsible.Root>
 
                   <div class="rounded-lg border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-                    Tokens are issued via your confidential client credentials and stay in the browser unless you copy them.
+                    Tokens are issued via your confidential client credentials and stay locally unless you copy them.
                   </div>
                   <Button type="submit" class="w-full gap-2" disabled={loading}>
                     {#if loading}
@@ -1496,6 +1523,7 @@
                     <Info class="h-3.5 w-3.5" />
                     Confirm scopes/resources are consented for this tenant and flow type.
                   </div>
+
                 </div>
               </div>
             {:else if hasResult && result}

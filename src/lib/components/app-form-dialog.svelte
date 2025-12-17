@@ -60,7 +60,10 @@
   let nameInput = $state<HTMLInputElement | null>(null);
   const formId = 'app-form';
   const sectionCardClass = 'rounded-xl border border-border/60 bg-card/60 p-5 shadow-sm shadow-black/5 space-y-5';
-  const redirectUri = $derived(typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : '/auth/callback');
+  // Recommended redirect URI (port-less) - works for any localhost port (web dev server, Tauri, etc.)
+  const recommendedRedirectUri = 'http://localhost/auth/callback';
+  // Actual redirect URI used by MSAL (includes current port)
+  const actualRedirectUri = $derived(typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : '/auth/callback');
 
   const isEditing = $derived(!!editingApp);
   const dialogTitle = $derived(isEditing ? 'Edit Client App Connection' : 'Connect Client App');
@@ -143,16 +146,11 @@
       };
 
       // 2. Validate Key Vault connection
-      const response = await fetch('/api/apps/validate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ keyVault }),
-      });
+      const { validateKeyVault } = await import('$lib/services/tauri-api');
+      const result = await validateKeyVault(keyVault);
 
-      const result = await response.json();
-      
       if (!result.valid) {
-        error = result.error || 'Failed to validate Key Vault credentials. Please check your inputs and permissions.';
+        error = result.message || 'Failed to validate Key Vault credentials. Please check your inputs and permissions.';
         return;
       }
 
@@ -161,7 +159,7 @@
         name: name.trim(),
         clientId: clientId.trim(),
         tenantId: tenantId.trim(),
-        redirectUri,
+        redirectUri: actualRedirectUri,
         keyVault,
         color: selectedColor,
         tags: parseTags(tagsInput),
@@ -356,12 +354,12 @@
               </Tooltip.Trigger>
               <Tooltip.Content class="max-w-sm">
                 <p class="font-semibold mb-1">Required configuration</p>
-                <p>Add this URI under the <strong>Single-page application</strong> platform in Azure Portal (not Web).</p>
+                <p>Add this URI under the <strong>Single-page application</strong> platform in Azure Portal. Using <code>localhost</code> without a port allows any localhost port.</p>
               </Tooltip.Content>
             </Tooltip.Root>
           </Label>
           <div class="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/40 px-3 py-2">
-            <span class="font-mono text-sm text-muted-foreground break-all">{redirectUri}</span>
+            <span class="font-mono text-sm text-muted-foreground break-all">{recommendedRedirectUri}</span>
             {#if typeof window !== 'undefined'}
               <Button
                 type="button"
@@ -369,7 +367,7 @@
                 size="sm"
                 class="h-8 text-xs font-medium text-primary hover:text-primary hover:bg-primary/10"
                 onclick={() => {
-                  navigator.clipboard.writeText(redirectUri);
+                  navigator.clipboard.writeText(recommendedRedirectUri);
                   toast.success('Redirect URI copied to clipboard');
                 }}
               >
@@ -378,7 +376,7 @@
             {/if}
           </div>
           <p class="text-[11px] text-muted-foreground">
-            This URI is fixed and must match your app registration exactly. If you need another port locally, set <span class="font-mono">PORT</span> in your <span class="font-mono">.env</span> file and restart the studio server.
+            This port-less URI works for any localhost port (5173, 3000, etc.) and for the desktop app.
           </p>
         </div>
 
@@ -550,7 +548,7 @@
             <div class="space-y-1">
               <h4 class="text-sm font-medium text-blue-900 dark:text-blue-100">Prerequisites</h4>
               <p class="text-xs text-blue-700 dark:text-blue-300 leading-relaxed">
-                Ensure your local environment (AZ CLI / VS Code) is signed in and has
+                Ensure your local environment (Azure CLI) is signed in and has
                 {#if credentialType === 'certificate'}
                   <code class="font-mono text-[10px] bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-blue-100 px-1.5 py-0.5 rounded mx-0.5">Key Vault Crypto User</code>
                   +

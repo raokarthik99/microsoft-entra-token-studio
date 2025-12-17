@@ -193,7 +193,7 @@ function formatError(err: any, certName: string): string {
     return `Access denied to Key Vault. For certificate signing, ensure you have 'Key Vault Crypto User' and 'Key Vault Certificates User' roles.`;
   }
   if (err.code === 'CredentialUnavailableError') {
-    return 'Azure credentials not available. Run "az login" or sign in via VS Code Azure extension';
+    return 'Azure credentials not available. Run "az login" in your terminal.';
   }
   return err.message || `Failed to access certificate '${certName}' in Key Vault`;
 }

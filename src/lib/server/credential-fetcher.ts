@@ -55,7 +55,6 @@ export async function fetchSecretWithConfig(config: KeyVaultConfig): Promise<str
   } catch (err: any) {
     const message = formatError(err, config.secretName);
     secretCache.set(cacheKey, { value: '', error: message });
-    console.error(`[CredentialFetcher] Secret error: ${message}`);
     throw new Error(message);
   }
 }
@@ -71,7 +70,7 @@ function formatError(err: any, resourceName: string): string {
     return `Access denied to Key Vault. Ensure you have the 'Key Vault Secrets User' role.`;
   }
   if (err.code === 'CredentialUnavailableError') {
-    return 'Azure credentials not available. Run "az login" or sign in via VS Code Azure extension';
+    return 'Azure credentials not available. Run "az login" in your terminal.';
   }
   if (err.message?.includes('isAxiosError is not a function')) {
     return 'Connection failed. Check Key Vault URI and network connection';

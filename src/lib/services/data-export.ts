@@ -26,7 +26,6 @@ export const dataExportService = {
         data
       };
     } catch (error) {
-      console.error('Failed to export data', error);
       throw error;
     }
   },
@@ -114,7 +113,6 @@ export const dataExportService = {
         await set(key, value);
       }
     } catch (error) {
-      console.error('Failed to import data', error);
       throw error;
     }
   }

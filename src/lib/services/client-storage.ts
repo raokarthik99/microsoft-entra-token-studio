@@ -10,6 +10,8 @@ export const CLIENT_STORAGE_KEYS = {
   appRegistry: 'app_registry',
   activeAppId: 'active_app_id',
   freAcknowledged: 'fre_acknowledged',
+  // Desktop auth (Tauri) session metadata (no tokens)
+  tauriUserSessions: 'tauri_user_sessions',
 } as const;
 
 export type ClientStorageKey = (typeof CLIENT_STORAGE_KEYS)[keyof typeof CLIENT_STORAGE_KEYS];
@@ -23,7 +25,6 @@ export const clientStorage = {
       const value = await get<T>(key);
       return value ?? fallback;
     } catch (error) {
-      console.warn(`Failed to read ${key} from IndexedDB`, error);
       return fallback;
     }
   },
@@ -33,7 +34,7 @@ export const clientStorage = {
     try {
       await set(key, value);
     } catch (error) {
-      console.warn(`Failed to persist ${key} to IndexedDB`, error);
+      // Silently ignore
     }
   },
 
@@ -42,7 +43,7 @@ export const clientStorage = {
     try {
       await del(key);
     } catch (error) {
-      console.warn(`Failed to remove ${key} from IndexedDB`, error);
+      // Silently ignore
     }
   },
 
@@ -51,7 +52,7 @@ export const clientStorage = {
     try {
       await clear();
     } catch (error) {
-      console.warn('Failed to clear IndexedDB state', error);
+      // Silently ignore
     }
   }
 };

@@ -28,7 +28,7 @@
       </div>
       <h1 class="text-3xl font-semibold text-foreground dark:text-white md:text-4xl">Privacy & Terms</h1>
       <p class="max-w-3xl text-base leading-relaxed text-muted-foreground dark:text-slate-200">
-        Entra Token Studio is local-first and open source. Tokens live in your browser, credentials stay in Azure Key Vault or your own .env during development, and no telemetry is collected. Use it responsibly and only in environments you control.
+        Entra Token Studio is local-first and open source. Tokens live in your application, credentials stay in Azure Key Vault or your own .env during development, and no telemetry is collected. Use it responsibly and only in environments you control.
       </p>
     </div>
   </section>
@@ -44,7 +44,7 @@
       <div class="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-5">
         <div class="flex items-center gap-2 mb-4">
           <Globe class="h-5 w-5 text-blue-400" />
-          <h3 class="font-semibold text-foreground">Your Browser</h3>
+          <h3 class="font-semibold text-foreground">Local Storage</h3>
         </div>
         <ul class="space-y-3">
           <li class="flex items-start gap-2 text-sm text-muted-foreground">
@@ -140,7 +140,7 @@
             <ShieldCheck class="h-4 w-4 shrink-0 mt-0.5 text-emerald-500" />
             <div>
               <span class="text-foreground font-medium">Access via your identity</span>
-              <p class="text-xs text-muted-foreground">DefaultAzureCredential (CLI, VS Code)</p>
+              <p class="text-xs text-muted-foreground">DefaultAzureCredential (Azure CLI)</p>
             </div>
           </li>
         </ul>
@@ -156,7 +156,7 @@
     <div class="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-6 shadow-sm">
       <h2 class="text-lg font-semibold text-foreground flex items-center gap-2">
         <CheckCircle class="h-5 w-5 text-emerald-500" />
-        Stored Locally (Your Browser)
+        Stored Locally (This Device)
       </h2>
       <ul class="mt-4 space-y-3">
         <li class="flex items-start gap-3 text-sm text-muted-foreground">
@@ -204,7 +204,7 @@
       <div class="mt-4 rounded-lg border border-destructive/20 bg-destructive/5 p-3">
         <p class="text-xs text-destructive/80 flex items-center gap-2">
           <AlertTriangle class="h-4 w-4 shrink-0" />
-          Clear browser storage when done, especially on shared machines.
+          Clear application storage when done, especially on shared machines.
         </p>
       </div>
     </div>

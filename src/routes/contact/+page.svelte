@@ -50,7 +50,7 @@
         </div>
       </div>
       <p class="mt-3 text-sm text-muted-foreground">
-        Found something broken? Open an issue with repro steps. Include browser/OS info and whether you used Key Vault or local credentials.
+        Found something broken? Open an issue with repro steps. Include application/OS info and whether you used Key Vault or local credentials.
       </p>
       <p class="mt-auto pt-3 text-xs text-blue-400 group-hover:text-blue-300">Open issue template →</p>
     </a>
@@ -236,7 +236,7 @@
         <ShieldAlert class="h-4 w-4 text-primary" />
         Privacy Respect
       </p>
-      <p class="mt-2 text-sm text-muted-foreground">No analytics or call-home code. History stays in your browser; secrets stay in Key Vault or .env.</p>
+      <p class="mt-2 text-sm text-muted-foreground">No analytics or call-home code. History stays local; secrets stay in Key Vault or .env.</p>
     </div>
     <div class="rounded-2xl border border-border bg-card/70 p-4 shadow-sm">
       <p class="text-sm font-semibold text-foreground flex items-center gap-2">

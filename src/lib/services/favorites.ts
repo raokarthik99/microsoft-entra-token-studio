@@ -89,7 +89,6 @@ export const favoritesService = {
       const favorites = (await get<FavoriteItem[]>(FAVORITES_KEY)) || [];
       return favorites.map(normalizeFavoriteFromStorage);
     } catch (error) {
-      console.error('Failed to get favorites from IndexedDB', error);
       return [];
     }
   },
@@ -126,7 +125,6 @@ export const favoritesService = {
       await set(FAVORITES_KEY, favorites);
       return favorites;
     } catch (error) {
-      console.error('Failed to add favorite', error);
       return [];
     }
   },
@@ -148,7 +146,6 @@ export const favoritesService = {
       await set(FAVORITES_KEY, favorites);
       return favorites;
     } catch (error) {
-      console.error('Failed to update favorite', error);
       return [];
     }
   },
@@ -161,7 +158,6 @@ export const favoritesService = {
       await set(FAVORITES_KEY, next);
       return next;
     } catch (error) {
-      console.error('Failed to delete favorite', error);
       return [];
     }
   },
@@ -175,7 +171,6 @@ export const favoritesService = {
       await set(FAVORITES_KEY, next);
       return next;
     } catch (error) {
-      console.error('Failed to delete favorites', error);
       return [];
     }
   },
@@ -185,7 +180,7 @@ export const favoritesService = {
     try {
       await del(FAVORITES_KEY);
     } catch (error) {
-      console.error('Failed to clear favorites', error);
+      // Silently ignore
     }
   },
 
@@ -205,7 +200,7 @@ export const favoritesService = {
 
       await set(FAVORITES_KEY, favorites);
     } catch (error) {
-      console.error('Failed to update favorite usage', error);
+      // Silently ignore
     }
   },
 
@@ -215,7 +210,6 @@ export const favoritesService = {
       const favorites = (await get<FavoriteItem[]>(FAVORITES_KEY)) || [];
       return favorites.some((fav) => fav.type === type && fav.target === target);
     } catch (error) {
-      console.error('Failed to check duplicate favorite', error);
       return false;
     }
   },
@@ -261,7 +255,6 @@ export const favoritesService = {
       
       return { items: next.map(normalizeFavoriteFromStorage), deletedCount };
     } catch (error) {
-      console.error('Failed to delete favorites by app IDs', error);
       return { items: [], deletedCount: 0 };
     }
   }

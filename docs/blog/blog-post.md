@@ -128,7 +128,7 @@ This split feels intuitive once you think about it: app tokens require credentia
 This design has constraints:
 
 - **Key Vault is required**—if your credentials live elsewhere, this tool won't help
-- **You need Azure CLI or VS Code Azure Account extension**—to connect to the aforementioned Key Vault
+- **You need Azure CLI**—to connect to the aforementioned Key Vault
 - **It's local-only by design**—no hosted deployment, no multi-tenancy
 
 These aren't accidental limitations. A hosted token-issuance service would require credential storage and access controls that introduce more problems than they solve. Keeping everything local sidesteps that complexity entirely.
@@ -373,7 +373,7 @@ Tokens are sensitive. Even with solid tooling:
 | -------------------------------------------- | ------------------------------------------- |
 | **Node.js 20+**                              | Runtime (required by Vite 7)                |
 | **pnpm**                                     | Package manager (`npm install -g pnpm`)     |
-| **Azure CLI** or **VS Code Azure extension** | For `DefaultAzureCredential` authentication |
+| **Azure CLI**                                | For `DefaultAzureCredential` authentication |
 
 > **Need to manage Node.js versions?** Use [nvm](https://github.com/nvm-sh/nvm) (macOS/Linux) or [nvm-windows](https://github.com/coreybutler/nvm-windows). Then run `nvm use` in the project directory to switch to the required version.
 
@@ -401,15 +401,13 @@ Open `http://localhost:5173` and you're running.
 
 ### Authenticating to Azure
 
-You need a way to authenticate to Azure for Key Vault access. Choose one of these methods:
+### Authenticating to Azure
 
-**Option 1: Azure CLI** _(terminal-focused workflow)_
+You need a way to authenticate to Azure for Key Vault access:
+
+**Azure CLI**
 1. [Install Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli)
 2. Run `az login`
-
-**Option 2: VS Code Azure Extension** _(VS Code users)_
-1. Install the [Azure Account extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode.azure-account)
-2. Open Command Palette (`Cmd/Ctrl + Shift + P`) → **Azure: Sign In**
 
 The server uses [`DefaultAzureCredential`](https://learn.microsoft.com/en-us/javascript/api/@azure/identity/defaultazurecredential), which automatically discovers your credentials from these sources. For most local development, `az login` is all you need.
 
@@ -424,7 +422,7 @@ Your identity needs appropriate access to your Key Vault. Choose the role based 
 **Option 1: Via Azure Portal**
 1. Go to your Key Vault → **Access control (IAM)** → **+ Add role assignment**
 2. Select the appropriate role from the list above
-3. Assign it to your identity (the account you use with `az login` or VS Code)
+3. Assign it to your identity (the account you use with `az login`)
 
 **Option 2: Via Azure CLI**
 

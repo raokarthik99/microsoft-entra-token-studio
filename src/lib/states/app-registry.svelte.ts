@@ -69,7 +69,7 @@ class AppRegistryState {
       this.apps = apps ?? [];
       this.activeAppId = activeId;
     } catch (error) {
-      console.error('Failed to load app registry', error);
+      // Silently ignore
     } finally {
       this.loading = false;
       this.ready = true;

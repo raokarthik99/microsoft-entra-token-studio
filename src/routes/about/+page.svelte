@@ -184,7 +184,7 @@
       <div class="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-5">
         <div class="flex items-center gap-2 mb-3">
           <Globe class="h-5 w-5 text-blue-400" />
-          <h3 class="font-semibold text-foreground">Your Browser</h3>
+          <h3 class="font-semibold text-foreground">Local Storage</h3>
         </div>
         <ul class="space-y-2 text-sm text-muted-foreground">
           <li class="flex items-center gap-2">

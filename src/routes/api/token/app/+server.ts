@@ -66,7 +66,6 @@ export const POST: RequestHandler = async ({ request }) => {
       authSource: 'keyvault',
     });
   } catch (err: any) {
-    console.error('Failed to acquire app token', err);
     const message = err.errorMessage || err.message || 'Unknown error';
     const code = err.errorCode || 'token_acquisition_failed';
     

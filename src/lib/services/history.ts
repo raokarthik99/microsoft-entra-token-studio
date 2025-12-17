@@ -9,7 +9,6 @@ export const historyService = {
       if (typeof window === 'undefined') return [];
       return (await get<HistoryItem[]>(HISTORY_KEY)) || [];
     } catch (error) {
-      console.error('Failed to get history from IndexedDB', error);
       return [];
     }
   },
@@ -22,7 +21,6 @@ export const historyService = {
       await set(HISTORY_KEY, newHistory);
       return newHistory;
     } catch (error) {
-      console.error('Failed to add history item', error);
       return [];
     }
   },
@@ -32,7 +30,7 @@ export const historyService = {
     try {
       await del(HISTORY_KEY);
     } catch (error) {
-      console.error('Failed to clear history', error);
+      // Silently ignore
     }
   },
 
@@ -44,7 +42,6 @@ export const historyService = {
       await set(HISTORY_KEY, newHistory);
       return newHistory;
     } catch (error) {
-      console.error('Failed to delete history item', error);
       return [];
     }
   },
@@ -58,7 +55,6 @@ export const historyService = {
       await set(HISTORY_KEY, newHistory);
       return newHistory;
     } catch (error) {
-      console.error('Failed to delete history items', error);
       return [];
     }
   },
@@ -84,7 +80,6 @@ export const historyService = {
       
       return { items: newHistory, deletedCount };
     } catch (error) {
-      console.error('Failed to delete history by app IDs', error);
       return { items: [], deletedCount: 0 };
     }
   }
