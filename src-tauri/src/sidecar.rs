@@ -198,6 +198,8 @@ struct JsonRpcError {
 pub struct SidecarManager {
     pub child: Option<Child>,
     request_id: u64,
+    /// Stores the last startup error for diagnostics
+    pub start_error: Option<String>,
 }
 
 impl SidecarManager {
@@ -205,7 +207,56 @@ impl SidecarManager {
         Self {
             child: None,
             request_id: 0,
+            start_error: None,
         }
+    }
+
+    /// Check if Node.js is available in PATH or common locations
+    fn find_node_executable() -> Option<PathBuf> {
+        use std::process::Command as StdCommand;
+        
+        // First try "node" directly (works if in PATH)
+        if StdCommand::new("node")
+            .arg("--version")
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+        {
+            return Some(PathBuf::from("node"));
+        }
+
+        // Common Node.js installation paths on macOS
+        let common_paths: Vec<PathBuf> = vec![
+            PathBuf::from("/usr/local/bin/node"),
+            PathBuf::from("/opt/homebrew/bin/node"),
+            PathBuf::from("/usr/bin/node"),
+        ];
+
+        for path in common_paths {
+            if path.exists() {
+                return Some(path);
+            }
+        }
+
+        // Check nvm installation path (common on developer machines)
+        if let Some(home) = dirs::home_dir() {
+            // nvm installs node versions in ~/.nvm/versions/node/<version>/bin/node
+            // We check if the nvm directory exists but won't enumerate versions
+            let nvm_base = home.join(".nvm/versions/node");
+            if nvm_base.exists() {
+                // Try to find any installed node version
+                if let Ok(entries) = std::fs::read_dir(&nvm_base) {
+                    for entry in entries.flatten() {
+                        let node_bin = entry.path().join("bin/node");
+                        if node_bin.exists() {
+                            return Some(node_bin);
+                        }
+                    }
+                }
+            }
+        }
+
+        None
     }
 
     /// Start the Node.js sidecar process
@@ -214,32 +265,86 @@ impl SidecarManager {
             return Ok(());
         }
 
+        // Clear any previous error
+        self.start_error = None;
+
         // Find the sidecar executable path
-        // In production: {exe_dir}/sidecar/dist/index.js
-        // In development: {workspace_root}/sidecar/dist/index.js
+        // Production paths (Tauri bundles resources differently per platform):
+        //   - macOS: {app_bundle}/Contents/Resources/sidecar/dist/index.js
+        //   - Windows/Linux: {exe_dir}/sidecar/dist/index.js
+        // Development: {workspace_root}/sidecar/dist/index.js
         let sidecar_script = {
-            // Try production path first (next to the executable)
             let exe_path = std::env::current_exe()
-                .map_err(|e| format!("Failed to get executable path: {}", e))?;
-            let exe_dir = exe_path.parent().ok_or("Failed to get parent directory")?;
-            let prod_path = exe_dir.join("sidecar").join("dist").join("index.js");
+                .map_err(|e| {
+                    let msg = format!("Failed to get executable path: {}", e);
+                    self.start_error = Some(msg.clone());
+                    msg
+                })?;
+            let exe_dir = exe_path.parent().ok_or_else(|| {
+                let msg = "Failed to get parent directory".to_string();
+                self.start_error = Some(msg.clone());
+                msg
+            })?;
+
+            // Build list of paths to check
+            let mut paths_to_check: Vec<PathBuf> = Vec::new();
             
-            if prod_path.exists() {
-                prod_path
+            // On macOS, Tauri places resources in Contents/Resources
+            #[cfg(target_os = "macos")]
+            {
+                // exe_dir is {app_bundle}/Contents/MacOS
+                // Resources are at {app_bundle}/Contents/Resources
+                if let Some(contents_dir) = exe_dir.parent() {
+                    let resources_path = contents_dir.join("Resources").join("sidecar").join("dist").join("index.js");
+                    paths_to_check.push(resources_path);
+                }
+            }
+            
+            // Also check next to executable (Windows/Linux, and fallback)
+            let exe_sidecar_path = exe_dir.join("sidecar").join("dist").join("index.js");
+            paths_to_check.push(exe_sidecar_path.clone());
+
+            // Find the first path that exists
+            let prod_path = paths_to_check.iter().find(|p| p.exists());
+            
+            if let Some(path) = prod_path {
+                log::info!("Using production sidecar path: {:?}", path);
+                path.clone()
             } else {
                 // Development fallback: use workspace root
                 // Go up from src-tauri/target/debug to workspace root
                 let workspace_root = exe_dir
                     .ancestors()
                     .find(|p| p.join("sidecar").join("dist").join("index.js").exists())
-                    .ok_or("Could not find sidecar dist directory")?;
+                    .ok_or_else(|| {
+                        let checked_paths: Vec<String> = paths_to_check.iter().map(|p| format!("{:?}", p)).collect();
+                        let msg = format!(
+                            "Could not find sidecar dist directory. Checked paths: {}. \
+                             Make sure the sidecar is built (cd sidecar && npm run build)",
+                            checked_paths.join(", ")
+                        );
+                        self.start_error = Some(msg.clone());
+                        msg
+                    })?;
+                log::info!("Using development sidecar path from workspace: {:?}", workspace_root);
                 workspace_root.join("sidecar").join("dist").join("index.js")
             }
         };
 
         log::info!("Starting sidecar from: {:?}", sidecar_script);
 
-        let mut command = Command::new("node");
+        // Find Node.js executable
+        let node_path = Self::find_node_executable().ok_or_else(|| {
+            let msg = "Node.js not found. Please install Node.js (https://nodejs.org) and ensure it's in your PATH. \
+                       On macOS, you may need to install via Homebrew: brew install node".to_string();
+            log::error!("{}", msg);
+            self.start_error = Some(msg.clone());
+            msg
+        })?;
+
+        log::info!("Using Node.js from: {:?}", node_path);
+
+        let mut command = Command::new(&node_path);
         command.arg(&sidecar_script);
 
         if let Some(env) = SIDECAR_ENV.get() {
@@ -254,13 +359,38 @@ impl SidecarManager {
             }
         }
 
+        // Ensure common CLI paths are available to sidecar for Azure CLI discovery
+        let path_additions = match std::env::consts::OS {
+            "macos" => vec!["/opt/homebrew/bin", "/usr/local/bin", "/usr/local/sbin"],
+            "linux" => vec!["/usr/local/bin", "/usr/bin", "/bin"],
+            _ => vec![],
+        };
+        if !path_additions.is_empty() {
+            let current_path = std::env::var("PATH").unwrap_or_default();
+            let new_path = format!("{}:{}", path_additions.join(":"), current_path);
+            command.env("PATH", new_path);
+        }
+
         let child = command
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-            .map_err(|e| format!("Failed to spawn sidecar from {:?}: {}", sidecar_script, e))?;
+            .map_err(|e| {
+                let msg = if e.kind() == std::io::ErrorKind::NotFound {
+                    format!(
+                        "Node.js executable not found at {:?}. Please install Node.js and ensure it's in your PATH.",
+                        node_path
+                    )
+                } else {
+                    format!("Failed to spawn sidecar from {:?}: {}", sidecar_script, e)
+                };
+                log::error!("{}", msg);
+                self.start_error = Some(msg.clone());
+                msg
+            })?;
 
+        log::info!("Sidecar process started successfully (PID: {:?})", child.id());
         self.child = Some(child);
         Ok(())
     }
@@ -271,7 +401,16 @@ impl SidecarManager {
         method: &str,
         params: serde_json::Value,
     ) -> Result<serde_json::Value, String> {
-        let child = self.child.as_mut().ok_or("Sidecar not started")?;
+        // Provide detailed error when sidecar isn't running
+        if self.child.is_none() {
+            let base_error = "Sidecar not started";
+            if let Some(ref startup_error) = self.start_error {
+                return Err(format!("{}: {}", base_error, startup_error));
+            }
+            return Err(base_error.to_string());
+        }
+        
+        let child = self.child.as_mut().unwrap();
 
         self.request_id += 1;
         let request = JsonRpcRequest {

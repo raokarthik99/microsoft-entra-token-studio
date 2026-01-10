@@ -85,6 +85,21 @@ async fn get_credential_status() -> Result<serde_json::Value, String> {
     manager.call("get_credential_status", serde_json::json!({})).await
 }
 
+/// Check sidecar health - returns status and any startup errors
+#[tauri::command]
+async fn check_sidecar_health() -> serde_json::Value {
+    let sidecar = get_sidecar().await;
+    let manager = sidecar.lock().await;
+
+    let running = manager.child.is_some();
+    let error = manager.start_error.clone();
+
+    serde_json::json!({
+        "running": running,
+        "error": error
+    })
+}
+
 /// List Azure subscriptions via Azure CLI
 #[tauri::command]
 async fn list_azure_subscriptions() -> Result<serde_json::Value, String> {
@@ -250,6 +265,7 @@ pub fn run() {
             get_user_accounts,
             clear_user_cache,
             get_auth_storage_status,
+            check_sidecar_health,
             exit_app,
             validate_keyvault,
             get_credential_status,

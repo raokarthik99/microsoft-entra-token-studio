@@ -14,7 +14,7 @@
   import { 
     Loader2, KeyRound, Shield, Cloud, 
     CheckCircle2, Check, XCircle, Info, ExternalLink,
-    LayoutGrid, ChevronDown, Globe
+    LayoutGrid, ChevronDown, Globe, AlertTriangle
   } from '@lucide/svelte';
   import { tick } from 'svelte';
 
@@ -115,6 +115,11 @@
   let keyVaultsError = $state<string | null>(null);
   let secretsError = $state<string | null>(null);
   let certificatesError = $state<string | null>(null);
+
+  // Sidecar health state (desktop app only)
+  let sidecarHealthy = $state(true);
+  let sidecarError = $state<string | null>(null);
+  let checkingSidecarHealth = $state(false);
 
   // Colors for app badges
   const appColors = [
@@ -461,6 +466,10 @@
     keyVaultsError = null;
     secretsError = null;
     certificatesError = null;
+    // Reset sidecar health state
+    sidecarHealthy = true;
+    sidecarError = null;
+    checkingSidecarHealth = false;
   }
 
   function parseTags(raw: string): string[] {
@@ -552,6 +561,42 @@
     return match?.value || null;
   }
 
+  /**
+   * Check if the sidecar process is healthy (desktop app only)
+   * This verifies that Node.js is available and the sidecar started successfully
+   */
+  async function checkSidecarHealthStatus(): Promise<boolean> {
+    try {
+      const { checkSidecarHealth, isTauriMode } = await import('$lib/services/tauri-api');
+      
+      // Skip health check for web mode
+      if (!isTauriMode()) {
+        sidecarHealthy = true;
+        sidecarError = null;
+        return true;
+      }
+
+      checkingSidecarHealth = true;
+      const health = await checkSidecarHealth();
+      
+      sidecarHealthy = health.running;
+      sidecarError = health.error;
+      
+      if (!health.running) {
+        console.error('[app-form-dialog] Sidecar not healthy:', health.error);
+      }
+      
+      return health.running;
+    } catch (err) {
+      console.error('[app-form-dialog] Failed to check sidecar health:', err);
+      sidecarHealthy = false;
+      sidecarError = err instanceof Error ? err.message : 'Failed to check sidecar health';
+      return false;
+    } finally {
+      checkingSidecarHealth = false;
+    }
+  }
+
   async function refreshAzureContext() {
     subscriptionError = null;
     appsError = null;
@@ -560,6 +605,17 @@
     appsLoaded = false;
 
     try {
+      // First check sidecar health (desktop app only)
+      const healthy = await checkSidecarHealthStatus();
+      if (!healthy) {
+        // Sidecar is not healthy - set a descriptive error and stop
+        subscriptionError = sidecarError || 'Desktop service failed to start. Azure resource discovery is unavailable.';
+        azureSubscriptions = [];
+        subscriptionsLoaded = true;
+        loadingSubscriptions = false;
+        return;
+      }
+
       const { listAzureSubscriptions } = await import('$lib/services/tauri-api');
       const result = await listAzureSubscriptions();
 
@@ -934,6 +990,43 @@
   bodyClass="space-y-0 pb-6"
 >
   <form id={formId} class="space-y-6" onsubmit={(e) => { e.preventDefault(); validateAndSave(); }}>
+    {#if !sidecarHealthy && sidecarError}
+      <div class="rounded-lg border-2 border-red-500/50 bg-red-500/10 p-4 space-y-3">
+        <div class="flex items-start gap-3">
+          <div class="p-1.5 rounded bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-400 mt-0.5 shrink-0">
+            <AlertTriangle class="h-5 w-5" />
+          </div>
+          <div class="space-y-2 flex-1 min-w-0">
+            <h4 class="text-sm font-semibold text-red-900 dark:text-red-100">Desktop Service Error</h4>
+            <p class="text-xs text-red-700 dark:text-red-300 leading-relaxed">
+              The background service required for Azure communication failed to start. Azure resource discovery will not work.
+            </p>
+            <details class="group">
+              <summary class="text-xs font-medium text-red-600 dark:text-red-400 cursor-pointer hover:underline">
+                Show technical details
+              </summary>
+              <pre class="mt-2 p-2 rounded bg-red-950/30 text-[11px] text-red-200 overflow-x-auto whitespace-pre-wrap break-words font-mono">{sidecarError}</pre>
+            </details>
+            {#if sidecarError.toLowerCase().includes('node')}
+              <div class="pt-2 border-t border-red-500/30">
+                <p class="text-xs text-red-700 dark:text-red-300 font-medium">Suggested fix:</p>
+                <ol class="mt-1 text-xs text-red-600 dark:text-red-400 list-decimal list-inside space-y-1">
+                  <li>Install Node.js from <a href="https://nodejs.org" target="_blank" rel="noopener noreferrer" class="underline hover:text-red-500">nodejs.org</a> or via Homebrew: <code class="bg-red-950/30 px-1 rounded">brew install node</code></li>
+                  <li>Restart the application after installing Node.js</li>
+                </ol>
+              </div>
+            {/if}
+          </div>
+        </div>
+      </div>
+    {:else if checkingSidecarHealth}
+      <div class="rounded-lg border border-border/60 bg-muted/40 p-4">
+        <div class="flex items-center gap-3">
+          <Loader2 class="h-4 w-4 animate-spin text-muted-foreground" />
+          <span class="text-sm text-muted-foreground">Initializing desktop service...</span>
+        </div>
+      </div>
+    {/if}
     <div class={sectionCardClass}>
       <div class="flex items-center gap-2 text-sm font-semibold">
         <LayoutGrid class="h-4 w-4 text-primary" />

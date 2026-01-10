@@ -55,6 +55,11 @@ interface AzureCliResult<T> {
   error?: string;
 }
 
+interface SidecarHealth {
+  running: boolean;
+  error: string | null;
+}
+
 interface AzureSubscription {
   id: string;
   name: string;
@@ -198,6 +203,21 @@ export async function listAzureSubscriptions(): Promise<AzureCliResult<AzureSubs
   const response = await fetch('/api/azure-cli/subscriptions');
   return response.json();
 }
+
+/**
+ * Check sidecar health status
+ * Returns whether the sidecar is running and any startup error
+ */
+export async function checkSidecarHealth(): Promise<SidecarHealth> {
+  if (!isTauriRuntime()) {
+    // In web mode, there's no sidecar - return healthy
+    return { running: true, error: null };
+  }
+
+  const invoke = await getTauriInvoke();
+  return invoke('check_sidecar_health');
+}
+
 
 export async function exitApp(): Promise<void> {
   if (!isTauriRuntime()) {
