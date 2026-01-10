@@ -13,6 +13,13 @@ import { handleAppToken } from './handlers/app-token.js';
 import { handleValidateKeyVault } from './handlers/keyvault.js';
 import { handleCredentialStatus } from './handlers/credential-status.js';
 import { handleUserToken, clearUserTokenCache, getUserAccounts, getAuthStorageStatus } from './handlers/user-token.js';
+import {
+  handleListSubscriptions,
+  handleListAppRegistrations,
+  handleListKeyVaults,
+  handleListSecrets,
+  handleListCertificates,
+} from './handlers/azure-cli.js';
 
 interface JsonRpcRequest {
   jsonrpc: '2.0';
@@ -32,7 +39,17 @@ interface JsonRpcResponse {
   };
 }
 
-const handlers: Record<string, (params: unknown) => Promise<unknown>> = {
+type JsonRpcHandler = (params?: unknown) => Promise<unknown>;
+
+function withParams<T>(handler: (params: T) => Promise<unknown>): JsonRpcHandler {
+  return (params?: unknown) => handler(params as T);
+}
+
+function withOptionalParams<T>(handler: (params?: T) => Promise<unknown>): JsonRpcHandler {
+  return (params?: unknown) => handler(params as T | undefined);
+}
+
+const handlers: Record<string, JsonRpcHandler> = {
   'acquire_app_token': handleAppToken,
   'acquire_user_token': handleUserToken,
   'clear_user_cache': clearUserTokenCache,
@@ -40,6 +57,11 @@ const handlers: Record<string, (params: unknown) => Promise<unknown>> = {
   'get_auth_storage_status': () => getAuthStorageStatus(),
   'validate_keyvault': handleValidateKeyVault,
   'get_credential_status': handleCredentialStatus,
+  'list_azure_subscriptions': () => handleListSubscriptions(),
+  'list_azure_apps': withOptionalParams(handleListAppRegistrations),
+  'list_keyvaults': withOptionalParams(handleListKeyVaults),
+  'list_keyvault_secrets': withParams(handleListSecrets),
+  'list_keyvault_certificates': withParams(handleListCertificates),
 };
 
 async function handleRequest(request: JsonRpcRequest): Promise<JsonRpcResponse> {

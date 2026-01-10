@@ -85,6 +85,79 @@ async fn get_credential_status() -> Result<serde_json::Value, String> {
     manager.call("get_credential_status", serde_json::json!({})).await
 }
 
+/// List Azure subscriptions via Azure CLI
+#[tauri::command]
+async fn list_azure_subscriptions() -> Result<serde_json::Value, String> {
+    let sidecar = get_sidecar().await;
+    let mut manager = sidecar.lock().await;
+
+    manager
+        .call("list_azure_subscriptions", serde_json::json!({}))
+        .await
+}
+
+/// List Azure app registrations via Azure CLI
+#[tauri::command]
+async fn list_azure_apps(search: Option<String>) -> Result<serde_json::Value, String> {
+    let sidecar = get_sidecar().await;
+    let mut manager = sidecar.lock().await;
+
+    manager
+        .call(
+            "list_azure_apps",
+            serde_json::json!({ "search": search }),
+        )
+        .await
+}
+
+/// List Key Vaults via Azure CLI
+#[tauri::command]
+async fn list_keyvaults(subscription_id: Option<String>) -> Result<serde_json::Value, String> {
+    let sidecar = get_sidecar().await;
+    let mut manager = sidecar.lock().await;
+
+    manager
+        .call(
+            "list_keyvaults",
+            serde_json::json!({ "subscriptionId": subscription_id }),
+        )
+        .await
+}
+
+/// List Key Vault secrets via Azure CLI
+#[tauri::command]
+async fn list_keyvault_secrets(
+    vault_name: String,
+    subscription_id: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let sidecar = get_sidecar().await;
+    let mut manager = sidecar.lock().await;
+
+    manager
+        .call(
+            "list_keyvault_secrets",
+            serde_json::json!({ "vaultName": vault_name, "subscriptionId": subscription_id }),
+        )
+        .await
+}
+
+/// List Key Vault certificates via Azure CLI
+#[tauri::command]
+async fn list_keyvault_certificates(
+    vault_name: String,
+    subscription_id: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let sidecar = get_sidecar().await;
+    let mut manager = sidecar.lock().await;
+
+    manager
+        .call(
+            "list_keyvault_certificates",
+            serde_json::json!({ "vaultName": vault_name, "subscriptionId": subscription_id }),
+        )
+        .await
+}
+
 /// Acquire a user token via sidecar (opens system browser)
 #[tauri::command(rename_all = "camelCase")]
 async fn acquire_user_token(
@@ -172,7 +245,12 @@ pub fn run() {
             clear_user_cache,
             get_auth_storage_status,
             validate_keyvault,
-            get_credential_status
+            get_credential_status,
+            list_azure_subscriptions,
+            list_azure_apps,
+            list_keyvaults,
+            list_keyvault_secrets,
+            list_keyvault_certificates
         ])
         .setup(|app| {
             // Enable logging in debug builds

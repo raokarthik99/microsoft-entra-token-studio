@@ -49,6 +49,38 @@ interface AuthStorageStatus {
   keySource: 'keyring' | 'file' | 'none' | 'unknown';
 }
 
+interface AzureCliResult<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
+}
+
+interface AzureSubscription {
+  id: string;
+  name: string;
+  tenantId: string;
+  isDefault?: boolean;
+  state?: string;
+}
+
+interface AzureAppRegistration {
+  appId: string;
+  displayName: string;
+}
+
+interface AzureKeyVault {
+  name: string;
+  uri: string;
+  location?: string;
+  resourceGroup?: string;
+}
+
+interface AzureVaultCredential {
+  name: string;
+  enabled?: boolean;
+  expires?: string | null;
+}
+
 /**
  * Dynamically import Tauri invoke function only when in Tauri environment
  */
@@ -155,6 +187,70 @@ export async function getCredentialStatus(): Promise<CredentialStatus> {
   } catch {
     return { available: false, message: 'Unable to check credential status' };
   }
+}
+
+export async function listAzureSubscriptions(): Promise<AzureCliResult<AzureSubscription[]>> {
+  if (IS_TAURI) {
+    const invoke = await getTauriInvoke();
+    return invoke('list_azure_subscriptions');
+  }
+
+  const response = await fetch('/api/azure-cli/subscriptions');
+  return response.json();
+}
+
+export async function listAzureApps(search?: string): Promise<AzureCliResult<AzureAppRegistration[]>> {
+  if (IS_TAURI) {
+    const invoke = await getTauriInvoke();
+    return invoke('list_azure_apps', { search });
+  }
+
+  const params = new URLSearchParams();
+  if (search) params.set('search', search);
+  const response = await fetch(`/api/azure-cli/apps?${params.toString()}`);
+  return response.json();
+}
+
+export async function listKeyVaults(subscriptionId?: string): Promise<AzureCliResult<AzureKeyVault[]>> {
+  if (IS_TAURI) {
+    const invoke = await getTauriInvoke();
+    return invoke('list_keyvaults', { subscriptionId });
+  }
+
+  const params = new URLSearchParams();
+  if (subscriptionId) params.set('subscriptionId', subscriptionId);
+  const response = await fetch(`/api/azure-cli/keyvaults?${params.toString()}`);
+  return response.json();
+}
+
+export async function listKeyVaultSecrets(
+  vaultName: string,
+  subscriptionId?: string
+): Promise<AzureCliResult<AzureVaultCredential[]>> {
+  if (IS_TAURI) {
+    const invoke = await getTauriInvoke();
+    return invoke('list_keyvault_secrets', { vaultName, subscriptionId });
+  }
+
+  const params = new URLSearchParams({ vaultName });
+  if (subscriptionId) params.set('subscriptionId', subscriptionId);
+  const response = await fetch(`/api/azure-cli/keyvaults/secrets?${params.toString()}`);
+  return response.json();
+}
+
+export async function listKeyVaultCertificates(
+  vaultName: string,
+  subscriptionId?: string
+): Promise<AzureCliResult<AzureVaultCredential[]>> {
+  if (IS_TAURI) {
+    const invoke = await getTauriInvoke();
+    return invoke('list_keyvault_certificates', { vaultName, subscriptionId });
+  }
+
+  const params = new URLSearchParams({ vaultName });
+  if (subscriptionId) params.set('subscriptionId', subscriptionId);
+  const response = await fetch(`/api/azure-cli/keyvaults/certificates?${params.toString()}`);
+  return response.json();
 }
 
 /**
