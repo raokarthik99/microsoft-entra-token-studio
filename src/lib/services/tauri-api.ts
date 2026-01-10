@@ -5,7 +5,7 @@
  * when in desktop mode, or HTTP fetch when in web mode.
  */
 
-import { IS_TAURI } from '$lib/utils/runtime';
+import { isTauriMode as isTauriRuntime } from '$lib/utils/runtime';
 import type { KeyVaultConfig } from '$lib/types';
 
 // Types for token responses
@@ -85,7 +85,7 @@ interface AzureVaultCredential {
  * Dynamically import Tauri invoke function only when in Tauri environment
  */
 async function getTauriInvoke() {
-  if (!IS_TAURI) {
+  if (!isTauriRuntime()) {
     throw new Error('Not running in Tauri environment');
   }
   const { invoke } = await import('@tauri-apps/api/core');
@@ -100,7 +100,7 @@ export async function acquireAppToken(
   config: TokenAppConfig,
   resource: string
 ): Promise<TokenResponse> {
-  if (IS_TAURI) {
+  if (isTauriRuntime()) {
     const invoke = await getTauriInvoke();
     const normalized = resource.trim().replace(/\/+$/, '');
     const scope = normalized.endsWith('/.default') ? normalized : `${normalized}/.default`;
@@ -139,7 +139,7 @@ export async function acquireAppToken(
  * Validate Key Vault connectivity and credentials
  */
 export async function validateKeyVault(config: KeyVaultConfig): Promise<ValidationResult> {
-  if (IS_TAURI) {
+  if (isTauriRuntime()) {
     const invoke = await getTauriInvoke();
     return invoke('validate_keyvault', { config });
   }
@@ -172,7 +172,7 @@ export async function validateKeyVault(config: KeyVaultConfig): Promise<Validati
  * Check if Azure credentials are available
  */
 export async function getCredentialStatus(): Promise<CredentialStatus> {
-  if (IS_TAURI) {
+  if (isTauriRuntime()) {
     const invoke = await getTauriInvoke();
     return invoke('get_credential_status');
   }
@@ -190,7 +190,7 @@ export async function getCredentialStatus(): Promise<CredentialStatus> {
 }
 
 export async function listAzureSubscriptions(): Promise<AzureCliResult<AzureSubscription[]>> {
-  if (IS_TAURI) {
+  if (isTauriRuntime()) {
     const invoke = await getTauriInvoke();
     return invoke('list_azure_subscriptions');
   }
@@ -200,7 +200,7 @@ export async function listAzureSubscriptions(): Promise<AzureCliResult<AzureSubs
 }
 
 export async function exitApp(): Promise<void> {
-  if (!IS_TAURI) {
+  if (!isTauriRuntime()) {
     throw new Error('Not running in Tauri environment');
   }
   const invoke = await getTauriInvoke();
@@ -208,7 +208,7 @@ export async function exitApp(): Promise<void> {
 }
 
 export async function listAzureApps(search?: string): Promise<AzureCliResult<AzureAppRegistration[]>> {
-  if (IS_TAURI) {
+  if (isTauriRuntime()) {
     const invoke = await getTauriInvoke();
     return invoke('list_azure_apps', { search });
   }
@@ -220,7 +220,7 @@ export async function listAzureApps(search?: string): Promise<AzureCliResult<Azu
 }
 
 export async function listKeyVaults(subscriptionId?: string): Promise<AzureCliResult<AzureKeyVault[]>> {
-  if (IS_TAURI) {
+  if (isTauriRuntime()) {
     const invoke = await getTauriInvoke();
     return invoke('list_keyvaults', { subscriptionId });
   }
@@ -235,7 +235,7 @@ export async function listKeyVaultSecrets(
   vaultName: string,
   subscriptionId?: string
 ): Promise<AzureCliResult<AzureVaultCredential[]>> {
-  if (IS_TAURI) {
+  if (isTauriRuntime()) {
     const invoke = await getTauriInvoke();
     return invoke('list_keyvault_secrets', { vaultName, subscriptionId });
   }
@@ -250,7 +250,7 @@ export async function listKeyVaultCertificates(
   vaultName: string,
   subscriptionId?: string
 ): Promise<AzureCliResult<AzureVaultCredential[]>> {
-  if (IS_TAURI) {
+  if (isTauriRuntime()) {
     const invoke = await getTauriInvoke();
     return invoke('list_keyvault_certificates', { vaultName, subscriptionId });
   }
@@ -275,7 +275,7 @@ export async function acquireUserToken(
   accountHomeAccountId?: string,
   silentOnly?: boolean
 ): Promise<TokenResponse> {
-  if (!IS_TAURI) {
+  if (!isTauriRuntime()) {
     throw new Error('acquireUserToken is only available in Tauri mode. Use AuthService for web.');
   }
 
@@ -298,7 +298,7 @@ export async function getUserAccounts(
   clientId: string,
   tenantId: string,
 ): Promise<NonNullable<TokenResponse['account']>[]> {
-  if (!IS_TAURI) {
+  if (!isTauriRuntime()) {
     throw new Error('getUserAccounts is only available in Tauri mode.');
   }
 
@@ -310,13 +310,13 @@ export async function getUserAccounts(
  * Clear cached user tokens/accounts for a client (logout).
  */
 export async function clearUserCache(clientId: string, tenantId: string): Promise<void> {
-  if (!IS_TAURI) return;
+  if (!isTauriRuntime()) return;
   const invoke = await getTauriInvoke();
   await invoke('clear_user_cache', { clientId, tenantId });
 }
 
 export async function getAuthStorageStatus(): Promise<AuthStorageStatus> {
-  if (!IS_TAURI) {
+  if (!isTauriRuntime()) {
     throw new Error('getAuthStorageStatus is only available in Tauri mode.');
   }
   const invoke = await getTauriInvoke();
@@ -327,5 +327,5 @@ export async function getAuthStorageStatus(): Promise<AuthStorageStatus> {
  * Check if running in Tauri mode (for conditional auth logic)
  */
 export function isTauriMode(): boolean {
-  return IS_TAURI;
+  return isTauriRuntime();
 }

@@ -9,6 +9,7 @@
  */
 
 import { createInterface } from 'readline';
+import path from 'node:path';
 import { handleAppToken } from './handlers/app-token.js';
 import { handleValidateKeyVault } from './handlers/keyvault.js';
 import { handleCredentialStatus } from './handlers/credential-status.js';
@@ -40,6 +41,30 @@ interface JsonRpcResponse {
 }
 
 type JsonRpcHandler = (params?: unknown) => Promise<unknown>;
+
+const COMMON_CLI_PATHS: Record<NodeJS.Platform, string[]> = {
+  darwin: ['/opt/homebrew/bin', '/usr/local/bin', '/usr/local/sbin'],
+  linux: ['/usr/local/bin', '/usr/bin', '/bin'],
+  win32: [
+    'C:\\Program Files\\Microsoft SDKs\\Azure\\CLI2\\wbin',
+    'C:\\Program Files (x86)\\Microsoft SDKs\\Azure\\CLI2\\wbin',
+  ],
+  aix: [],
+  freebsd: [],
+  openbsd: [],
+  sunos: [],
+  android: [],
+};
+
+function ensureCliPaths() {
+  const extraPaths = COMMON_CLI_PATHS[process.platform] ?? [];
+  if (extraPaths.length === 0) return;
+  const currentPath = process.env.PATH ?? '';
+  const parts = currentPath.split(path.delimiter).filter(Boolean);
+  const additions = extraPaths.filter((entry) => !parts.includes(entry));
+  if (additions.length === 0) return;
+  process.env.PATH = [...additions, ...parts].join(path.delimiter);
+}
 
 function withParams<T>(handler: (params: T) => Promise<unknown>): JsonRpcHandler {
   return (params?: unknown) => handler(params as T);
@@ -102,6 +127,8 @@ async function handleRequest(request: JsonRpcRequest): Promise<JsonRpcResponse> 
 }
 
 function main() {
+  // GUI-launched apps may not inherit shell PATH; ensure common CLI locations are available.
+  ensureCliPaths();
   const rl = createInterface({
     input: process.stdin,
     output: process.stdout,

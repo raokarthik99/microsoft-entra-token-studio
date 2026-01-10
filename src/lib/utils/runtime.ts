@@ -7,13 +7,22 @@
 declare global {
   interface Window {
     __TAURI_INTERNALS__?: unknown;
+    __TAURI__?: unknown;
+    __TAURI_METADATA__?: unknown;
   }
+}
+
+const TAURI_WINDOW_KEYS = ['__TAURI_INTERNALS__', '__TAURI__', '__TAURI_METADATA__'] as const;
+
+function detectTauriRuntime(): boolean {
+  if (typeof window === 'undefined') return false;
+  return TAURI_WINDOW_KEYS.some((key) => key in window);
 }
 
 /**
  * Check if running in Tauri desktop environment
  */
-export const IS_TAURI = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+export const IS_TAURI = detectTauriRuntime();
 
 /**
  * Check if running in standard web browser
@@ -29,7 +38,7 @@ export const IS_SERVER = typeof window === 'undefined';
  * Function wrapper for IS_TAURI - useful in reactive contexts
  */
 export function isTauriMode(): boolean {
-  return typeof window !== 'undefined' && ('__TAURI_INTERNALS__' in window || '__TAURI__' in window || '__TAURI_METADATA__' in window);
+  return detectTauriRuntime();
 }
 
 /**
@@ -40,7 +49,7 @@ export function getRedirectUri(): string {
     return 'http://localhost:5173/auth/callback';
   }
   
-  if (IS_TAURI) {
+  if (isTauriMode()) {
     // Tauri uses a custom protocol
     return 'tauri://localhost/auth/callback';
   }
@@ -58,7 +67,7 @@ export function getApiBaseUrl(): string {
     return '';
   }
   
-  if (IS_TAURI) {
+  if (isTauriMode()) {
     // In Tauri, API calls go through IPC - return empty to trigger IPC path
     return '';
   }

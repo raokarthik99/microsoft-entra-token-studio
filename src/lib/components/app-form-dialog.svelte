@@ -584,6 +584,10 @@
 
       await refreshKeyVaults();
       subscriptionsLoaded = true;
+    } catch (err) {
+      subscriptionError = err instanceof Error ? err.message : 'Failed to load Azure subscriptions.';
+      azureSubscriptions = [];
+      subscriptionsLoaded = true;
     } finally {
       loadingSubscriptions = false;
     }
@@ -606,6 +610,10 @@
       }
 
       azureApps = result.data || [];
+      appsLoaded = true;
+    } catch (err) {
+      appsError = err instanceof Error ? err.message : 'Failed to load app registrations.';
+      azureApps = [];
       appsLoaded = true;
     } finally {
       loadingApps = false;
@@ -645,6 +653,10 @@
       if (resolvedVaultName) {
         await refreshVaultCredentials();
       }
+    } catch (err) {
+      keyVaultsError = err instanceof Error ? err.message : 'Failed to load Key Vaults.';
+      azureKeyVaults = [];
+      keyVaultsLoaded = true;
     } finally {
       loadingKeyVaults = false;
     }
@@ -670,6 +682,10 @@
 
       azureSecrets = result.data || [];
       secretsLoaded = true;
+    } catch (err) {
+      secretsError = err instanceof Error ? err.message : 'Failed to load Key Vault secrets.';
+      azureSecrets = [];
+      secretsLoaded = true;
     } finally {
       loadingSecrets = false;
     }
@@ -694,6 +710,10 @@
       }
 
       azureCertificates = result.data || [];
+      certificatesLoaded = true;
+    } catch (err) {
+      certificatesError = err instanceof Error ? err.message : 'Failed to load Key Vault certificates.';
+      azureCertificates = [];
       certificatesLoaded = true;
     } finally {
       loadingCertificates = false;
@@ -1047,6 +1067,20 @@
           <p class="text-[11px] text-muted-foreground">
             The selected subscription sets the tenant and scope for Key Vault discovery.
           </p>
+          {#if subscriptionError}
+            <div class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              <p class="font-medium">Subscription discovery failed</p>
+              <p class="mt-1">{subscriptionError}</p>
+              <p class="mt-2 text-[11px] text-muted-foreground">
+                Confirm you can run <code class="font-mono text-[10px] bg-muted px-1 rounded">az account list</code> and that your Azure CLI session is logged in.
+              </p>
+            </div>
+          {:else if subscriptionsLoaded && azureSubscriptions.length === 0}
+            <div class="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+              <p class="font-medium">No subscriptions found</p>
+              <p class="mt-1">Make sure your Azure account has access to subscriptions, then reopen the list.</p>
+            </div>
+          {/if}
         </div>
 
         <div class="space-y-2">
