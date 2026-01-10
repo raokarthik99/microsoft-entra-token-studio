@@ -3,13 +3,7 @@
   import type { Component } from 'svelte';
   import { cn } from '$lib/utils';
 
-  type $$Slots = {
-    default?: import('svelte').Snippet;
-    headerExtra?: import('svelte').Snippet;
-    footer?: import('svelte').Snippet;
-  };
-
-  interface Props {
+  export type Props = {
     open?: boolean;
     onOpenChange?: (open: boolean) => void;
     title: string;
@@ -25,7 +19,7 @@
     children?: import('svelte').Snippet;
     headerExtra?: import('svelte').Snippet;
     footer?: import('svelte').Snippet;
-  }
+  };
 
   let {
     open = $bindable(false),
@@ -43,7 +37,7 @@
     children,
     headerExtra,
     footer,
-  }: Props = $props();
+  } = $props<Props>();
 
   const widthMap = {
     sm: 'sm:max-w-md',

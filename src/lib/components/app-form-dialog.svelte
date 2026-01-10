@@ -82,12 +82,20 @@
   let selectedVaultName = $state('');
   let appQuery = $state('');
   let vaultQuery = $state('');
+  let secretQuery = $state('');
+  let certQuery = $state('');
   let appFilterActive = $state(false);
   let vaultFilterActive = $state(false);
+  let secretFilterActive = $state(false);
+  let certFilterActive = $state(false);
   let lastAppSelection = $state('');
   let lastVaultSelection = $state('');
+  let lastSecretSelection = $state('');
+  let lastCertSelection = $state('');
   let appComboboxOpen = $state(false);
   let vaultComboboxOpen = $state(false);
+  let secretComboboxOpen = $state(false);
+  let certComboboxOpen = $state(false);
 
   let loadingSubscriptions = $state(false);
   let loadingApps = $state(false);
@@ -133,24 +141,9 @@
   const dialogTitle = $derived(isEditing ? 'Edit Client App Connection' : 'Connect Client App');
   const submitLabel = $derived(validating ? 'Validating & Saving...' : isEditing ? 'Save Changes' : 'Validate & Save Connection');
 
-  const isFormValid = $derived(
-    name.trim() && 
-    clientId.trim() && 
-    tenantId.trim() && 
-    keyVaultUri.trim() &&
-    (credentialType === 'secret' ? secretName.trim() : certName.trim())
-  );
-
   const selectedSubscription = $derived(
     azureSubscriptions.find((sub) => sub.id === selectedSubscriptionId) || null
   );
-  const selectedSecret = $derived(
-    azureSecrets.find((secret) => secret.name === secretName) || null
-  );
-  const selectedCertificate = $derived(
-    azureCertificates.find((cert) => cert.name === certName) || null
-  );
-
   const appItems = $derived(
     azureApps.map((app) => ({
       value: app.appId,
@@ -173,12 +166,18 @@
   });
 
   const vaultItems = $derived(
-    azureKeyVaults.map((vault) => ({
-      value: vault.uri,
-      label: vault.name || vault.uri,
-      searchable: `${vault.name || ''} ${vault.uri}`.toLowerCase(),
-      vault,
-    }))
+    azureKeyVaults
+      .map((vault) => {
+        const uri = vault.uri || (vault.name ? `https://${vault.name}.vault.azure.net` : '');
+        if (!uri) return null;
+        return {
+          value: uri,
+          label: vault.name || uri,
+          searchable: `${vault.name || ''} ${uri}`.toLowerCase(),
+          vault: { ...vault, uri },
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null)
   );
 
   const vaultFilterQuery = $derived.by(() => {
@@ -191,6 +190,81 @@
   const filteredVaultItems = $derived.by(() => {
     if (!vaultFilterActive || !vaultFilterQuery) return vaultItems;
     return vaultItems.filter((item) => item.searchable.includes(vaultFilterQuery));
+  });
+
+  const secretItems = $derived(
+    azureSecrets.map((secret) => ({
+      value: secret.name,
+      label: secret.name,
+      searchable: `${secret.name}`.toLowerCase(),
+      credential: secret,
+    }))
+  );
+
+  const secretFilterQuery = $derived.by(() => {
+    const query = secretQuery.trim().toLowerCase();
+    const selectedItem = secretItems.find((item) => item.value === secretName);
+    if (selectedItem && query === selectedItem.label.toLowerCase()) return '';
+    return query;
+  });
+
+  const filteredSecretItems = $derived.by(() => {
+    if (!secretFilterActive || !secretFilterQuery) return secretItems;
+    return secretItems.filter((item) => item.searchable.includes(secretFilterQuery));
+  });
+
+  const certItems = $derived(
+    azureCertificates.map((cert) => ({
+      value: cert.name,
+      label: cert.name,
+      searchable: `${cert.name}`.toLowerCase(),
+      credential: cert,
+    }))
+  );
+
+  const certFilterQuery = $derived.by(() => {
+    const query = certQuery.trim().toLowerCase();
+    const selectedItem = certItems.find((item) => item.value === certName);
+    if (selectedItem && query === selectedItem.label.toLowerCase()) return '';
+    return query;
+  });
+
+  const filteredCertItems = $derived.by(() => {
+    if (!certFilterActive || !certFilterQuery) return certItems;
+    return certItems.filter((item) => item.searchable.includes(certFilterQuery));
+  });
+
+  const resolvedClientId = $derived.by(() => clientId.trim() || resolveAppId(appQuery) || '');
+  const resolvedKeyVaultUri = $derived.by(() => keyVaultUri.trim() || resolveVaultUri(vaultQuery) || '');
+  const resolvedSecretName = $derived.by(() => secretName.trim() || resolveSecretName(secretQuery) || '');
+  const resolvedCertName = $derived.by(() => certName.trim() || resolveCertName(certQuery) || '');
+  const resolvedVaultName = $derived.by(() => {
+    const trimmed = selectedVaultName.trim();
+    if (trimmed) return trimmed;
+    if (!resolvedKeyVaultUri) return '';
+    return getVaultNameFromUri(resolvedKeyVaultUri) || '';
+  });
+
+  const isFormValid = $derived(
+    name.trim() &&
+    resolvedClientId &&
+    tenantId.trim() &&
+    resolvedKeyVaultUri &&
+    (credentialType === 'secret' ? resolvedSecretName : resolvedCertName)
+  );
+
+  const missingFields = $derived.by(() => {
+    const missing: string[] = [];
+    if (!name.trim()) missing.push('Display name');
+    if (!resolvedClientId) missing.push('Client app');
+    if (!tenantId.trim()) missing.push('Tenant ID');
+    if (!resolvedKeyVaultUri) missing.push('Key Vault');
+    if (credentialType === 'secret') {
+      if (!resolvedSecretName) missing.push('Secret name');
+    } else if (!resolvedCertName) {
+      missing.push('Certificate name');
+    }
+    return missing;
   });
 
   $effect(() => {
@@ -208,16 +282,98 @@
   });
 
   $effect(() => {
+    if (clientId || !appQuery.trim()) return;
+    const resolved = resolveAppId(appQuery);
+    if (!resolved) return;
+    clientId = resolved;
+    appFilterActive = false;
+  });
+
+  $effect(() => {
     if (!keyVaultUri) {
-      vaultQuery = '';
       lastVaultSelection = '';
+      if (!vaultQuery.trim()) {
+        selectedVaultName = '';
+      }
       return;
     }
     const selectedItem = vaultItems.find((item) => item.value === keyVaultUri);
-    const nextLabel = selectedItem?.label || keyVaultUri;
+    const nextLabel = selectedItem?.label || selectedVaultName || keyVaultUri;
     if (keyVaultUri !== lastVaultSelection || vaultQuery === lastVaultSelection) {
       vaultQuery = nextLabel;
       lastVaultSelection = keyVaultUri;
+    }
+    const matchedVault = selectedItem?.vault || azureKeyVaults.find((vault) => vault.uri === keyVaultUri);
+    if (matchedVault?.name && matchedVault.name !== selectedVaultName) {
+      selectedVaultName = matchedVault.name;
+    } else if (!selectedVaultName) {
+      selectedVaultName = getVaultNameFromUri(keyVaultUri) || selectedVaultName || keyVaultUri;
+    }
+  });
+
+  $effect(() => {
+    if (keyVaultUri || !vaultQuery.trim()) return;
+    const resolved = resolveVaultUri(vaultQuery);
+    if (!resolved) return;
+    handleVaultSelection(resolved);
+    vaultFilterActive = false;
+  });
+
+  $effect(() => {
+    if (!secretName) {
+      secretQuery = '';
+      lastSecretSelection = '';
+      return;
+    }
+    const selectedItem = secretItems.find((item) => item.value === secretName);
+    const nextLabel = selectedItem?.label || secretName;
+    if (secretName !== lastSecretSelection || secretQuery === lastSecretSelection) {
+      secretQuery = nextLabel;
+      lastSecretSelection = secretName;
+    }
+  });
+
+  $effect(() => {
+    if (secretName || !secretQuery.trim()) return;
+    const resolved = resolveSecretName(secretQuery);
+    if (!resolved) return;
+    handleSecretSelection(resolved);
+    secretFilterActive = false;
+  });
+
+  $effect(() => {
+    if (!certName) {
+      certQuery = '';
+      lastCertSelection = '';
+      return;
+    }
+    const selectedItem = certItems.find((item) => item.value === certName);
+    const nextLabel = selectedItem?.label || certName;
+    if (certName !== lastCertSelection || certQuery === lastCertSelection) {
+      certQuery = nextLabel;
+      lastCertSelection = certName;
+    }
+  });
+
+  $effect(() => {
+    if (certName || !certQuery.trim()) return;
+    const resolved = resolveCertName(certQuery);
+    if (!resolved) return;
+    handleCertSelection(resolved);
+    certFilterActive = false;
+  });
+
+  // Ensure vault credential lists load when a vault is already chosen (e.g., prefilled or restored)
+  $effect(() => {
+    if (!resolvedKeyVaultUri || !resolvedVaultName || loadingSecrets || loadingCertificates) return;
+    if (credentialType === 'secret') {
+      if (!secretsLoaded && !secretsError) {
+        void refreshVaultSecrets();
+      }
+    } else {
+      if (!certificatesLoaded && !certificatesError) {
+        void refreshVaultCertificates();
+      }
     }
   });
 
@@ -275,12 +431,20 @@
     selectedVaultName = '';
     appQuery = '';
     vaultQuery = '';
+    secretQuery = '';
+    certQuery = '';
     appFilterActive = false;
     vaultFilterActive = false;
+    secretFilterActive = false;
+    certFilterActive = false;
     lastAppSelection = '';
     lastVaultSelection = '';
+    lastSecretSelection = '';
+    lastCertSelection = '';
     appComboboxOpen = false;
     vaultComboboxOpen = false;
+    secretComboboxOpen = false;
+    certComboboxOpen = false;
     loadingSubscriptions = false;
     loadingApps = false;
     loadingKeyVaults = false;
@@ -327,6 +491,65 @@
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return null;
     return date.toLocaleDateString();
+  }
+
+  const guidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+  function resolveAppId(value: string): string | null {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const lowered = trimmed.toLowerCase();
+    const match = appItems.find((item) => item.value.toLowerCase() === lowered || item.label.toLowerCase() === lowered);
+    if (match) return match.value;
+    const nameMatches = appItems.filter((item) => (item.app.displayName || '').toLowerCase() === lowered);
+    if (nameMatches.length === 1) return nameMatches[0].value;
+    if (guidPattern.test(trimmed)) return trimmed;
+    return null;
+  }
+
+  function normalizeVaultKey(value: string): string {
+    return value.trim().toLowerCase().replace(/\/+$/, '');
+  }
+
+  function resolveVaultUri(value: string): string | null {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const lowered = trimmed.toLowerCase();
+    const normalized = normalizeVaultKey(trimmed);
+    const match = vaultItems.find((item) =>
+      normalizeVaultKey(item.value) === normalized || item.label.toLowerCase() === lowered
+    );
+    if (match) return match.value;
+    const nameMatches = vaultItems.filter((item) => (item.vault.name || '').toLowerCase() === lowered);
+    if (nameMatches.length === 1) return nameMatches[0].value;
+    if (/^[a-z0-9-]{3,24}$/i.test(trimmed)) {
+      return `https://${trimmed}.vault.azure.net`;
+    }
+    try {
+      const url = new URL(trimmed);
+      if (url.protocol.startsWith('https') && url.hostname.endsWith('.vault.azure.net')) {
+        return url.origin;
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  }
+
+  function resolveSecretName(value: string): string | null {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const lowered = trimmed.toLowerCase();
+    const match = secretItems.find((item) => item.value.toLowerCase() === lowered || item.label.toLowerCase() === lowered);
+    return match?.value || null;
+  }
+
+  function resolveCertName(value: string): string | null {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const lowered = trimmed.toLowerCase();
+    const match = certItems.find((item) => item.value.toLowerCase() === lowered || item.label.toLowerCase() === lowered);
+    return match?.value || null;
   }
 
   async function refreshAzureContext() {
@@ -419,7 +642,7 @@
       }
       keyVaultsLoaded = true;
 
-      if (selectedVaultName) {
+      if (resolvedVaultName) {
         await refreshVaultCredentials();
       }
     } finally {
@@ -428,14 +651,15 @@
   }
 
   async function refreshVaultSecrets() {
-    if (!selectedVaultName) return;
+    const vaultName = resolvedVaultName;
+    if (!vaultName) return;
     secretsError = null;
     loadingSecrets = true;
     secretsLoaded = false;
 
     try {
       const { listKeyVaultSecrets } = await import('$lib/services/tauri-api');
-      const result = await listKeyVaultSecrets(selectedVaultName, selectedSubscriptionId || undefined);
+      const result = await listKeyVaultSecrets(vaultName, selectedSubscriptionId || undefined);
 
       if (!result.success) {
         secretsError = result.error || 'Failed to load Key Vault secrets.';
@@ -452,14 +676,15 @@
   }
 
   async function refreshVaultCertificates() {
-    if (!selectedVaultName) return;
+    const vaultName = resolvedVaultName;
+    if (!vaultName) return;
     certificatesError = null;
     loadingCertificates = true;
     certificatesLoaded = false;
 
     try {
       const { listKeyVaultCertificates } = await import('$lib/services/tauri-api');
-      const result = await listKeyVaultCertificates(selectedVaultName, selectedSubscriptionId || undefined);
+      const result = await listKeyVaultCertificates(vaultName, selectedSubscriptionId || undefined);
 
       if (!result.success) {
         certificatesError = result.error || 'Failed to load Key Vault certificates.';
@@ -501,8 +726,20 @@
     azureKeyVaults = [];
     keyVaultUri = '';
     selectedVaultName = '';
+    vaultQuery = '';
+    vaultFilterActive = false;
+    lastVaultSelection = '';
+    vaultComboboxOpen = false;
     secretName = '';
     certName = '';
+    secretQuery = '';
+    certQuery = '';
+    secretFilterActive = false;
+    certFilterActive = false;
+    lastSecretSelection = '';
+    lastCertSelection = '';
+    secretComboboxOpen = false;
+    certComboboxOpen = false;
     azureSecrets = [];
     azureCertificates = [];
     secretsLoaded = false;
@@ -521,20 +758,61 @@
     }
   }
 
-  function handleVaultSelection(value: string) {
-    keyVaultUri = value;
-    vaultFilterActive = false;
-    const matched = azureKeyVaults.find((vault) => vault.uri === value);
-    selectedVaultName = matched?.name || '';
+  function resetVaultCredentials() {
     secretName = '';
     certName = '';
+    secretQuery = '';
+    certQuery = '';
+    secretFilterActive = false;
+    certFilterActive = false;
+    lastSecretSelection = '';
+    lastCertSelection = '';
+    secretComboboxOpen = false;
+    certComboboxOpen = false;
     azureSecrets = [];
     azureCertificates = [];
     secretsLoaded = false;
     certificatesLoaded = false;
     secretsError = null;
     certificatesError = null;
-    void refreshVaultCredentials();
+  }
+
+  function handleVaultSelection(value: string) {
+    if (!value || value.startsWith('__')) return;
+    const isSameSelection = value === keyVaultUri;
+    keyVaultUri = value;
+    vaultFilterActive = false;
+    const matched = azureKeyVaults.find((vault) => vault.uri === value) || vaultItems.find((item) => item.value === value)?.vault;
+    const nextVaultName = matched?.name || getVaultNameFromUri(value) || selectedVaultName || value;
+    if (nextVaultName !== selectedVaultName) {
+      selectedVaultName = nextVaultName;
+    }
+    if (!isSameSelection) {
+      resetVaultCredentials();
+    }
+    if (resolvedVaultName) {
+      void refreshVaultCredentials();
+    }
+  }
+
+  function handleSecretSelection(value: string) {
+    if (!value) return;
+    if (value === secretName) {
+      secretFilterActive = false;
+      return;
+    }
+    secretName = value;
+    secretFilterActive = false;
+  }
+
+  function handleCertSelection(value: string) {
+    if (!value) return;
+    if (value === certName) {
+      certFilterActive = false;
+      return;
+    }
+    certName = value;
+    certFilterActive = false;
   }
 
   $effect(() => {
@@ -555,11 +833,24 @@
     error = null;
 
     try {
+      const clientIdValue = resolvedClientId.trim();
+      const keyVaultUriValue = resolvedKeyVaultUri.trim();
+      const secretNameValue = credentialType === 'secret' ? resolvedSecretName.trim() : '';
+      const certNameValue = credentialType === 'certificate' ? resolvedCertName.trim() : '';
+      if (!clientIdValue || !keyVaultUriValue) return;
+      if (credentialType === 'secret' && !secretNameValue) return;
+      if (credentialType === 'certificate' && !certNameValue) return;
+
+      clientId = clientIdValue;
+      keyVaultUri = keyVaultUriValue;
+      secretName = secretNameValue;
+      certName = certNameValue;
+
       // 1. Prepare Key Vault config
       const keyVault: KeyVaultConfig = {
-        uri: keyVaultUri,
+        uri: keyVaultUriValue,
         credentialType,
-        ...(credentialType === 'secret' ? { secretName } : { certName }),
+        ...(credentialType === 'secret' ? { secretName: secretNameValue } : { certName: certNameValue }),
       };
 
       // 2. Validate Key Vault connection
@@ -574,7 +865,7 @@
       const appData: AppConfig = {
         id: editingApp?.id || crypto.randomUUID(),
         name: name.trim(),
-        clientId: clientId.trim(),
+        clientId: clientIdValue,
         tenantId: tenantId.trim(),
         redirectUri: actualRedirectUri,
         keyVault,
@@ -1023,7 +1314,7 @@
             bind:open={vaultComboboxOpen}
             onOpenChange={(value) => {
               vaultComboboxOpen = value;
-              if (value && selectedSubscriptionId && !loadingKeyVaults && (!keyVaultsLoaded || keyVaultsError || azureKeyVaults.length === 0)) {
+              if (value && !loadingKeyVaults && (!keyVaultsLoaded || keyVaultsError || azureKeyVaults.length === 0)) {
                 void refreshKeyVaults();
               }
             }}
@@ -1078,12 +1369,16 @@
                   <ChevronDown class="h-4 w-4 rotate-180" />
                 </Combobox.ScrollUpButton>
                 <Combobox.Viewport class="h-(--bits-combobox-anchor-height) min-w-(--bits-combobox-anchor-width) w-full scroll-my-1 p-1">
-                  {#if loadingKeyVaults}
+                  {#if !selectedSubscriptionId}
+                    <div class="px-3 py-2 text-xs text-muted-foreground">Select a subscription first.</div>
+                  {:else if loadingKeyVaults}
                     <div class="px-3 py-2 text-xs text-muted-foreground">Loading Key Vaults...</div>
-                  {:else if !selectedSubscriptionId}
+                  {:else if !keyVaultsLoaded}
                     <div class="px-3 py-2 text-xs text-muted-foreground">
-                      Select a subscription in Azure context to discover vaults.
+                      Key Vault discovery will begin once the Azure CLI session is ready.
                     </div>
+                  {:else if keyVaultsError}
+                    <div class="px-3 py-2 text-xs text-muted-foreground">Key Vault discovery failed. See details below.</div>
                   {:else if filteredVaultItems.length === 0}
                     <div class="px-3 py-2 text-xs text-muted-foreground">
                       {#if vaultFilterActive}
@@ -1106,7 +1401,7 @@
                             {/if}
                           </span>
                           <div class="flex flex-col">
-                            <span class="font-medium">{item.vault.name || 'Key Vault'}</span>
+                            <span class="font-medium">{item.vault.name || item.vault.uri}</span>
                             <span class="text-[11px] text-muted-foreground font-mono">{item.vault.uri}</span>
                           </div>
                         {/snippet}
@@ -1155,7 +1450,7 @@
               onclick={() => {
                 credentialType = 'certificate';
                 error = null;
-                if (selectedVaultName) {
+                if (resolvedVaultName) {
                   void refreshVaultCredentials();
                 }
               }}
@@ -1180,7 +1475,7 @@
               onclick={() => {
                 credentialType = 'secret';
                 error = null;
-                if (selectedVaultName) {
+                if (resolvedVaultName) {
                   void refreshVaultCredentials();
                 }
               }}
@@ -1216,58 +1511,128 @@
                 </Tooltip.Root>
               </Label>
             </div>
-            <Select.Root
+            <Combobox.Root
               type="single"
-              value={secretName}
+              items={filteredSecretItems}
+              bind:value={secretName}
+              inputValue={secretQuery}
+              bind:open={secretComboboxOpen}
               onOpenChange={(value) => {
+                secretComboboxOpen = value;
                 if (!value) return;
-                if (!selectedVaultName || loadingSecrets) return;
+                if (!resolvedVaultName || loadingSecrets) return;
                 if (!secretsLoaded || secretsError || azureSecrets.length === 0) {
                   void refreshVaultSecrets();
                 }
               }}
-              onValueChange={(value) => (secretName = value)}
-              disabled={validating || loadingSecrets || azureSecrets.length === 0}
+              onValueChange={handleSecretSelection}
+              disabled={validating || loadingSecrets}
             >
-            <Select.Trigger class="w-full">
-              {#if selectedSecret}
-                {selectedSecret.name}
-              {:else if loadingSecrets}
-                Loading secrets...
-              {:else if secretName}
-                {secretName}
-              {:else if !selectedVaultName}
-                Select a Key Vault first
-              {:else if azureSecrets.length === 0}
-                  No secrets found
-                {:else}
-                  Select a secret
-                {/if}
-              </Select.Trigger>
-              <Select.Content>
-                {#each azureSecrets as secret}
-                  <Select.Item value={secret.name}>
-                    <div class="flex items-center justify-between gap-3">
-                      <span class="font-medium">{secret.name}</span>
-                      {#if formatExpiry(secret.expires)}
-                        <span class="text-[10px] text-muted-foreground">exp {formatExpiry(secret.expires)}</span>
-                      {/if}
-                    </div>
-                  </Select.Item>
-                {/each}
-              </Select.Content>
-            </Select.Root>
+              <div class="relative">
+                <Combobox.Input>
+                  {#snippet child({ props })}
+                    {@const inputProps = props as Record<string, unknown> & {
+                      onfocus?: (event: FocusEvent) => void;
+                      onpointerdown?: (event: PointerEvent) => void;
+                      oninput?: (event: Event) => void;
+                      class?: string;
+                    }}
+                    <input
+                      {...inputProps}
+                      class={`border-input bg-background selection:bg-primary dark:bg-input/30 selection:text-primary-foreground ring-offset-background placeholder:text-muted-foreground shadow-xs flex h-9 w-full min-w-0 rounded-md border px-3 py-1 text-base outline-none transition-[color,box-shadow] disabled:cursor-not-allowed disabled:opacity-50 md:text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive pr-9 ${inputProps.class ?? ''}`}
+                      placeholder={resolvedVaultName ? 'Select a secret' : 'Select a Key Vault first'}
+                      autocomplete="off"
+                      onfocus={(event) => {
+                        inputProps.onfocus?.(event);
+                        secretComboboxOpen = true;
+                      }}
+                      onpointerdown={(event) => {
+                        inputProps.onpointerdown?.(event);
+                        secretComboboxOpen = true;
+                      }}
+                      oninput={(event) => {
+                        inputProps.oninput?.(event);
+                        const nextValue = (event.currentTarget as HTMLInputElement).value;
+                        secretQuery = nextValue;
+                        secretFilterActive = nextValue.trim().length > 0;
+                        secretComboboxOpen = true;
+                      }}
+                    />
+                  {/snippet}
+                </Combobox.Input>
+                <Combobox.Trigger
+                  class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  aria-label="Toggle secret list"
+                >
+                  <ChevronDown class="h-4 w-4 opacity-60" />
+                </Combobox.Trigger>
+              </div>
+              <Combobox.Portal>
+                <Combobox.Content
+                  sideOffset={4}
+                  class="bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-end-2 data-[side=right]:slide-in-from-start-2 data-[side=top]:slide-in-from-bottom-2 max-h-(--bits-combobox-content-available-height) origin-(--bits-combobox-content-transform-origin) relative z-50 min-w-[8rem] overflow-y-auto overflow-x-hidden rounded-md border shadow-md data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1"
+                >
+                  <Combobox.ScrollUpButton class="flex cursor-default items-center justify-center py-1">
+                    <ChevronDown class="h-4 w-4 rotate-180" />
+                  </Combobox.ScrollUpButton>
+                  <Combobox.Viewport class="h-(--bits-combobox-anchor-height) min-w-(--bits-combobox-anchor-width) w-full scroll-my-1 p-1">
+                    {#if !resolvedVaultName}
+                      <div class="px-3 py-2 text-xs text-muted-foreground">Select a Key Vault first.</div>
+                    {:else if loadingSecrets}
+                      <div class="px-3 py-2 text-xs text-muted-foreground">Loading secrets...</div>
+                    {:else if !secretsLoaded}
+                      <div class="px-3 py-2 text-xs text-muted-foreground">Secrets will load once the vault is ready.</div>
+                    {:else if secretsError}
+                      <div class="px-3 py-2 text-xs text-muted-foreground">Secret listing failed. See details below.</div>
+                    {:else if filteredSecretItems.length === 0}
+                      <div class="px-3 py-2 text-xs text-muted-foreground">
+                        {#if secretFilterActive}
+                          No matches. Clear the filter to see all secrets.
+                        {:else}
+                          No secrets found.
+                        {/if}
+                      </div>
+                    {:else}
+                      {#each filteredSecretItems as item}
+                        <Combobox.Item
+                          value={item.value}
+                          label={item.label}
+                          class="data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground [&_svg:not([class*='text-'])]:text-muted-foreground outline-hidden *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2 relative flex w-full cursor-default select-none items-center gap-2 rounded-sm py-1.5 pe-8 ps-2 text-sm data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0"
+                        >
+                          {#snippet children({ selected })}
+                            <span class="absolute end-2 flex size-3.5 items-center justify-center">
+                              {#if selected}
+                                <Check class="size-4" />
+                              {/if}
+                            </span>
+                            <div class="flex w-full items-center justify-between gap-3">
+                              <span class="font-medium">{item.credential.name}</span>
+                              {#if formatExpiry(item.credential.expires)}
+                                <span class="text-[10px] text-muted-foreground">exp {formatExpiry(item.credential.expires)}</span>
+                              {/if}
+                            </div>
+                          {/snippet}
+                        </Combobox.Item>
+                      {/each}
+                    {/if}
+                  </Combobox.Viewport>
+                  <Combobox.ScrollDownButton class="flex cursor-default items-center justify-center py-1">
+                    <ChevronDown class="h-4 w-4" />
+                  </Combobox.ScrollDownButton>
+                </Combobox.Content>
+              </Combobox.Portal>
+            </Combobox.Root>
 
             {#if secretsError}
               <div class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
                 <p class="font-medium">Secret listing failed</p>
                 <p class="mt-1">{secretsError}</p>
                 <p class="mt-2 text-[11px] text-muted-foreground">
-                  Verify <code class="font-mono text-[10px] bg-muted px-1 rounded">az keyvault secret list --vault-name {selectedVaultName}</code> works
+                  Verify <code class="font-mono text-[10px] bg-muted px-1 rounded">az keyvault secret list --vault-name {resolvedVaultName || 'your-vault'}</code> works
                   and that you have <span class="font-medium text-foreground">Key Vault Secrets User</span> access.
                 </p>
               </div>
-            {:else if secretsLoaded && !loadingSecrets && azureSecrets.length === 0 && selectedVaultName}
+            {:else if secretsLoaded && !loadingSecrets && azureSecrets.length === 0 && resolvedVaultName}
               <div class="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
                 <p class="font-medium">No secrets found</p>
                 <p class="mt-1">Create a secret in this vault, then reopen the list.</p>
@@ -1287,58 +1652,128 @@
                 </Tooltip.Root>
               </Label>
             </div>
-            <Select.Root
+            <Combobox.Root
               type="single"
-              value={certName}
+              items={filteredCertItems}
+              bind:value={certName}
+              inputValue={certQuery}
+              bind:open={certComboboxOpen}
               onOpenChange={(value) => {
+                certComboboxOpen = value;
                 if (!value) return;
-                if (!selectedVaultName || loadingCertificates) return;
+                if (!resolvedVaultName || loadingCertificates) return;
                 if (!certificatesLoaded || certificatesError || azureCertificates.length === 0) {
                   void refreshVaultCertificates();
                 }
               }}
-              onValueChange={(value) => (certName = value)}
-              disabled={validating || loadingCertificates || azureCertificates.length === 0}
+              onValueChange={handleCertSelection}
+              disabled={validating || loadingCertificates}
             >
-            <Select.Trigger class="w-full">
-              {#if selectedCertificate}
-                {selectedCertificate.name}
-              {:else if loadingCertificates}
-                Loading certificates...
-              {:else if certName}
-                {certName}
-              {:else if !selectedVaultName}
-                Select a Key Vault first
-              {:else if azureCertificates.length === 0}
-                  No certificates found
-                {:else}
-                  Select a certificate
-                {/if}
-              </Select.Trigger>
-              <Select.Content>
-                {#each azureCertificates as cert}
-                  <Select.Item value={cert.name}>
-                    <div class="flex items-center justify-between gap-3">
-                      <span class="font-medium">{cert.name}</span>
-                      {#if formatExpiry(cert.expires)}
-                        <span class="text-[10px] text-muted-foreground">exp {formatExpiry(cert.expires)}</span>
-                      {/if}
-                    </div>
-                  </Select.Item>
-                {/each}
-              </Select.Content>
-            </Select.Root>
+              <div class="relative">
+                <Combobox.Input>
+                  {#snippet child({ props })}
+                    {@const inputProps = props as Record<string, unknown> & {
+                      onfocus?: (event: FocusEvent) => void;
+                      onpointerdown?: (event: PointerEvent) => void;
+                      oninput?: (event: Event) => void;
+                      class?: string;
+                    }}
+                    <input
+                      {...inputProps}
+                      class={`border-input bg-background selection:bg-primary dark:bg-input/30 selection:text-primary-foreground ring-offset-background placeholder:text-muted-foreground shadow-xs flex h-9 w-full min-w-0 rounded-md border px-3 py-1 text-base outline-none transition-[color,box-shadow] disabled:cursor-not-allowed disabled:opacity-50 md:text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive pr-9 ${inputProps.class ?? ''}`}
+                      placeholder={resolvedVaultName ? 'Select a certificate' : 'Select a Key Vault first'}
+                      autocomplete="off"
+                      onfocus={(event) => {
+                        inputProps.onfocus?.(event);
+                        certComboboxOpen = true;
+                      }}
+                      onpointerdown={(event) => {
+                        inputProps.onpointerdown?.(event);
+                        certComboboxOpen = true;
+                      }}
+                      oninput={(event) => {
+                        inputProps.oninput?.(event);
+                        const nextValue = (event.currentTarget as HTMLInputElement).value;
+                        certQuery = nextValue;
+                        certFilterActive = nextValue.trim().length > 0;
+                        certComboboxOpen = true;
+                      }}
+                    />
+                  {/snippet}
+                </Combobox.Input>
+                <Combobox.Trigger
+                  class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  aria-label="Toggle certificate list"
+                >
+                  <ChevronDown class="h-4 w-4 opacity-60" />
+                </Combobox.Trigger>
+              </div>
+              <Combobox.Portal>
+                <Combobox.Content
+                  sideOffset={4}
+                  class="bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-end-2 data-[side=right]:slide-in-from-start-2 data-[side=top]:slide-in-from-bottom-2 max-h-(--bits-combobox-content-available-height) origin-(--bits-combobox-content-transform-origin) relative z-50 min-w-[8rem] overflow-y-auto overflow-x-hidden rounded-md border shadow-md data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1"
+                >
+                  <Combobox.ScrollUpButton class="flex cursor-default items-center justify-center py-1">
+                    <ChevronDown class="h-4 w-4 rotate-180" />
+                  </Combobox.ScrollUpButton>
+                  <Combobox.Viewport class="h-(--bits-combobox-anchor-height) min-w-(--bits-combobox-anchor-width) w-full scroll-my-1 p-1">
+                    {#if !resolvedVaultName}
+                      <div class="px-3 py-2 text-xs text-muted-foreground">Select a Key Vault first.</div>
+                    {:else if loadingCertificates}
+                      <div class="px-3 py-2 text-xs text-muted-foreground">Loading certificates...</div>
+                    {:else if !certificatesLoaded}
+                      <div class="px-3 py-2 text-xs text-muted-foreground">Certificates will load once the vault is ready.</div>
+                    {:else if certificatesError}
+                      <div class="px-3 py-2 text-xs text-muted-foreground">Certificate listing failed. See details below.</div>
+                    {:else if filteredCertItems.length === 0}
+                      <div class="px-3 py-2 text-xs text-muted-foreground">
+                        {#if certFilterActive}
+                          No matches. Clear the filter to see all certificates.
+                        {:else}
+                          No certificates found.
+                        {/if}
+                      </div>
+                    {:else}
+                      {#each filteredCertItems as item}
+                        <Combobox.Item
+                          value={item.value}
+                          label={item.label}
+                          class="data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground [&_svg:not([class*='text-'])]:text-muted-foreground outline-hidden *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2 relative flex w-full cursor-default select-none items-center gap-2 rounded-sm py-1.5 pe-8 ps-2 text-sm data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0"
+                        >
+                          {#snippet children({ selected })}
+                            <span class="absolute end-2 flex size-3.5 items-center justify-center">
+                              {#if selected}
+                                <Check class="size-4" />
+                              {/if}
+                            </span>
+                            <div class="flex w-full items-center justify-between gap-3">
+                              <span class="font-medium">{item.credential.name}</span>
+                              {#if formatExpiry(item.credential.expires)}
+                                <span class="text-[10px] text-muted-foreground">exp {formatExpiry(item.credential.expires)}</span>
+                              {/if}
+                            </div>
+                          {/snippet}
+                        </Combobox.Item>
+                      {/each}
+                    {/if}
+                  </Combobox.Viewport>
+                  <Combobox.ScrollDownButton class="flex cursor-default items-center justify-center py-1">
+                    <ChevronDown class="h-4 w-4" />
+                  </Combobox.ScrollDownButton>
+                </Combobox.Content>
+              </Combobox.Portal>
+            </Combobox.Root>
 
             {#if certificatesError}
               <div class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
                 <p class="font-medium">Certificate listing failed</p>
                 <p class="mt-1">{certificatesError}</p>
                 <p class="mt-2 text-[11px] text-muted-foreground">
-                  Verify <code class="font-mono text-[10px] bg-muted px-1 rounded">az keyvault certificate list --vault-name {selectedVaultName}</code> works
+                  Verify <code class="font-mono text-[10px] bg-muted px-1 rounded">az keyvault certificate list --vault-name {resolvedVaultName || 'your-vault'}</code> works
                   and that you have <span class="font-medium text-foreground">Key Vault Certificates User</span> access.
                 </p>
               </div>
-            {:else if certificatesLoaded && !loadingCertificates && azureCertificates.length === 0 && selectedVaultName}
+            {:else if certificatesLoaded && !loadingCertificates && azureCertificates.length === 0 && resolvedVaultName}
               <div class="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
                 <p class="font-medium">No certificates found</p>
                 <p class="mt-1">Create a certificate in this vault, then reopen the list.</p>
@@ -1397,6 +1832,8 @@
       <div class="text-xs text-muted-foreground">
         {#if validating}
           Validating Key Vault access...
+        {:else if !isFormValid && missingFields.length > 0}
+          Missing: {missingFields.join(', ')}.
         {:else}
           We only store tenant/client IDs locally; secrets stay in your vault.
         {/if}
