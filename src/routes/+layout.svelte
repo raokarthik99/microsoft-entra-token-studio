@@ -45,8 +45,18 @@
     freOpen = false;
   }
 
-  function handleFreExit() {
-    // Redirect away to prevent access if they decline
+  async function handleFreExit() {
+    if (isTauriMode()) {
+      try {
+        const { exitApp } = await import('$lib/services/tauri-api');
+        await exitApp();
+        return;
+      } catch {
+        // Ignore and fall through to a safe web-only redirect.
+      }
+    }
+
+    // Redirect away to prevent access if they decline (web).
     window.location.href = 'about:blank';
   }
   

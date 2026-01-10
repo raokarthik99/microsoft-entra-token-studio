@@ -231,6 +231,12 @@ async fn get_auth_storage_status() -> Result<serde_json::Value, String> {
     manager.call("get_auth_storage_status", serde_json::json!({})).await
 }
 
+/// Exit the desktop application.
+#[tauri::command]
+fn exit_app(app: tauri::AppHandle) {
+    app.exit(0);
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -244,6 +250,7 @@ pub fn run() {
             get_user_accounts,
             clear_user_cache,
             get_auth_storage_status,
+            exit_app,
             validate_keyvault,
             get_credential_status,
             list_azure_subscriptions,

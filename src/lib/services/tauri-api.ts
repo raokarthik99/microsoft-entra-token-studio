@@ -199,6 +199,14 @@ export async function listAzureSubscriptions(): Promise<AzureCliResult<AzureSubs
   return response.json();
 }
 
+export async function exitApp(): Promise<void> {
+  if (!IS_TAURI) {
+    throw new Error('Not running in Tauri environment');
+  }
+  const invoke = await getTauriInvoke();
+  await invoke('exit_app');
+}
+
 export async function listAzureApps(search?: string): Promise<AzureCliResult<AzureAppRegistration[]>> {
   if (IS_TAURI) {
     const invoke = await getTauriInvoke();
