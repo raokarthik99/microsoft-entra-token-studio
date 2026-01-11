@@ -22,7 +22,7 @@
   import logo from '$lib/assets/token-studio-icon.png';
   import { page } from '$app/stores';
   import { isTauriMode } from '$lib/utils/runtime';
-  import { tauriUser, clearTauriUser, restoreTauriUserForApp, setTauriUser, updateTauriUser } from '$lib/states/tauri-user';
+  import { tauriUser, tauriUserRevision, clearTauriUser, restoreTauriUserForApp, setTauriUser, updateTauriUser } from '$lib/states/tauri-user';
   import { identityPreference } from '$lib/states/identity.svelte';
   import { toast } from 'svelte-sonner';
 
@@ -127,6 +127,11 @@
         authServiceStore.set(null);
         authService = null;
         currentAuthAppId = null;
+
+        const activeApp = appRegistry.activeApp;
+        const key = activeApp ? `${activeApp.id}:${activeApp.clientId}:${activeApp.tenantId}` : 'none';
+        lastTauriSyncKey = key;
+        await syncTauriUserForApp(activeApp ?? null);
         return;
       }
 
@@ -178,6 +183,9 @@
   let lastTauriSyncKey: string | null = $state(null);
   let lastTauriPhotoKey: string | null = $state(null);
   let tauriPhotoObjectUrl: string | null = $state(null);
+  let tauriSyncRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  let tauriSyncRetryKey: string | null = null;
+  let tauriSyncRetryAttempts = 0;
 
   function setTauriPhotoUrl(url: string | null) {
     if (tauriPhotoObjectUrl && tauriPhotoObjectUrl !== url) {
@@ -237,6 +245,12 @@
     if (!app) {
       clearTauriUser();
       setTauriPhotoUrl(null);
+      if (tauriSyncRetryTimer) {
+        clearTimeout(tauriSyncRetryTimer);
+        tauriSyncRetryTimer = null;
+      }
+      tauriSyncRetryKey = null;
+      tauriSyncRetryAttempts = 0;
       return;
     }
 
@@ -248,9 +262,19 @@
     try {
       const { getUserAccounts } = await import('$lib/services/tauri-api');
       const accounts = await getUserAccounts(app.clientId, app.tenantId);
+      if (tauriSyncRetryTimer) {
+        clearTimeout(tauriSyncRetryTimer);
+        tauriSyncRetryTimer = null;
+      }
+      tauriSyncRetryKey = null;
+      tauriSyncRetryAttempts = 0;
 
       if (!accounts.length) {
-        clearTauriUser(app.id);
+        // If the sidecar returns no cached accounts, keep any stored identity as
+        // best-effort UI state. Token issuance will still require an interactive sign-in.
+        if (!stored) {
+          clearTauriUser(app.id);
+        }
         return;
       }
 
@@ -259,9 +283,39 @@
           ? accounts.find((acc) => acc.homeAccountId === stored.homeAccountId)
           : null) ?? accounts[0];
 
-      setTauriUser({ ...preferred, objectId: stored?.objectId }, app);
+      setTauriUser(
+        {
+          ...preferred,
+          ...(stored?.name && !preferred.name ? { name: stored.name } : {}),
+          ...(stored?.tenantId && !preferred.tenantId ? { tenantId: stored.tenantId } : {}),
+          objectId: stored?.objectId,
+        },
+        app,
+      );
     } catch {
       // Best-effort: keep stored identity if sidecar isn't ready yet.
+      const key = `${app.id}:${app.clientId}:${app.tenantId}`;
+
+      if (tauriSyncRetryKey !== key) {
+        tauriSyncRetryKey = key;
+        tauriSyncRetryAttempts = 0;
+      }
+
+      if (tauriSyncRetryAttempts >= 5) return;
+
+      if (tauriSyncRetryTimer) clearTimeout(tauriSyncRetryTimer);
+
+      const delay = Math.min(1000 * 2 ** tauriSyncRetryAttempts, 8000);
+      tauriSyncRetryAttempts += 1;
+
+      tauriSyncRetryTimer = setTimeout(() => {
+        if (!isTauriMode()) return;
+        if (!appRegistry.ready) return;
+        const activeApp = appRegistry.activeApp;
+        const activeKey = activeApp ? `${activeApp.id}:${activeApp.clientId}:${activeApp.tenantId}` : 'none';
+        if (activeKey !== key) return;
+        void syncTauriUserForApp(activeApp ?? null);
+      }, delay);
     }
   }
 
@@ -294,7 +348,7 @@
       return;
     }
 
-    const key = `${activeApp.id}:${user.homeAccountId ?? user.username}`;
+    const key = `${activeApp.id}:${user.homeAccountId ?? user.username}:${$tauriUserRevision}`;
     if (key === lastTauriPhotoKey) return;
     lastTauriPhotoKey = key;
 
@@ -304,6 +358,10 @@
   onDestroy(() => {
     if (tauriPhotoObjectUrl) {
       URL.revokeObjectURL(tauriPhotoObjectUrl);
+    }
+    if (tauriSyncRetryTimer) {
+      clearTimeout(tauriSyncRetryTimer);
+      tauriSyncRetryTimer = null;
     }
   });
 

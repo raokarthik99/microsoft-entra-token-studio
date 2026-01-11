@@ -20,6 +20,11 @@ export interface TauriUser {
 }
 
 const tauriUserStore = writable<TauriUser | null>(null);
+const tauriUserRevisionStore = writable(0);
+
+function bumpTauriUserRevision(): void {
+  tauriUserRevisionStore.update((value) => value + 1);
+}
 
 type TauriAppContext = Pick<AppConfig, 'id' | 'clientId' | 'tenantId'>;
 
@@ -122,6 +127,7 @@ export function setTauriUser(account: {
 } | null, app?: TauriAppContext): void {
   if (!account?.username) {
     tauriUserStore.set(null);
+    bumpTauriUserRevision();
     if (app) {
       void clearTauriUserForApp(app.id);
     }
@@ -138,6 +144,7 @@ export function setTauriUser(account: {
   };
 
   tauriUserStore.set(user);
+  bumpTauriUserRevision();
   if (app) {
     void persistTauriUserForApp(app, user);
   }
@@ -148,6 +155,7 @@ export function setTauriUser(account: {
  */
 export function clearTauriUser(appId?: string): void {
   tauriUserStore.set(null);
+  bumpTauriUserRevision();
   if (appId) {
     void clearTauriUserForApp(appId);
   }
@@ -158,6 +166,10 @@ export function clearTauriUser(appId?: string): void {
  */
 export const tauriUser = {
   subscribe: tauriUserStore.subscribe,
+};
+
+export const tauriUserRevision = {
+  subscribe: tauriUserRevisionStore.subscribe,
 };
 
 /**
