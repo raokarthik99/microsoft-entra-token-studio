@@ -4,11 +4,11 @@
   "private": true,
   "type": "module",
   "description": "Node.js sidecar for Entra Token Studio desktop app - handles Azure SDK operations",
-  "main": "dist/index.js",
+  "main": "dist/index.cjs",
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --platform=node --target=node20 --outfile=dist/index.js --format=cjs",
+    "build": "esbuild src/index.ts --bundle --platform=node --target=node20 --outfile=dist/index.cjs --format=cjs",
     "dev": "tsc --watch",
-    "start": "node dist/index.js"
+    "start": "node dist/index.cjs"
   },
   "dependencies": {
     "@azure/identity": "^4.13.0",

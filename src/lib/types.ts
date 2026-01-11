@@ -107,7 +107,7 @@ export type AppCredentialStatus = 'valid' | 'error' | 'unknown' | 'validating';
 export interface AppConfig {
     // Identity
     id: string;                            // UUID
-    name: string;                          // Display name (e.g., "Production")
+    name: string;                          // Display name (defaults to the Entra app registration name)
     color?: string;                        // Visual tag (hex color)
     tags?: string[];                       // Optional search/filter tags
     description?: string;                  // Optional notes shown in listings

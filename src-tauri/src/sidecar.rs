@@ -295,13 +295,13 @@ impl SidecarManager {
                 // exe_dir is {app_bundle}/Contents/MacOS
                 // Resources are at {app_bundle}/Contents/Resources
                 if let Some(contents_dir) = exe_dir.parent() {
-                    let resources_path = contents_dir.join("Resources").join("sidecar").join("dist").join("index.js");
+                    let resources_path = contents_dir.join("Resources").join("sidecar").join("dist").join("index.cjs");
                     paths_to_check.push(resources_path);
                 }
             }
             
             // Also check next to executable (Windows/Linux, and fallback)
-            let exe_sidecar_path = exe_dir.join("sidecar").join("dist").join("index.js");
+            let exe_sidecar_path = exe_dir.join("sidecar").join("dist").join("index.cjs");
             paths_to_check.push(exe_sidecar_path.clone());
 
             // Find the first path that exists
@@ -315,7 +315,7 @@ impl SidecarManager {
                 // Go up from src-tauri/target/debug to workspace root
                 let workspace_root = exe_dir
                     .ancestors()
-                    .find(|p| p.join("sidecar").join("dist").join("index.js").exists())
+                    .find(|p| p.join("sidecar").join("dist").join("index.cjs").exists())
                     .ok_or_else(|| {
                         let checked_paths: Vec<String> = paths_to_check.iter().map(|p| format!("{:?}", p)).collect();
                         let msg = format!(
@@ -327,7 +327,7 @@ impl SidecarManager {
                         msg
                     })?;
                 log::info!("Using development sidecar path from workspace: {:?}", workspace_root);
-                workspace_root.join("sidecar").join("dist").join("index.js")
+                workspace_root.join("sidecar").join("dist").join("index.cjs")
             }
         };
 

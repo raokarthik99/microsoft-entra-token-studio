@@ -16,7 +16,6 @@
     CheckCircle2, Check, XCircle, Info, ExternalLink,
     LayoutGrid, ChevronDown, Globe, AlertTriangle
   } from '@lucide/svelte';
-  import { tick } from 'svelte';
 
   interface Props {
     open?: boolean;
@@ -37,7 +36,6 @@
   let error = $state<string | null>(null);
 
   // Form fields
-  let name = $state('');
   let clientId = $state('');
   let tenantId = $state('');
   // Redirect URI is strictly derived from window.location
@@ -134,7 +132,6 @@
   let tagsInput = $state('');
   let description = $state('');
   let metaOpen = $state(false);
-  let nameInput = $state<HTMLInputElement | null>(null);
   const formId = 'app-form';
   const sectionCardClass = 'rounded-xl border border-border/60 bg-card/60 p-5 shadow-sm shadow-black/5 space-y-5';
   // Recommended redirect URI (port-less) - works for any localhost port (web dev server, Tauri, etc.)
@@ -243,6 +240,15 @@
   const resolvedKeyVaultUri = $derived.by(() => keyVaultUri.trim() || resolveVaultUri(vaultQuery) || '');
   const resolvedSecretName = $derived.by(() => secretName.trim() || resolveSecretName(secretQuery) || '');
   const resolvedCertName = $derived.by(() => certName.trim() || resolveCertName(certQuery) || '');
+  const resolvedAppName = $derived.by(() => {
+    if (!resolvedClientId) return '';
+    const matched = azureApps.find((app) => app.appId === resolvedClientId);
+    const trimmed = matched?.displayName?.trim();
+    if (trimmed) return trimmed;
+    if (matched?.displayName) return matched.displayName;
+    if (editingApp?.clientId === resolvedClientId && editingApp.name.trim()) return editingApp.name.trim();
+    return `App ${formatId(resolvedClientId)}`;
+  });
   const resolvedVaultName = $derived.by(() => {
     const trimmed = selectedVaultName.trim();
     if (trimmed) return trimmed;
@@ -251,7 +257,6 @@
   });
 
   const isFormValid = $derived(
-    name.trim() &&
     resolvedClientId &&
     tenantId.trim() &&
     resolvedKeyVaultUri &&
@@ -260,7 +265,6 @@
 
   const missingFields = $derived.by(() => {
     const missing: string[] = [];
-    if (!name.trim()) missing.push('Display name');
     if (!resolvedClientId) missing.push('Client app');
     if (!tenantId.trim()) missing.push('Tenant ID');
     if (!resolvedKeyVaultUri) missing.push('Key Vault');
@@ -290,8 +294,7 @@
     if (clientId || !appQuery.trim()) return;
     const resolved = resolveAppId(appQuery);
     if (!resolved) return;
-    clientId = resolved;
-    appFilterActive = false;
+    handleAppSelection(resolved);
   });
 
   $effect(() => {
@@ -385,7 +388,6 @@
   // Populate form when editing
   $effect(() => {
     if (editingApp) {
-      name = editingApp.name;
       clientId = editingApp.clientId;
       tenantId = editingApp.tenantId;
       keyVaultUri = editingApp.keyVault.uri;
@@ -406,15 +408,7 @@
     }
   });
 
-  // Ensure focus lands on the name field when the sheet opens, so the tooltip trigger isn't focused.
-  $effect(() => {
-    if (open && nameInput) {
-      tick().then(() => nameInput?.focus({ preventScroll: true }));
-    }
-  });
-
   function resetForm() {
-    name = '';
     clientId = '';
     tenantId = '';
     keyVaultUri = '';
@@ -828,10 +822,6 @@
   function handleAppSelection(value: string) {
     clientId = value;
     appFilterActive = false;
-    const matched = azureApps.find((app) => app.appId === value);
-    if (matched && !name.trim()) {
-      name = matched.displayName || name;
-    }
   }
 
   function resetVaultCredentials() {
@@ -938,9 +928,10 @@
         return;
       }
 
+      const nameValue = resolvedAppName.trim() || `App ${formatId(clientIdValue)}`;
       const appData: AppConfig = {
         id: editingApp?.id || crypto.randomUUID(),
-        name: name.trim(),
+        name: nameValue,
         clientId: clientIdValue,
         tenantId: tenantId.trim(),
         redirectUri: actualRedirectUri,
@@ -1027,93 +1018,6 @@
         </div>
       </div>
     {/if}
-    <div class={sectionCardClass}>
-      <div class="flex items-center gap-2 text-sm font-semibold">
-        <LayoutGrid class="h-4 w-4 text-primary" />
-        <span>App identity</span>
-      </div>
-      <div class="space-y-4">
-        <div class="space-y-3">
-          <div class="flex items-center gap-2">
-            <Label for="name" class="flex items-center gap-1">
-              Display Name <span class="text-destructive">*</span>
-            </Label>
-            <Tooltip.Root ignoreNonKeyboardFocus>
-              <Tooltip.Trigger class="text-muted-foreground" aria-label="Display name help" tabindex={-1}>
-                <Info class="h-4 w-4" />
-              </Tooltip.Trigger>
-              <Tooltip.Content align="start" side="top">
-                <div class="max-w-xs text-sm">
-                  Pick a friendly label shown across the app. It can match your Entra app name, but it doesn't have to—use whatever helps your team recognize it.
-                </div>
-              </Tooltip.Content>
-            </Tooltip.Root>
-          </div>
-          <Input
-            id="name"
-            bind:value={name}
-            bind:ref={nameInput}
-            placeholder="e.g. Production Graph Client"
-            required
-            disabled={validating}
-            autocomplete="on"
-          />
-        </div>
-
-        <Collapsible.Root class="rounded-lg border border-border/60 bg-muted/30 px-3 py-2" bind:open={metaOpen}>
-          <Collapsible.Trigger class="group flex w-full items-center justify-between gap-2 text-sm font-medium">
-            Optional metadata
-            <ChevronDown class="h-4 w-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
-          </Collapsible.Trigger>
-          <Collapsible.Content class="space-y-4 pt-3">
-            <div class="space-y-3">
-              <Label class="flex items-center gap-1">
-                Theme Color
-              </Label>
-              <div class="flex flex-wrap gap-3">
-                {#each appColors as color}
-                  <button
-                    type="button"
-                    class="h-9 w-9 rounded-full ring-2 ring-offset-2 ring-offset-background transition-all hover:-translate-y-0.5 hover:shadow focus:outline-none focus:ring-offset-2"
-                    class:ring-primary={selectedColor === color}
-                    class:ring-border={selectedColor !== color}
-                    style="background-color: {color}"
-                    onclick={() => selectedColor = color}
-                    disabled={validating}
-                    aria-label="Select color"
-                  ></button>
-                {/each}
-              </div>
-              <p class="text-[11px] text-muted-foreground">Pick an accent; it also shows in the apps list.</p>
-            </div>
-
-            <div class="space-y-2">
-              <Label for="tags" class="text-xs font-medium text-muted-foreground">Tags (optional)</Label>
-              <Input
-                id="tags"
-                placeholder="graph, prod, admin"
-                bind:value={tagsInput}
-                disabled={validating}
-              />
-              <p class="text-[11px] text-muted-foreground">Tags are searchable and filterable in the apps list.</p>
-            </div>
-
-            <div class="space-y-2">
-              <Label for="description" class="text-xs font-medium text-muted-foreground">Description (optional)</Label>
-              <textarea
-                id="description"
-                rows="3"
-                class="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                placeholder="Purpose, environment, or notes"
-                bind:value={description}
-                disabled={validating}
-              ></textarea>
-            </div>
-          </Collapsible.Content>
-        </Collapsible.Root>
-      </div>
-    </div>
-
     <div class={sectionCardClass}>
       <div class="flex items-center gap-2 text-sm font-semibold">
         <Globe class="h-4 w-4 text-sky-500" />
@@ -1350,6 +1254,58 @@
             </div>
           {/if}
         </div>
+
+        <Collapsible.Root class="rounded-lg border border-border/60 bg-muted/30 px-3 py-2" bind:open={metaOpen}>
+          <Collapsible.Trigger class="group flex w-full items-center justify-between gap-2 text-sm font-medium">
+            Optional metadata
+            <ChevronDown class="h-4 w-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+          </Collapsible.Trigger>
+          <Collapsible.Content class="space-y-4 pt-3">
+            <div class="space-y-3">
+              <Label class="flex items-center gap-1">
+                Theme Color
+              </Label>
+              <div class="flex flex-wrap gap-3">
+                {#each appColors as color}
+                  <button
+                    type="button"
+                    class="h-9 w-9 rounded-full ring-2 ring-offset-2 ring-offset-background transition-all hover:-translate-y-0.5 hover:shadow focus:outline-none focus:ring-offset-2"
+                    class:ring-primary={selectedColor === color}
+                    class:ring-border={selectedColor !== color}
+                    style="background-color: {color}"
+                    onclick={() => selectedColor = color}
+                    disabled={validating}
+                    aria-label="Select color"
+                  ></button>
+                {/each}
+              </div>
+              <p class="text-[11px] text-muted-foreground">Pick an accent; it also shows in the apps list.</p>
+            </div>
+
+            <div class="space-y-2">
+              <Label for="tags" class="text-xs font-medium text-muted-foreground">Tags (optional)</Label>
+              <Input
+                id="tags"
+                placeholder="graph, prod, admin"
+                bind:value={tagsInput}
+                disabled={validating}
+              />
+              <p class="text-[11px] text-muted-foreground">Tags are searchable and filterable in the apps list.</p>
+            </div>
+
+            <div class="space-y-2">
+              <Label for="description" class="text-xs font-medium text-muted-foreground">Description (optional)</Label>
+              <textarea
+                id="description"
+                rows="3"
+                class="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                placeholder="Purpose, environment, or notes"
+                bind:value={description}
+                disabled={validating}
+              ></textarea>
+            </div>
+          </Collapsible.Content>
+        </Collapsible.Root>
 
         <div class="space-y-2">
           <Label class="flex items-center gap-1">
