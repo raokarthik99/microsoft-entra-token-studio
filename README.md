@@ -289,23 +289,42 @@ The production build outputs installers to `src-tauri/target/release/bundle/`.
 
 > **Note:** The desktop app is experimental. The web version (`pnpm dev`) remains the primary distribution method.
 
-### Installation
+### Installation from Releases
 
-#### macOS Users
-Since this open-source app is not signed by Apple, you may see an error that "Entra Token Studio is damaged and can't be opened." To fix this:
+You can download pre-built installers from the [GitHub Releases](https://github.com/raokarthik99/microsoft-entra-token-studio/releases) page.
 
-1. Open Terminal
-2. Run this command:
+#### ⚠️ macOS Users — "App is Damaged" Error
+
+When you first open the app, macOS will show an error: **"Entra Token Studio is damaged and can't be opened. You should move it to the Trash."**
+
+**This is NOT a bug — the app is not actually damaged.** This happens because:
+
+1. **The app is not signed with an Apple Developer ID certificate** (which requires a $99/year Apple Developer Program membership)
+2. **The app is not notarized by Apple**
+3. **macOS quarantines all apps downloaded from the internet** and blocks unsigned apps via Gatekeeper
+
+**To fix this:**
+
+1. **Move the app to Applications** (drag from the DMG to Applications folder)
+2. **Open Terminal** (Cmd+Space, type "Terminal", press Enter)
+3. **Run this command:**
    ```bash
    xattr -cr /Applications/Entra\ Token\ Studio.app
    ```
-3. Open the app again.
+4. **Open the app again** — it will now launch normally
 
-#### Windows Users
-Since this open-source app is not digitally signed with a paid certificate (which costs hundreds of dollars per year), you may see a **"Windows protected your PC"** SmartScreen warning.
+> 💡 **What does this command do?** The `xattr -cr` command removes the quarantine extended attribute (`com.apple.quarantine`) that macOS adds to downloaded files. This tells Gatekeeper that you trust this app.
 
-1. Click **More info**.
-2. Click **Run anyway**.
+> 🔐 **Is this safe?** Yes. You're only removing the quarantine flag for this specific app. The app's code is open source and you can audit it yourself. If you're still concerned, you can [build from source](#running-the-desktop-app) instead.
+
+#### Windows Users — SmartScreen Warning
+
+You may see **"Windows protected your PC"** because the app is not signed with an EV (Extended Validation) code signing certificate, which costs hundreds of dollars per year.
+
+1. Click **More info**
+2. Click **Run anyway**
+
+> 💡 Windows SmartScreen is reputation-based. Since this is a new app without widespread usage, it triggers a warning regardless of whether the code is safe.
 
 ### Release Process (Maintainers)
 
