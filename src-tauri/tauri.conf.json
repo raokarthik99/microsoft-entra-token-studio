@@ -35,7 +35,7 @@
       "appimage"
     ],
     "resources": {
-      "../sidecar/dist": "sidecar/dist"
+      "../sidecar/dist/index.cjs": "sidecar/dist/index.cjs"
     },
     "icon": [
       "icons/32x32.png",

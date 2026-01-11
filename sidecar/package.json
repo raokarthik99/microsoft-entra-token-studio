@@ -6,8 +6,11 @@
   "description": "Node.js sidecar for Entra Token Studio desktop app - handles Azure SDK operations",
   "main": "dist/index.cjs",
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --platform=node --target=node20 --outfile=dist/index.cjs --format=cjs",
-    "dev": "tsc --watch",
+    "clean": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "pnpm clean && esbuild src/index.ts --bundle --platform=node --target=node20 --outfile=dist/index.cjs --format=cjs --minify",
+    "build:dev": "pnpm clean && esbuild src/index.ts --bundle --platform=node --target=node20 --outfile=dist/index.cjs --format=cjs --minify --sourcemap --sources-content=false",
+    "dev": "tsc --noEmit --watch",
+    "typecheck": "tsc --noEmit",
     "start": "node dist/index.cjs"
   },
   "dependencies": {

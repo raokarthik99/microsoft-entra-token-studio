@@ -21,7 +21,8 @@
     "tauri:icons": "node scripts/generate-tauri-icons.js",
     "tauri:signer": "tauri signer generate -w ~/.tauri/entra-token-studio.key",
     "sidecar:install": "cd sidecar && pnpm install",
-    "sidecar:build": "cd sidecar && pnpm build",
+    "sidecar:build": "pnpm --filter=entra-token-studio-sidecar build:dev",
+    "sidecar:build:release": "pnpm --filter=entra-token-studio-sidecar build",
     "version:sync": "node scripts/sync-version.js",
     "release": "node scripts/sync-version.js"
   },

@@ -268,11 +268,11 @@ impl SidecarManager {
         // Clear any previous error
         self.start_error = None;
 
-        // Find the sidecar executable path
+        // Find the sidecar script path.
         // Production paths (Tauri bundles resources differently per platform):
-        //   - macOS: {app_bundle}/Contents/Resources/sidecar/dist/index.js
-        //   - Windows/Linux: {exe_dir}/sidecar/dist/index.js
-        // Development: {workspace_root}/sidecar/dist/index.js
+        //   - macOS: {app_bundle}/Contents/Resources/sidecar/dist/index.cjs
+        //   - Windows/Linux: {exe_dir}/sidecar/dist/index.cjs
+        // Development: {workspace_root}/sidecar/dist/index.cjs
         let sidecar_script = {
             let exe_path = std::env::current_exe()
                 .map_err(|e| {
