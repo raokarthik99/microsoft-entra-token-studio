@@ -256,6 +256,41 @@
     return getVaultNameFromUri(resolvedKeyVaultUri) || '';
   });
 
+  const appComboboxReady = $derived(appsLoaded && !loadingApps && !appsError);
+  const appComboboxDisabled = $derived(validating || !appComboboxReady);
+  const appPlaceholder = $derived.by(() => {
+    if (appsError) return 'App discovery failed';
+    if (loadingApps || !appsLoaded) return 'Loading app registrations...';
+    return 'Select an app registration';
+  });
+
+  const vaultComboboxReady = $derived(!!selectedSubscriptionId && keyVaultsLoaded && !loadingKeyVaults && !keyVaultsError);
+  const vaultComboboxDisabled = $derived(validating || !selectedSubscriptionId || !vaultComboboxReady);
+  const vaultPlaceholder = $derived.by(() => {
+    if (!selectedSubscriptionId) return 'Select a subscription first';
+    if (keyVaultsError) return 'Key Vault discovery failed';
+    if (loadingKeyVaults || !keyVaultsLoaded) return 'Loading Key Vaults...';
+    return 'Select a Key Vault';
+  });
+
+  const secretComboboxReady = $derived(!!resolvedVaultName && secretsLoaded && !loadingSecrets && !secretsError);
+  const secretComboboxDisabled = $derived(validating || !resolvedVaultName || !secretComboboxReady);
+  const secretPlaceholder = $derived.by(() => {
+    if (!resolvedVaultName) return 'Select a Key Vault first';
+    if (secretsError) return 'Secret listing failed';
+    if (loadingSecrets || !secretsLoaded) return 'Loading secrets...';
+    return 'Select a secret';
+  });
+
+  const certComboboxReady = $derived(!!resolvedVaultName && certificatesLoaded && !loadingCertificates && !certificatesError);
+  const certComboboxDisabled = $derived(validating || !resolvedVaultName || !certComboboxReady);
+  const certPlaceholder = $derived.by(() => {
+    if (!resolvedVaultName) return 'Select a Key Vault first';
+    if (certificatesError) return 'Certificate listing failed';
+    if (loadingCertificates || !certificatesLoaded) return 'Loading certificates...';
+    return 'Select a certificate';
+  });
+
   const isFormValid = $derived(
     resolvedClientId &&
     tenantId.trim() &&
@@ -1132,13 +1167,17 @@
             inputValue={appQuery}
             bind:open={appComboboxOpen}
             onOpenChange={(value) => {
+              if (appComboboxDisabled) {
+                appComboboxOpen = false;
+                return;
+              }
               appComboboxOpen = value;
               if (value && !loadingApps && (!appsLoaded || appsError || azureApps.length === 0)) {
                 void refreshAzureApps();
               }
             }}
             onValueChange={handleAppSelection}
-            disabled={validating || loadingApps}
+            disabled={appComboboxDisabled}
           >
             <div class="relative">
               <Combobox.Input>
@@ -1152,18 +1191,22 @@
                   <input
                     {...inputProps}
                     class={`border-input bg-background selection:bg-primary dark:bg-input/30 selection:text-primary-foreground ring-offset-background placeholder:text-muted-foreground shadow-xs flex h-9 w-full min-w-0 rounded-md border px-3 py-1 text-base outline-none transition-[color,box-shadow] disabled:cursor-not-allowed disabled:opacity-50 md:text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive pr-9 ${inputProps.class ?? ''}`}
-                    placeholder="Select an app registration"
+                    placeholder={appPlaceholder}
                     autocomplete="off"
+                    disabled={appComboboxDisabled}
                     onfocus={(event) => {
                       inputProps.onfocus?.(event);
+                      if (appComboboxDisabled) return;
                       appComboboxOpen = true;
                     }}
                     onpointerdown={(event) => {
                       inputProps.onpointerdown?.(event);
+                      if (appComboboxDisabled) return;
                       appComboboxOpen = true;
                     }}
                     oninput={(event) => {
                       inputProps.oninput?.(event);
+                      if (appComboboxDisabled) return;
                       const nextValue = (event.currentTarget as HTMLInputElement).value;
                       appQuery = nextValue;
                       appFilterActive = nextValue.trim().length > 0;
@@ -1173,8 +1216,9 @@
                 {/snippet}
               </Combobox.Input>
               <Combobox.Trigger
-                class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
                 aria-label="Toggle app registration list"
+                disabled={appComboboxDisabled}
               >
                 <ChevronDown class="h-4 w-4 opacity-60" />
               </Combobox.Trigger>
@@ -1396,13 +1440,17 @@
             inputValue={vaultQuery}
             bind:open={vaultComboboxOpen}
             onOpenChange={(value) => {
+              if (vaultComboboxDisabled) {
+                vaultComboboxOpen = false;
+                return;
+              }
               vaultComboboxOpen = value;
               if (value && !loadingKeyVaults && (!keyVaultsLoaded || keyVaultsError || azureKeyVaults.length === 0)) {
                 void refreshKeyVaults();
               }
             }}
             onValueChange={handleVaultSelection}
-            disabled={validating || loadingKeyVaults}
+            disabled={vaultComboboxDisabled}
           >
             <div class="relative">
               <Combobox.Input>
@@ -1416,18 +1464,22 @@
                   <input
                     {...inputProps}
                     class={`border-input bg-background selection:bg-primary dark:bg-input/30 selection:text-primary-foreground ring-offset-background placeholder:text-muted-foreground shadow-xs flex h-9 w-full min-w-0 rounded-md border px-3 py-1 text-base outline-none transition-[color,box-shadow] disabled:cursor-not-allowed disabled:opacity-50 md:text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive pr-9 ${inputProps.class ?? ''}`}
-                    placeholder="Select a Key Vault"
+                    placeholder={vaultPlaceholder}
                     autocomplete="off"
+                    disabled={vaultComboboxDisabled}
                     onfocus={(event) => {
                       inputProps.onfocus?.(event);
+                      if (vaultComboboxDisabled) return;
                       vaultComboboxOpen = true;
                     }}
                     onpointerdown={(event) => {
                       inputProps.onpointerdown?.(event);
+                      if (vaultComboboxDisabled) return;
                       vaultComboboxOpen = true;
                     }}
                     oninput={(event) => {
                       inputProps.oninput?.(event);
+                      if (vaultComboboxDisabled) return;
                       const nextValue = (event.currentTarget as HTMLInputElement).value;
                       vaultQuery = nextValue;
                       vaultFilterActive = nextValue.trim().length > 0;
@@ -1437,8 +1489,9 @@
                 {/snippet}
               </Combobox.Input>
               <Combobox.Trigger
-                class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
                 aria-label="Toggle Key Vault list"
+                disabled={vaultComboboxDisabled}
               >
                 <ChevronDown class="h-4 w-4 opacity-60" />
               </Combobox.Trigger>
@@ -1601,6 +1654,10 @@
               inputValue={secretQuery}
               bind:open={secretComboboxOpen}
               onOpenChange={(value) => {
+                if (secretComboboxDisabled) {
+                  secretComboboxOpen = false;
+                  return;
+                }
                 secretComboboxOpen = value;
                 if (!value) return;
                 if (!resolvedVaultName || loadingSecrets) return;
@@ -1609,7 +1666,7 @@
                 }
               }}
               onValueChange={handleSecretSelection}
-              disabled={validating || loadingSecrets}
+              disabled={secretComboboxDisabled}
             >
               <div class="relative">
                 <Combobox.Input>
@@ -1623,18 +1680,22 @@
                     <input
                       {...inputProps}
                       class={`border-input bg-background selection:bg-primary dark:bg-input/30 selection:text-primary-foreground ring-offset-background placeholder:text-muted-foreground shadow-xs flex h-9 w-full min-w-0 rounded-md border px-3 py-1 text-base outline-none transition-[color,box-shadow] disabled:cursor-not-allowed disabled:opacity-50 md:text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive pr-9 ${inputProps.class ?? ''}`}
-                      placeholder={resolvedVaultName ? 'Select a secret' : 'Select a Key Vault first'}
+                      placeholder={secretPlaceholder}
                       autocomplete="off"
+                      disabled={secretComboboxDisabled}
                       onfocus={(event) => {
                         inputProps.onfocus?.(event);
+                        if (secretComboboxDisabled) return;
                         secretComboboxOpen = true;
                       }}
                       onpointerdown={(event) => {
                         inputProps.onpointerdown?.(event);
+                        if (secretComboboxDisabled) return;
                         secretComboboxOpen = true;
                       }}
                       oninput={(event) => {
                         inputProps.oninput?.(event);
+                        if (secretComboboxDisabled) return;
                         const nextValue = (event.currentTarget as HTMLInputElement).value;
                         secretQuery = nextValue;
                         secretFilterActive = nextValue.trim().length > 0;
@@ -1644,8 +1705,9 @@
                   {/snippet}
                 </Combobox.Input>
                 <Combobox.Trigger
-                  class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
                   aria-label="Toggle secret list"
+                  disabled={secretComboboxDisabled}
                 >
                   <ChevronDown class="h-4 w-4 opacity-60" />
                 </Combobox.Trigger>
@@ -1742,6 +1804,10 @@
               inputValue={certQuery}
               bind:open={certComboboxOpen}
               onOpenChange={(value) => {
+                if (certComboboxDisabled) {
+                  certComboboxOpen = false;
+                  return;
+                }
                 certComboboxOpen = value;
                 if (!value) return;
                 if (!resolvedVaultName || loadingCertificates) return;
@@ -1750,7 +1816,7 @@
                 }
               }}
               onValueChange={handleCertSelection}
-              disabled={validating || loadingCertificates}
+              disabled={certComboboxDisabled}
             >
               <div class="relative">
                 <Combobox.Input>
@@ -1764,18 +1830,22 @@
                     <input
                       {...inputProps}
                       class={`border-input bg-background selection:bg-primary dark:bg-input/30 selection:text-primary-foreground ring-offset-background placeholder:text-muted-foreground shadow-xs flex h-9 w-full min-w-0 rounded-md border px-3 py-1 text-base outline-none transition-[color,box-shadow] disabled:cursor-not-allowed disabled:opacity-50 md:text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive pr-9 ${inputProps.class ?? ''}`}
-                      placeholder={resolvedVaultName ? 'Select a certificate' : 'Select a Key Vault first'}
+                      placeholder={certPlaceholder}
                       autocomplete="off"
+                      disabled={certComboboxDisabled}
                       onfocus={(event) => {
                         inputProps.onfocus?.(event);
+                        if (certComboboxDisabled) return;
                         certComboboxOpen = true;
                       }}
                       onpointerdown={(event) => {
                         inputProps.onpointerdown?.(event);
+                        if (certComboboxDisabled) return;
                         certComboboxOpen = true;
                       }}
                       oninput={(event) => {
                         inputProps.oninput?.(event);
+                        if (certComboboxDisabled) return;
                         const nextValue = (event.currentTarget as HTMLInputElement).value;
                         certQuery = nextValue;
                         certFilterActive = nextValue.trim().length > 0;
@@ -1785,8 +1855,9 @@
                   {/snippet}
                 </Combobox.Input>
                 <Combobox.Trigger
-                  class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
                   aria-label="Toggle certificate list"
+                  disabled={certComboboxDisabled}
                 >
                   <ChevronDown class="h-4 w-4 opacity-60" />
                 </Combobox.Trigger>
