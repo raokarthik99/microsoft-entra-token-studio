@@ -13,6 +13,9 @@ const execFileAsync = promisify(execFile);
 const AZ_TIMEOUT_MS = 30_000;
 const AZ_MAX_BUFFER = 10 * 1024 * 1024;
 
+// On Windows, Azure CLI is installed as az.cmd which requires shell: true
+const IS_WINDOWS = process.platform === 'win32';
+
 export interface AzureCliResult<T> {
   success: boolean;
   data?: T;
@@ -38,7 +41,11 @@ function formatAzureCliError(err: unknown): string {
 
 async function runAzJson<T>(args: string[]): Promise<AzureCliResult<T>> {
   try {
-    const { stdout, stderr } = await execFileAsync('az', args, {
+    // On Windows, Azure CLI is installed as az.cmd which requires cmd.exe to execute
+    const command = IS_WINDOWS ? 'cmd.exe' : 'az';
+    const commandArgs = IS_WINDOWS ? ['/c', 'az', ...args] : args;
+
+    const { stdout, stderr } = await execFileAsync(command, commandArgs, {
       timeout: AZ_TIMEOUT_MS,
       maxBuffer: AZ_MAX_BUFFER,
     });
