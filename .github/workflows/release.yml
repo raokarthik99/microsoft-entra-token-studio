@@ -62,21 +62,21 @@ jobs:
           - platform: macos-latest
             args: '--target aarch64-apple-darwin'
             rust_targets: 'aarch64-apple-darwin'
-            asset_label: 'Mac (Apple Silicon)'
+            asset_label: 'macos-aarch64'
           - platform: macos-latest
             args: '--target x86_64-apple-darwin'
             rust_targets: 'x86_64-apple-darwin'
-            asset_label: 'Mac (Intel)'
+            asset_label: 'macos-x64'
           # Linux build
           - platform: ubuntu-22.04
             args: ''
             rust_targets: ''
-            asset_label: 'Linux'
+            asset_label: 'linux'
           # Windows build
           - platform: windows-latest
             args: ''
             rust_targets: ''
-            asset_label: 'Windows'
+            asset_label: 'windows'
 
     runs-on: ${{ matrix.platform }}
 
@@ -134,4 +134,5 @@ jobs:
           releaseId: ${{ needs.create-release.outputs.release_id }}
           args: ${{ matrix.args }}
           tauriScript: pnpm tauri
-          assetNamePattern: 'Entra Token Studio - ${{ matrix.asset_label }}[ext]'
+          # Avoid GitHub asset name sanitization that turns spaces into dots.
+          assetNamePattern: 'Entra-Token-Studio-${{ matrix.asset_label }}[ext]'
