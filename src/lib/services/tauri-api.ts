@@ -73,6 +73,16 @@ interface AzureAppRegistration {
   displayName: string;
 }
 
+interface AzureAppFilters {
+  search?: string;
+  appId?: string;
+  displayName?: string;
+  identifierUri?: string;
+  filter?: string;
+  showMine?: boolean;
+  all?: boolean;
+}
+
 interface AzureKeyVault {
   name: string;
   uri: string;
@@ -227,15 +237,22 @@ export async function exitApp(): Promise<void> {
   await invoke('exit_app');
 }
 
-export async function listAzureApps(search?: string): Promise<AzureCliResult<AzureAppRegistration[]>> {
+export async function listAzureApps(filters?: AzureAppFilters): Promise<AzureCliResult<AzureAppRegistration[]>> {
   if (isTauriRuntime()) {
     const invoke = await getTauriInvoke();
-    return invoke('list_azure_apps', { search });
+    return invoke('list_azure_apps', filters ? { filters } : {});
   }
 
   const params = new URLSearchParams();
-  if (search) params.set('search', search);
-  const response = await fetch(`/api/azure-cli/apps?${params.toString()}`);
+  if (filters?.search) params.set('search', filters.search);
+  if (filters?.appId) params.set('appId', filters.appId);
+  if (filters?.displayName) params.set('displayName', filters.displayName);
+  if (filters?.identifierUri) params.set('identifierUri', filters.identifierUri);
+  if (filters?.filter) params.set('filter', filters.filter);
+  if (filters?.showMine) params.set('showMine', 'true');
+  if (filters?.all) params.set('all', 'true');
+  const query = params.toString();
+  const response = await fetch(`/api/azure-cli/apps${query ? `?${query}` : ''}`);
   return response.json();
 }
 

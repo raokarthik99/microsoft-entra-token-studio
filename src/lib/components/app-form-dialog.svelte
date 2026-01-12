@@ -5,6 +5,7 @@
   import { Input } from '$lib/shadcn/components/ui/input';
   import { Label } from '$lib/shadcn/components/ui/label';
   import * as Select from '$lib/shadcn/components/ui/select';
+  import { ScrollArea } from '$lib/shadcn/components/ui/scroll-area';
   import { Combobox } from 'bits-ui';
   import { appRegistry } from '$lib/states/app-registry.svelte';
   import type { AppConfig, KeyVaultConfig } from '$lib/types';
@@ -14,7 +15,7 @@
   import { 
     Loader2, KeyRound, Shield, Cloud, 
     CheckCircle2, Check, XCircle, Info, ExternalLink,
-    LayoutGrid, ChevronDown, Globe, AlertTriangle
+    LayoutGrid, ChevronDown, Globe, AlertTriangle, Search
   } from '@lucide/svelte';
 
   interface Props {
@@ -57,6 +58,16 @@
     displayName: string;
   }
 
+  interface AzureAppFilters {
+    search?: string;
+    appId?: string;
+    displayName?: string;
+    identifierUri?: string;
+    filter?: string;
+    showMine?: boolean;
+    all?: boolean;
+  }
+
   interface AzureKeyVault {
     name: string;
     uri: string;
@@ -78,19 +89,21 @@
 
   let selectedSubscriptionId = $state<string | null>(null);
   let selectedVaultName = $state('');
-  let appQuery = $state('');
+  let appSearchInput = $state('');
+  let appSearchShowMine = $state(false);
+  let appSearchPerformed = $state(false);
+  let lastAppSearch = $state<AzureAppFilters | null>(null);
+  let selectedAppId = $state<string | null>(null);
+  let selectedAppDisplayName = $state('');
   let vaultQuery = $state('');
   let secretQuery = $state('');
   let certQuery = $state('');
-  let appFilterActive = $state(false);
   let vaultFilterActive = $state(false);
   let secretFilterActive = $state(false);
   let certFilterActive = $state(false);
-  let lastAppSelection = $state('');
   let lastVaultSelection = $state('');
   let lastSecretSelection = $state('');
   let lastCertSelection = $state('');
-  let appComboboxOpen = $state(false);
   let vaultComboboxOpen = $state(false);
   let secretComboboxOpen = $state(false);
   let certComboboxOpen = $state(false);
@@ -138,6 +151,8 @@
   const recommendedRedirectUri = 'http://localhost/auth/callback';
   // Actual redirect URI used by MSAL (includes current port)
   const actualRedirectUri = $derived(typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : '/auth/callback');
+  const minAppSearchChars = 3;
+  const guidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
   const isEditing = $derived(!!editingApp);
   const dialogTitle = $derived(isEditing ? 'Edit Client App Connection' : 'Connect Client App');
@@ -146,25 +161,31 @@
   const selectedSubscription = $derived(
     azureSubscriptions.find((sub) => sub.id === selectedSubscriptionId) || null
   );
-  const appItems = $derived(
-    azureApps.map((app) => ({
-      value: app.appId,
-      label: `${app.displayName || 'Unnamed app'} (${formatId(app.appId)})`,
-      searchable: `${app.displayName || ''} ${app.appId}`.toLowerCase(),
-      app,
-    }))
+  const appSearchQuery = $derived.by(() => appSearchInput.trim());
+  const appSearchReady = $derived.by(() => {
+    if (!appSearchQuery) return false;
+    return guidPattern.test(appSearchQuery) || appSearchQuery.length >= minAppSearchChars;
+  });
+  const appSearchTooShort = $derived.by(() =>
+    appSearchQuery.length > 0 &&
+    !guidPattern.test(appSearchQuery) &&
+    appSearchQuery.length < minAppSearchChars
   );
+  const ownerFilterDisabled = $derived.by(() => !appSearchReady || validating || loadingApps);
 
-  const appFilterQuery = $derived.by(() => {
-    const query = appQuery.trim().toLowerCase();
-    const selectedItem = appItems.find((item) => item.value === clientId);
-    if (selectedItem && query === selectedItem.label.toLowerCase()) return '';
-    return query;
+  $effect(() => {
+    if (!appSearchReady && appSearchShowMine) {
+      appSearchShowMine = false;
+    }
   });
 
-  const filteredAppItems = $derived.by(() => {
-    if (!appFilterActive || !appFilterQuery) return appItems;
-    return appItems.filter((item) => item.searchable.includes(appFilterQuery));
+  const appSearchSummary = $derived.by(() => {
+    if (!lastAppSearch) return '';
+    const segments: string[] = [];
+    if (lastAppSearch.search) segments.push(`name starts with "${lastAppSearch.search}"`);
+    if (lastAppSearch.appId) segments.push(`app id ${formatId(lastAppSearch.appId)}`);
+    if (lastAppSearch.showMine) segments.push('owned by you');
+    return segments.join(' | ');
   });
 
   const vaultItems = $derived(
@@ -236,12 +257,16 @@
     return certItems.filter((item) => item.searchable.includes(certFilterQuery));
   });
 
-  const resolvedClientId = $derived.by(() => clientId.trim() || resolveAppId(appQuery) || '');
+  const resolvedClientId = $derived.by(() => clientId.trim());
   const resolvedKeyVaultUri = $derived.by(() => keyVaultUri.trim() || resolveVaultUri(vaultQuery) || '');
   const resolvedSecretName = $derived.by(() => secretName.trim() || resolveSecretName(secretQuery) || '');
   const resolvedCertName = $derived.by(() => certName.trim() || resolveCertName(certQuery) || '');
   const resolvedAppName = $derived.by(() => {
     if (!resolvedClientId) return '';
+    if (selectedAppId === resolvedClientId) {
+      const selectedName = selectedAppDisplayName.trim();
+      if (selectedName) return selectedName;
+    }
     const matched = azureApps.find((app) => app.appId === resolvedClientId);
     const trimmed = matched?.displayName?.trim();
     if (trimmed) return trimmed;
@@ -254,14 +279,6 @@
     if (trimmed) return trimmed;
     if (!resolvedKeyVaultUri) return '';
     return getVaultNameFromUri(resolvedKeyVaultUri) || '';
-  });
-
-  const appComboboxReady = $derived(appsLoaded && !loadingApps && !appsError);
-  const appComboboxDisabled = $derived(validating || !appComboboxReady);
-  const appPlaceholder = $derived.by(() => {
-    if (appsError) return 'App discovery failed';
-    if (loadingApps || !appsLoaded) return 'Loading app registrations...';
-    return 'Select an app registration';
   });
 
   const vaultComboboxReady = $derived(!!selectedSubscriptionId && keyVaultsLoaded && !loadingKeyVaults && !keyVaultsError);
@@ -309,27 +326,6 @@
       missing.push('Certificate name');
     }
     return missing;
-  });
-
-  $effect(() => {
-    if (!clientId) {
-      appQuery = '';
-      lastAppSelection = '';
-      return;
-    }
-    const selectedItem = appItems.find((item) => item.value === clientId);
-    const nextLabel = selectedItem?.label || clientId;
-    if (clientId !== lastAppSelection || appQuery === lastAppSelection) {
-      appQuery = nextLabel;
-      lastAppSelection = clientId;
-    }
-  });
-
-  $effect(() => {
-    if (clientId || !appQuery.trim()) return;
-    const resolved = resolveAppId(appQuery);
-    if (!resolved) return;
-    handleAppSelection(resolved);
   });
 
   $effect(() => {
@@ -463,19 +459,21 @@
     azureCertificates = [];
     selectedSubscriptionId = null;
     selectedVaultName = '';
-    appQuery = '';
+    appSearchInput = '';
+    appSearchShowMine = false;
+    appSearchPerformed = false;
+    lastAppSearch = null;
+    selectedAppId = null;
+    selectedAppDisplayName = '';
     vaultQuery = '';
     secretQuery = '';
     certQuery = '';
-    appFilterActive = false;
     vaultFilterActive = false;
     secretFilterActive = false;
     certFilterActive = false;
-    lastAppSelection = '';
     lastVaultSelection = '';
     lastSecretSelection = '';
     lastCertSelection = '';
-    appComboboxOpen = false;
     vaultComboboxOpen = false;
     secretComboboxOpen = false;
     certComboboxOpen = false;
@@ -529,20 +527,6 @@
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return null;
     return date.toLocaleDateString();
-  }
-
-  const guidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-  function resolveAppId(value: string): string | null {
-    const trimmed = value.trim();
-    if (!trimmed) return null;
-    const lowered = trimmed.toLowerCase();
-    const match = appItems.find((item) => item.value.toLowerCase() === lowered || item.label.toLowerCase() === lowered);
-    if (match) return match.value;
-    const nameMatches = appItems.filter((item) => (item.app.displayName || '').toLowerCase() === lowered);
-    if (nameMatches.length === 1) return nameMatches[0].value;
-    if (guidPattern.test(trimmed)) return trimmed;
-    return null;
   }
 
   function normalizeVaultKey(value: string): string {
@@ -678,14 +662,54 @@
     }
   }
 
-  async function refreshAzureApps() {
+  function buildAppSearchFilters(): AzureAppFilters | null {
+    const searchInput = appSearchInput.trim();
+    if (!searchInput) return null;
+    if (!guidPattern.test(searchInput) && searchInput.length < minAppSearchChars) return null;
+    const filters: AzureAppFilters = {};
+
+    if (appSearchShowMine) filters.showMine = true;
+    filters.all = true;
+
+    if (guidPattern.test(searchInput)) {
+      filters.appId = searchInput;
+    } else {
+      filters.search = searchInput;
+    }
+
+    return filters;
+  }
+
+  function handleOwnerFilterChange(showMine: boolean) {
+    if (ownerFilterDisabled || appSearchShowMine === showMine) return;
+    appSearchShowMine = showMine;
+    if (appsLoaded && appSearchReady) {
+      void searchAzureApps();
+    }
+  }
+
+  function resetAppSearchResults() {
+    azureApps = [];
+    appsLoaded = false;
+    appsError = null;
+    appSearchPerformed = false;
+    lastAppSearch = null;
+    appSearchShowMine = false;
+  }
+
+  async function searchAzureApps() {
+    const filters = buildAppSearchFilters();
+    if (!filters) return;
+
     appsError = null;
     loadingApps = true;
     appsLoaded = false;
+    appSearchPerformed = true;
+    lastAppSearch = filters;
 
     try {
       const { listAzureApps } = await import('$lib/services/tauri-api');
-      const result = await listAzureApps(undefined);
+      const result = await listAzureApps(filters);
 
       if (!result.success) {
         appsError = result.error || 'Failed to load app registrations.';
@@ -703,6 +727,13 @@
     } finally {
       loadingApps = false;
     }
+  }
+
+  function handleAppSearchKeydown(event: KeyboardEvent) {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    if (!appSearchReady || loadingApps || validating) return;
+    void searchAzureApps();
   }
 
   async function refreshKeyVaults() {
@@ -822,9 +853,10 @@
     }
     if (matched?.tenantId && previousTenant && matched.tenantId !== previousTenant) {
       clientId = '';
-      azureApps = [];
-      appsLoaded = false;
-      appsError = null;
+      selectedAppId = null;
+      selectedAppDisplayName = '';
+      appSearchInput = '';
+      resetAppSearchResults();
     }
     keyVaultsError = null;
     keyVaultsLoaded = false;
@@ -854,9 +886,10 @@
     void refreshKeyVaults();
   }
 
-  function handleAppSelection(value: string) {
-    clientId = value;
-    appFilterActive = false;
+  function handleAppSelection(app: AzureAppRegistration) {
+    clientId = app.appId;
+    selectedAppId = app.appId;
+    selectedAppDisplayName = app.displayName || '';
   }
 
   function resetVaultCredentials() {
@@ -920,11 +953,6 @@
     if (!open || discoveryInitialized) return;
     discoveryInitialized = true;
     void refreshAzureContext();
-  });
-
-  $effect(() => {
-    if (!open || loadingApps || appsLoaded) return;
-    void refreshAzureApps();
   });
 
   async function validateAndSave() {
@@ -1104,7 +1132,7 @@
               <p class="font-medium">Subscription discovery failed</p>
               <p class="mt-1">{subscriptionError}</p>
               <p class="mt-2 text-[11px] text-muted-foreground">
-                Confirm you can run <code class="font-mono text-[10px] bg-muted px-1 rounded">az account list</code> and that your Azure CLI session is logged in.
+                Confirm you are signed in to Azure and have access to list subscriptions.
               </p>
             </div>
           {:else if subscriptionsLoaded && azureSubscriptions.length === 0}
@@ -1155,148 +1183,222 @@
                 <Info class="h-3.5 w-3.5 text-muted-foreground hover:text-foreground transition-colors cursor-help" />
               </Tooltip.Trigger>
               <Tooltip.Content class="max-w-xs">
-                Pick an app registration discovered by Azure CLI.
+                Search your directory to find the app registration you want to connect.
               </Tooltip.Content>
             </Tooltip.Root>
           </div>
 
-          <Combobox.Root
-            type="single"
-            items={filteredAppItems}
-            bind:value={clientId}
-            inputValue={appQuery}
-            bind:open={appComboboxOpen}
-            onOpenChange={(value) => {
-              if (appComboboxDisabled) {
-                appComboboxOpen = false;
-                return;
-              }
-              appComboboxOpen = value;
-              if (value && !loadingApps && (!appsLoaded || appsError || azureApps.length === 0)) {
-                void refreshAzureApps();
-              }
-            }}
-            onValueChange={handleAppSelection}
-            disabled={appComboboxDisabled}
-          >
-            <div class="relative">
-              <Combobox.Input>
-                {#snippet child({ props })}
-                  {@const inputProps = props as Record<string, unknown> & {
-                    onfocus?: (event: FocusEvent) => void;
-                    onpointerdown?: (event: PointerEvent) => void;
-                    oninput?: (event: Event) => void;
-                    class?: string;
-                  }}
-                  <input
-                    {...inputProps}
-                    class={`border-input bg-background selection:bg-primary dark:bg-input/30 selection:text-primary-foreground ring-offset-background placeholder:text-muted-foreground shadow-xs flex h-9 w-full min-w-0 rounded-md border px-3 py-1 text-base outline-none transition-[color,box-shadow] disabled:cursor-not-allowed disabled:opacity-50 md:text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive pr-9 ${inputProps.class ?? ''}`}
-                    placeholder={appPlaceholder}
-                    autocomplete="off"
-                    disabled={appComboboxDisabled}
-                    onfocus={(event) => {
-                      inputProps.onfocus?.(event);
-                      if (appComboboxDisabled) return;
-                      appComboboxOpen = true;
-                    }}
-                    onpointerdown={(event) => {
-                      inputProps.onpointerdown?.(event);
-                      if (appComboboxDisabled) return;
-                      appComboboxOpen = true;
-                    }}
-                    oninput={(event) => {
-                      inputProps.oninput?.(event);
-                      if (appComboboxDisabled) return;
-                      const nextValue = (event.currentTarget as HTMLInputElement).value;
-                      appQuery = nextValue;
-                      appFilterActive = nextValue.trim().length > 0;
-                      appComboboxOpen = true;
-                    }}
-                  />
-                {/snippet}
-              </Combobox.Input>
-              <Combobox.Trigger
-                class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
-                aria-label="Toggle app registration list"
-                disabled={appComboboxDisabled}
+          <!-- Consolidated Search Container -->
+          <div class="rounded-xl border border-border/60 bg-card/40 overflow-hidden">
+            <!-- Search Input Row -->
+            <div class="flex items-center gap-2 p-3 bg-muted/20">
+              <div class="relative flex-1">
+                <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                {#if loadingApps}
+                  <Loader2 class="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground animate-spin" />
+                {:else if appSearchInput && !validating}
+                  <button
+                    type="button"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    onclick={() => { appSearchInput = ''; resetAppSearchResults(); }}
+                    aria-label="Clear search"
+                  >
+                    <XCircle class="h-4 w-4" />
+                  </button>
+                {/if}
+                <Input
+                  id="app-search"
+                  class="pl-10 pr-10 h-10 bg-background/80 border-0 shadow-none focus-visible:ring-1"
+                  placeholder="Search by name or App ID..."
+                  bind:value={appSearchInput}
+                  disabled={validating}
+                  onkeydown={handleAppSearchKeydown}
+                />
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                class="h-9 px-4 gap-2"
+                onclick={searchAzureApps}
+                disabled={!appSearchReady || loadingApps || validating}
               >
-                <ChevronDown class="h-4 w-4 opacity-60" />
-              </Combobox.Trigger>
+                {#if loadingApps}
+                  <Loader2 class="h-3.5 w-3.5 animate-spin" />
+                {:else}
+                  <Search class="h-3.5 w-3.5" />
+                {/if}
+                Search
+              </Button>
             </div>
-            <Combobox.Portal>
-              <Combobox.Content
-                sideOffset={4}
-                class="bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-end-2 data-[side=right]:slide-in-from-start-2 data-[side=top]:slide-in-from-bottom-2 max-h-(--bits-combobox-content-available-height) origin-(--bits-combobox-content-transform-origin) relative z-50 min-w-[8rem] overflow-y-auto overflow-x-hidden rounded-md border shadow-md data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1"
+            <div class="flex items-center justify-between gap-2 px-3 pb-3 border-b border-border/40 bg-muted/20">
+              <div
+                role="group"
+                aria-label="Owner filter"
+                class={`inline-flex items-center gap-1 rounded-full border border-border/50 bg-muted/50 p-1 ${
+                  ownerFilterDisabled ? 'opacity-60' : ''
+                }`}
               >
-                <Combobox.ScrollUpButton class="flex cursor-default items-center justify-center py-1">
-                  <ChevronDown class="h-4 w-4 rotate-180" />
-                </Combobox.ScrollUpButton>
-                <Combobox.Viewport class="h-(--bits-combobox-anchor-height) min-w-(--bits-combobox-anchor-width) w-full scroll-my-1 p-1">
-                  {#if loadingApps}
-                    <div class="px-3 py-2 text-xs text-muted-foreground">Loading app registrations...</div>
-                  {:else if !appsLoaded}
-                    <div class="px-3 py-2 text-xs text-muted-foreground">
-                      App discovery will begin once the Azure CLI session is ready.
-                    </div>
-                  {:else if filteredAppItems.length === 0}
-                    <div class="px-3 py-2 text-xs text-muted-foreground">
-                      {#if appFilterActive}
-                        No matches. Clear the filter to see all apps.
-                      {:else}
-                        No app registrations found.
-                      {/if}
-                    </div>
-                  {:else}
-                    {#each filteredAppItems as item}
-                      <Combobox.Item
-                        value={item.value}
-                        label={item.label}
-                        class="data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground [&_svg:not([class*='text-'])]:text-muted-foreground outline-hidden *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2 relative flex w-full cursor-default select-none items-center gap-2 rounded-sm py-1.5 pe-8 ps-2 text-sm data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0"
-                      >
-                        {#snippet children({ selected })}
-                          <span class="absolute end-2 flex size-3.5 items-center justify-center">
-                            {#if selected}
-                              <Check class="size-4" />
-                            {/if}
-                          </span>
-                          <div class="flex flex-col">
-                            <span class="font-medium">{item.app.displayName || 'Unnamed app'}</span>
-                            <span class="text-[11px] text-muted-foreground font-mono">{formatId(item.app.appId)}</span>
-                          </div>
-                        {/snippet}
-                      </Combobox.Item>
-                    {/each}
-                  {/if}
-                </Combobox.Viewport>
-                <Combobox.ScrollDownButton class="flex cursor-default items-center justify-center py-1">
-                  <ChevronDown class="h-4 w-4" />
-                </Combobox.ScrollDownButton>
-              </Combobox.Content>
-            </Combobox.Portal>
-          </Combobox.Root>
-          <p class="text-[11px] text-muted-foreground">
-            Apps are loaded from your Azure CLI account. Start typing to filter.
-          </p>
+                <span class="px-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Owner</span>
+                <button
+                  type="button"
+                  class={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors ${
+                    !appSearchShowMine
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                  onclick={() => { handleOwnerFilterChange(false); }}
+                  aria-pressed={!appSearchShowMine}
+                  disabled={ownerFilterDisabled}
+                >
+                  All apps
+                </button>
+                <button
+                  type="button"
+                  class={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors ${
+                    appSearchShowMine
+                      ? 'bg-primary/15 text-primary shadow-sm ring-1 ring-primary/30'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                  onclick={() => { handleOwnerFilterChange(true); }}
+                  aria-pressed={appSearchShowMine}
+                  disabled={ownerFilterDisabled}
+                >
+                  Owned by me
+                </button>
+              </div>
+            </div>
 
-          {#if appsError}
-            <div class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-              <p class="font-medium">App listing failed</p>
-              <p class="mt-1">{appsError}</p>
-              <p class="mt-2 text-[11px] text-muted-foreground">
-                Azure CLI uses Microsoft Graph for app discovery. If you see an access error, ask an admin for
-                <span class="font-medium text-foreground">Application.Read.All</span> or
-                <span class="font-medium text-foreground">Directory.Read.All</span>.
-              </p>
-              <p class="mt-2 text-[11px] text-muted-foreground">
-                Try <code class="font-mono text-[10px] bg-muted px-1 rounded">az ad app list --all</code> to confirm access.
-              </p>
-            </div>
-          {:else if appsLoaded && azureApps.length === 0}
-            <div class="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
-              <p class="font-medium">No app registrations found</p>
-              <p class="mt-1">Ensure you have access to app registrations in your directory, then try again.</p>
-            </div>
-          {/if}
+            <!-- Selected App Display (when selected) -->
+            {#if resolvedClientId}
+              <div class="flex items-center justify-between gap-3 px-4 py-3 bg-primary/5 border-b border-primary/20">
+                <div class="flex items-center gap-3 min-w-0">
+                  <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 text-primary shrink-0">
+                    <CheckCircle2 class="h-4 w-4" />
+                  </div>
+                  <div class="min-w-0">
+                    <Tooltip.Root delayDuration={300}>
+                      <Tooltip.Trigger class="text-left max-w-full">
+                        <p class="text-sm font-semibold truncate block max-w-[280px]">{resolvedAppName}</p>
+                      </Tooltip.Trigger>
+                      <Tooltip.Content side="top" class="max-w-sm">
+                        <p class="break-all">{resolvedAppName}</p>
+                      </Tooltip.Content>
+                    </Tooltip.Root>
+                    <p class="text-[11px] font-mono text-muted-foreground truncate">{resolvedClientId}</p>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  class="h-7 px-2 text-xs text-muted-foreground hover:text-foreground shrink-0"
+                  onclick={() => {
+                    clientId = '';
+                    selectedAppId = null;
+                    selectedAppDisplayName = '';
+                  }}
+                >
+                  <XCircle class="h-3.5 w-3.5 mr-1" />
+                  Clear
+                </Button>
+              </div>
+            {/if}
+
+            <!-- Results Area -->
+            <ScrollArea class="h-[200px]">
+              <div class="p-2">
+                {#if loadingApps}
+                  <div class="flex flex-col items-center justify-center gap-2 py-8 text-muted-foreground">
+                    <Loader2 class="h-5 w-5 animate-spin" />
+                    <p class="text-xs">Searching app registrations...</p>
+                  </div>
+                {:else if appsError}
+                  <div class="rounded-lg border border-destructive/30 bg-destructive/10 p-3 m-1">
+                    <p class="text-xs font-medium text-destructive">Search failed</p>
+                    <p class="mt-1 text-[11px] text-destructive/80">{appsError}</p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      class="mt-2 h-7 text-xs"
+                      onclick={searchAzureApps}
+                    >
+                      Retry
+                    </Button>
+                  </div>
+                {:else if !appSearchPerformed}
+                  <div class="flex flex-col items-center justify-center gap-2 py-8 text-muted-foreground">
+                    <Search class="h-8 w-8 opacity-30" />
+                    <div class="text-center">
+                      <p class="text-xs font-medium">Type to search your directory</p>
+                      <p class="text-[11px] opacity-70">Enter an app name or paste an App ID</p>
+                    </div>
+                  </div>
+                {:else if azureApps.length === 0}
+                  <div class="flex flex-col items-center justify-center gap-2 py-8 text-muted-foreground">
+                    <div class="text-center">
+                      <p class="text-xs font-medium">No apps found</p>
+                      <p class="text-[11px] opacity-70">Try a different search term or switch Owner to "All apps"</p>
+                    </div>
+                  </div>
+                {:else}
+                  <div class="space-y-1">
+                    {#if appsLoaded && azureApps.length > 0}
+                      <div class="flex items-center justify-between px-2 py-1">
+                        <p class="text-[10px] uppercase tracking-wider text-muted-foreground/70">{azureApps.length} result{azureApps.length === 1 ? '' : 's'}</p>
+                      </div>
+                    {/if}
+                    {#each azureApps as app}
+                      <button
+                        type="button"
+                        class={`group w-full rounded-lg px-3 py-2.5 text-left transition-all ${
+                          clientId === app.appId
+                            ? 'bg-primary/10 ring-1 ring-primary/30'
+                            : 'hover:bg-muted/60'
+                        }`}
+                        onclick={() => handleAppSelection(app)}
+                        disabled={validating}
+                      >
+                        <div class="flex items-center justify-between gap-3">
+                          <div class="flex flex-col min-w-0">
+                            <Tooltip.Root delayDuration={300}>
+                              <Tooltip.Trigger class="text-left max-w-full">
+                                <span class="text-sm font-medium truncate block max-w-[280px]">{app.displayName || 'Unnamed app'}</span>
+                              </Tooltip.Trigger>
+                              <Tooltip.Content side="top" class="max-w-sm">
+                                <p class="break-all">{app.displayName || 'Unnamed app'}</p>
+                              </Tooltip.Content>
+                            </Tooltip.Root>
+                            <span class="text-[11px] font-mono text-muted-foreground truncate">{app.appId}</span>
+                          </div>
+                          {#if clientId === app.appId}
+                            <CheckCircle2 class="h-4 w-4 text-primary shrink-0" />
+                          {:else}
+                            <div class="h-4 w-4 rounded-full border-2 border-muted-foreground/30 shrink-0 group-hover:border-muted-foreground/50 transition-colors"></div>
+                          {/if}
+                        </div>
+                      </button>
+                    {/each}
+                  </div>
+                {/if}
+              </div>
+            </ScrollArea>
+
+            <!-- Footer hint -->
+            {#if appSearchQuery && !loadingApps}
+              <div class="px-3 py-2 border-t border-border/40 bg-muted/10">
+                <p class="text-[10px] text-muted-foreground/70">
+                  {#if appSearchTooShort}
+                    Enter at least {minAppSearchChars} characters to search.
+                  {:else if guidPattern.test(appSearchQuery)}
+                    Press Enter or click Search to find this exact App ID
+                  {:else}
+                    Press Enter or click Search to find apps starting with "{appSearchQuery}"
+                  {/if}
+                </p>
+              </div>
+            {/if}
+          </div>
         </div>
 
         <Collapsible.Root class="rounded-lg border border-border/60 bg-muted/30 px-3 py-2" bind:open={metaOpen}>
@@ -1386,7 +1488,7 @@
           </p>
         </div>
 
-        {#if clientId}
+        {#if resolvedClientId}
           <div class="rounded-lg border border-blue-500/30 bg-blue-500/5 p-4 space-y-3">
             <div class="flex items-start gap-3">
               <div class="p-1.5 rounded bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 mt-0.5">
@@ -1404,7 +1506,7 @@
               variant="outline" 
               size="sm" 
               class="w-full bg-background border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/50 hover:text-blue-800 dark:hover:text-blue-200"
-              onclick={() => window.open(`https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/Authentication/appId/${clientId}`, '_blank')}
+              onclick={() => window.open(`https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/Authentication/appId/${resolvedClientId}`, '_blank')}
             >
               Open app in Entra portal
               <ExternalLink class="ml-2 h-3.5 w-3.5" />
@@ -1511,7 +1613,7 @@
                     <div class="px-3 py-2 text-xs text-muted-foreground">Loading Key Vaults...</div>
                   {:else if !keyVaultsLoaded}
                     <div class="px-3 py-2 text-xs text-muted-foreground">
-                      Key Vault discovery will begin once the Azure CLI session is ready.
+                      Key Vault discovery will begin once your Azure session is ready.
                     </div>
                   {:else if keyVaultsError}
                     <div class="px-3 py-2 text-xs text-muted-foreground">Key Vault discovery failed. See details below.</div>
@@ -1565,7 +1667,7 @@
             <p class="font-medium">Key Vault discovery failed</p>
             <p class="mt-1">{keyVaultsError}</p>
             <p class="mt-2 text-[11px] text-muted-foreground">
-              Confirm you can run <code class="font-mono text-[10px] bg-muted px-1 rounded">az keyvault list</code> and that your account has access to this subscription.
+              Confirm your account can access this subscription and list Key Vaults.
             </p>
           </div>
         {:else if keyVaultsLoaded && azureKeyVaults.length === 0 && selectedSubscriptionId}
@@ -1773,8 +1875,8 @@
                 <p class="font-medium">Secret listing failed</p>
                 <p class="mt-1">{secretsError}</p>
                 <p class="mt-2 text-[11px] text-muted-foreground">
-                  Verify <code class="font-mono text-[10px] bg-muted px-1 rounded">az keyvault secret list --vault-name {resolvedVaultName || 'your-vault'}</code> works
-                  and that you have <span class="font-medium text-foreground">Key Vault Secrets User</span> access.
+                  Verify you have <span class="font-medium text-foreground">Key Vault Secrets User</span> access
+                  and permission to list secrets in this vault.
                 </p>
               </div>
             {:else if secretsLoaded && !loadingSecrets && azureSecrets.length === 0 && resolvedVaultName}
@@ -1923,8 +2025,8 @@
                 <p class="font-medium">Certificate listing failed</p>
                 <p class="mt-1">{certificatesError}</p>
                 <p class="mt-2 text-[11px] text-muted-foreground">
-                  Verify <code class="font-mono text-[10px] bg-muted px-1 rounded">az keyvault certificate list --vault-name {resolvedVaultName || 'your-vault'}</code> works
-                  and that you have <span class="font-medium text-foreground">Key Vault Certificates User</span> access.
+                  Verify you have <span class="font-medium text-foreground">Key Vault Certificates User</span> access
+                  and permission to list certificates in this vault.
                 </p>
               </div>
             {:else if certificatesLoaded && !loadingCertificates && azureCertificates.length === 0 && resolvedVaultName}
@@ -1954,7 +2056,7 @@
             <div class="space-y-1">
               <h4 class="text-sm font-medium text-blue-900 dark:text-blue-100">Prerequisites</h4>
               <p class="text-xs text-blue-700 dark:text-blue-300 leading-relaxed">
-                Ensure your local environment (Azure CLI) is signed in and has
+                Ensure you are signed in to Azure and have
                 {#if credentialType === 'certificate'}
                   <code class="font-mono text-[10px] bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-blue-100 px-1.5 py-0.5 rounded mx-0.5">Key Vault Crypto User</code>
                   +

@@ -50,6 +50,19 @@ pub struct CredentialStatus {
     pub message: String,
 }
 
+/// Azure app list filters
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AzureAppFilters {
+    pub search: Option<String>,
+    pub app_id: Option<String>,
+    pub display_name: Option<String>,
+    pub identifier_uri: Option<String>,
+    pub filter: Option<String>,
+    pub show_mine: Option<bool>,
+    pub all: Option<bool>,
+}
+
 /// Acquire an app token via sidecar
 #[tauri::command]
 async fn acquire_app_token(
@@ -113,15 +126,15 @@ async fn list_azure_subscriptions() -> Result<serde_json::Value, String> {
 
 /// List Azure app registrations via Azure CLI
 #[tauri::command]
-async fn list_azure_apps(search: Option<String>) -> Result<serde_json::Value, String> {
+async fn list_azure_apps(filters: Option<AzureAppFilters>) -> Result<serde_json::Value, String> {
     let sidecar = get_sidecar().await;
     let mut manager = sidecar.lock().await;
 
     manager
-        .call(
-            "list_azure_apps",
-            serde_json::json!({ "search": search }),
-        )
+        .call("list_azure_apps", match filters {
+            Some(filters) => serde_json::to_value(filters).unwrap_or_else(|_| serde_json::json!({})),
+            None => serde_json::json!({}),
+        })
         .await
 }
 

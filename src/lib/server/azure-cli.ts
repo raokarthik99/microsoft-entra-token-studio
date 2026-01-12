@@ -28,6 +28,16 @@ export interface AzureAppRegistration {
   displayName: string;
 }
 
+export interface AzureAppFilters {
+  search?: string;
+  appId?: string;
+  displayName?: string;
+  identifierUri?: string;
+  filter?: string;
+  showMine?: boolean;
+  all?: boolean;
+}
+
 export interface AzureKeyVault {
   name: string;
   uri: string;
@@ -95,12 +105,32 @@ export async function listAzureSubscriptions(): Promise<AzureCliResult<AzureSubs
   ]);
 }
 
-export async function listAzureApps(search?: string): Promise<AzureCliResult<AzureAppRegistration[]>> {
+export async function listAzureApps(filters?: AzureAppFilters): Promise<AzureCliResult<AzureAppRegistration[]>> {
   const args = ['ad', 'app', 'list'];
-  if (search && search.trim()) {
-    const safe = escapeOdataValue(search.trim());
+  const appId = filters?.appId?.trim();
+  if (appId) {
+    args.push('--app-id', appId);
+  }
+  const displayName = filters?.displayName?.trim();
+  if (displayName) {
+    args.push('--display-name', displayName);
+  }
+  const identifierUri = filters?.identifierUri?.trim();
+  if (identifierUri) {
+    args.push('--identifier-uri', identifierUri);
+  }
+  const filter = filters?.filter?.trim();
+  const search = filters?.search?.trim();
+  if (filter) {
+    args.push('--filter', filter);
+  } else if (search) {
+    const safe = escapeOdataValue(search);
     args.push('--filter', `startswith(displayName,'${safe}')`);
-  } else {
+  }
+  if (filters?.showMine) {
+    args.push('--show-mine');
+  }
+  if (filters?.all) {
     args.push('--all');
   }
   args.push('--query', "[].{appId:appId,displayName:displayName}");

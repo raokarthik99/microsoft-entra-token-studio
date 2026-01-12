@@ -22,6 +22,16 @@ export interface AzureCliResult<T> {
   error?: string;
 }
 
+export interface AzureAppFilters {
+  search?: string;
+  appId?: string;
+  displayName?: string;
+  identifierUri?: string;
+  filter?: string;
+  showMine?: boolean;
+  all?: boolean;
+}
+
 function formatAzureCliError(err: unknown): string {
   const error = err as NodeJS.ErrnoException & { stderr?: string };
   const message = error.message || '';
@@ -77,13 +87,33 @@ export async function handleListSubscriptions(): Promise<AzureCliResult<unknown>
 }
 
 export async function handleListAppRegistrations(
-  params?: { search?: string }
+  params?: AzureAppFilters
 ): Promise<AzureCliResult<unknown>> {
   const args = ['ad', 'app', 'list'];
-  if (params?.search && params.search.trim()) {
-    const safe = escapeOdataValue(params.search.trim());
+  const appId = params?.appId?.trim();
+  if (appId) {
+    args.push('--app-id', appId);
+  }
+  const displayName = params?.displayName?.trim();
+  if (displayName) {
+    args.push('--display-name', displayName);
+  }
+  const identifierUri = params?.identifierUri?.trim();
+  if (identifierUri) {
+    args.push('--identifier-uri', identifierUri);
+  }
+  const filter = params?.filter?.trim();
+  const search = params?.search?.trim();
+  if (filter) {
+    args.push('--filter', filter);
+  } else if (search) {
+    const safe = escapeOdataValue(search);
     args.push('--filter', `startswith(displayName,'${safe}')`);
-  } else {
+  }
+  if (params?.showMine) {
+    args.push('--show-mine');
+  }
+  if (params?.all) {
     args.push('--all');
   }
   args.push('--query', '[].{appId:appId,displayName:displayName}');
