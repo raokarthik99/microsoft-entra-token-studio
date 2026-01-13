@@ -6,12 +6,31 @@
  */
 
 import { execFile } from 'node:child_process';
+import path from 'node:path';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
 
 const AZ_TIMEOUT_MS = 30_000;
 const AZ_MAX_BUFFER = 10 * 1024 * 1024;
+const IS_WINDOWS = process.platform === 'win32';
+
+const COMMON_CLI_PATHS: Record<NodeJS.Platform, string[]> = {
+  darwin: ['/opt/homebrew/bin', '/usr/local/bin', '/usr/local/sbin'],
+  linux: ['/usr/local/bin', '/usr/bin', '/bin'],
+  win32: [
+    'C:\\Program Files\\Microsoft SDKs\\Azure\\CLI2\\wbin',
+    'C:\\Program Files (x86)\\Microsoft SDKs\\Azure\\CLI2\\wbin',
+  ],
+  aix: [],
+  cygwin: [],
+  freebsd: [],
+  haiku: [],
+  netbsd: [],
+  openbsd: [],
+  sunos: [],
+  android: [],
+};
 
 export interface AzureCliResult<T> {
   success: boolean;
@@ -27,6 +46,38 @@ export interface AzureAppFilters {
   filter?: string;
   showMine?: boolean;
   all?: boolean;
+}
+
+function ensureCliPaths() {
+  if (!IS_WINDOWS) return;
+  const extraPaths = COMMON_CLI_PATHS[process.platform] ?? [];
+  if (extraPaths.length === 0) return;
+  const currentPath = process.env.PATH ?? '';
+  const parts = currentPath.split(path.delimiter).filter(Boolean);
+  const additions = extraPaths.filter((entry) => !parts.includes(entry));
+  if (additions.length === 0) return;
+  process.env.PATH = [...additions, ...parts].join(path.delimiter);
+}
+
+function escapeCmdValue(value: string): string {
+  return value
+    .replace(/\^/g, '^^')
+    .replace(/"/g, '""')
+    .replace(/%/g, '^%')
+    .replace(/!/g, '^!');
+}
+
+function quoteCmdArg(value: string): string {
+  if (value.length === 0) return '""';
+  const escaped = escapeCmdValue(value);
+  if (/[ \t&()^|<>]/.test(escaped)) {
+    return `"${escaped}"`;
+  }
+  return escaped;
+}
+
+function buildCmdCommand(args: string[]): string {
+  return ['az', ...args].map(quoteCmdArg).join(' ');
 }
 
 function formatAzureCliError(err: unknown): string {
@@ -48,10 +99,16 @@ function formatAzureCliError(err: unknown): string {
 
 async function runAzJson<T>(args: string[]): Promise<AzureCliResult<T>> {
   try {
-    const { stdout, stderr } = await execFileAsync('az', args, {
-      timeout: AZ_TIMEOUT_MS,
-      maxBuffer: AZ_MAX_BUFFER,
-    });
+    ensureCliPaths();
+    const { stdout, stderr } = IS_WINDOWS
+      ? await execFileAsync('cmd.exe', ['/d', '/s', '/c', buildCmdCommand(args)], {
+          timeout: AZ_TIMEOUT_MS,
+          maxBuffer: AZ_MAX_BUFFER,
+        })
+      : await execFileAsync('az', args, {
+          timeout: AZ_TIMEOUT_MS,
+          maxBuffer: AZ_MAX_BUFFER,
+        });
 
     if (stderr && !stdout) {
       return { success: false, error: stderr.trim() };
