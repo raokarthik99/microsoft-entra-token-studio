@@ -1271,20 +1271,20 @@
             <!-- Selected App Display (when selected) -->
             {#if resolvedClientId}
               <div class="flex items-center justify-between gap-3 px-4 py-3 bg-primary/5 border-b border-primary/20">
-                <div class="flex items-center gap-3 min-w-0">
+                <div class="flex items-center gap-3 min-w-0 flex-1">
                   <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 text-primary shrink-0">
                     <CheckCircle2 class="h-4 w-4" />
                   </div>
-                  <div class="min-w-0">
+                  <div class="min-w-0 flex-1">
                     <Tooltip.Root delayDuration={300}>
                       <Tooltip.Trigger class="text-left max-w-full">
-                        <p class="text-sm font-semibold truncate block max-w-[280px]">{resolvedAppName}</p>
+                        <p class="text-sm font-semibold truncate w-full">{resolvedAppName}</p>
                       </Tooltip.Trigger>
                       <Tooltip.Content side="top" class="max-w-sm">
                         <p class="break-all">{resolvedAppName}</p>
                       </Tooltip.Content>
                     </Tooltip.Root>
-                    <p class="text-[11px] font-mono text-muted-foreground truncate">{resolvedClientId}</p>
+                    <p class="text-[11px] font-mono text-muted-foreground truncate w-full">{resolvedClientId}</p>
                   </div>
                 </div>
                 <Button
@@ -1360,16 +1360,16 @@
                         disabled={validating}
                       >
                         <div class="flex items-center justify-between gap-3">
-                          <div class="flex flex-col min-w-0">
+                          <div class="flex flex-col min-w-0 flex-1">
                             <Tooltip.Root delayDuration={300}>
                               <Tooltip.Trigger class="text-left max-w-full">
-                                <span class="text-sm font-medium truncate block max-w-[280px]">{app.displayName || 'Unnamed app'}</span>
+                                <span class="text-sm font-medium truncate w-full">{app.displayName || 'Unnamed app'}</span>
                               </Tooltip.Trigger>
                               <Tooltip.Content side="top" class="max-w-sm">
                                 <p class="break-all">{app.displayName || 'Unnamed app'}</p>
                               </Tooltip.Content>
                             </Tooltip.Root>
-                            <span class="text-[11px] font-mono text-muted-foreground truncate">{app.appId}</span>
+                            <span class="text-[11px] font-mono text-muted-foreground truncate w-full">{app.appId}</span>
                           </div>
                           {#if clientId === app.appId}
                             <CheckCircle2 class="h-4 w-4 text-primary shrink-0" />
