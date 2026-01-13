@@ -6,14 +6,6 @@ const execFileAsync = promisify(execFile);
 const AZ_TIMEOUT_MS = 30_000;
 const AZ_MAX_BUFFER = 10 * 1024 * 1024;
 
-// On Windows, Azure CLI is installed as az.cmd which requires cmd.exe
-const IS_WINDOWS = process.platform === 'win32';
-const CMD_META_CHARS = /[()^&|<>%!]/g;
-
-function escapeCmdArg(value: string): string {
-  return value.replace(CMD_META_CHARS, '^$&');
-}
-
 export interface AzureCliResult<T> {
   success: boolean;
   data?: T;
@@ -58,13 +50,7 @@ export interface AzureVaultCredential {
 
 async function runAzJson<T>(args: string[]): Promise<AzureCliResult<T>> {
   try {
-    // On Windows, Azure CLI is installed as az.cmd which requires cmd.exe to execute
-    const command = IS_WINDOWS ? 'cmd.exe' : 'az';
-    const commandArgs = IS_WINDOWS
-      ? ['/c', 'az', ...args.map(escapeCmdArg)]
-      : args;
-
-    const { stdout, stderr } = await execFileAsync(command, commandArgs, {
+    const { stdout, stderr } = await execFileAsync('az', args, {
       timeout: AZ_TIMEOUT_MS,
       maxBuffer: AZ_MAX_BUFFER,
     });
