@@ -12,11 +12,14 @@
   import { toast } from 'svelte-sonner';
   import * as Collapsible from '$lib/shadcn/components/ui/collapsible';
   import FormSheetLayout from '$lib/components/FormSheetLayout.svelte';
-  import { 
+import { isTauriMode } from '$lib/utils/runtime';
+import { 
     Loader2, KeyRound, Shield, Cloud, 
     CheckCircle2, Check, XCircle, Info, ExternalLink,
-    LayoutGrid, ChevronDown, Globe, AlertTriangle, Search
+    LayoutGrid, ChevronDown, Globe, AlertTriangle, Search,
+    Monitor, Globe2, Copy, CircleAlert, SquareArrowOutUpRight
   } from '@lucide/svelte';
+import { Checkbox } from 'bits-ui';
 
   interface Props {
     open?: boolean;
@@ -145,10 +148,13 @@
   let tagsInput = $state('');
   let description = $state('');
   let metaOpen = $state(false);
+  let redirectUriConfirmed = $state(false);
   const formId = 'app-form';
   const sectionCardClass = 'rounded-xl border border-border/60 bg-card/60 p-5 shadow-sm shadow-black/5 space-y-5';
-  // Recommended redirect URI (port-less) - works for any localhost port (web dev server, Tauri, etc.)
-  const recommendedRedirectUri = 'http://localhost/auth/callback';
+  // Recommended redirect URI differs by platform:
+  // - Desktop (Tauri): http://localhost (public client with no path)
+  // - Web: http://localhost/auth/callback (SPA with callback path)
+  const recommendedRedirectUri = $derived(isTauriMode() ? 'http://localhost' : 'http://localhost/auth/callback');
   // Actual redirect URI used by MSAL (includes current port)
   const actualRedirectUri = $derived(typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : '/auth/callback');
   const minAppSearchChars = 3;
@@ -312,7 +318,8 @@
     resolvedClientId &&
     tenantId.trim() &&
     resolvedKeyVaultUri &&
-    (credentialType === 'secret' ? resolvedSecretName : resolvedCertName)
+    (credentialType === 'secret' ? resolvedSecretName : resolvedCertName) &&
+    redirectUriConfirmed
   );
 
   const missingFields = $derived.by(() => {
@@ -325,6 +332,7 @@
     } else if (!resolvedCertName) {
       missing.push('Certificate name');
     }
+    if (resolvedClientId && !redirectUriConfirmed) missing.push('Redirect URI confirmation');
     return missing;
   });
 
@@ -450,6 +458,7 @@
     tagsInput = '';
     description = '';
     metaOpen = false;
+    redirectUriConfirmed = false;
     error = null;
     validating = false;
     azureSubscriptions = [];
@@ -1453,64 +1462,136 @@
           </Collapsible.Content>
         </Collapsible.Root>
 
-        <div class="space-y-2">
-          <Label class="flex items-center gap-1">
-            Redirect URI
-            <Tooltip.Root ignoreNonKeyboardFocus>
-              <Tooltip.Trigger tabindex={-1}>
-                <Info class="h-3.5 w-3.5 text-muted-foreground hover:text-foreground transition-colors cursor-help" />
-              </Tooltip.Trigger>
-              <Tooltip.Content class="max-w-sm">
-                <p class="font-semibold mb-1">Required configuration</p>
-                <p>Add this URI under the <strong>Single-page application</strong> platform in Azure Portal. Using <code>localhost</code> without a port allows any localhost port.</p>
-              </Tooltip.Content>
-            </Tooltip.Root>
-          </Label>
-          <div class="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/40 px-3 py-2">
-            <span class="font-mono text-sm text-muted-foreground break-all">{recommendedRedirectUri}</span>
-            {#if typeof window !== 'undefined'}
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                class="h-8 text-xs font-medium text-primary hover:text-primary hover:bg-primary/10"
-                onclick={() => {
-                  navigator.clipboard.writeText(recommendedRedirectUri);
-                  toast.success('Redirect URI copied to clipboard');
-                }}
-              >
-                Copy
-              </Button>
-            {/if}
-          </div>
-          <p class="text-[11px] text-muted-foreground">
-            This port-less URI works for any localhost port (5173, 3000, etc.) and for the desktop app.
-          </p>
-        </div>
-
+        <!-- Redirect URI Configuration - Only show when app is selected -->
         {#if resolvedClientId}
-          <div class="rounded-lg border border-blue-500/30 bg-blue-500/5 p-4 space-y-3">
-            <div class="flex items-start gap-3">
-              <div class="p-1.5 rounded bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 mt-0.5">
-                <ExternalLink class="h-4 w-4" />
+          <div class="rounded-xl border-2 border-orange-500/50 bg-gradient-to-br from-orange-500/10 via-amber-500/5 to-transparent p-4 space-y-4 relative overflow-hidden">
+            <!-- Animated attention indicator -->
+            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-500 animate-pulse"></div>
+            
+            <!-- Action Required Header -->
+            <div class="flex items-center gap-2">
+              <div class="p-1.5 rounded-full bg-orange-500/20 animate-pulse">
+                <CircleAlert class="h-5 w-5 text-orange-500" />
               </div>
-              <div class="space-y-1">
-            <h4 class="text-sm font-medium text-blue-900 dark:text-blue-100">Register redirect URI</h4>
-                <p class="text-xs text-blue-700 dark:text-blue-300 leading-relaxed">
-                  Add the Redirect URI above to <b>Single-page application</b> under Authentication.
-                  <span class="block mt-1 text-blue-600/80 dark:text-blue-400/80">Requires owner or admin privileges on the app registration.</span>
-                </p>
+              <div>
+                <h3 class="text-sm font-bold text-orange-600 dark:text-orange-400 uppercase tracking-wide">Action Required</h3>
+                <p class="text-xs text-orange-700/80 dark:text-orange-300/80">Complete this step in Azure Portal before saving</p>
               </div>
             </div>
+
+            <!-- Redirect URI Display -->
+            <div class="space-y-2">
+              <Label class="text-xs font-medium text-foreground/80">Redirect URI to configure</Label>
+              <div class="flex items-center justify-between gap-3 rounded-lg border border-orange-400/40 bg-background/80 px-3 py-2.5">
+                <code class="font-mono text-sm text-foreground break-all">{recommendedRedirectUri}</code>
+                {#if typeof window !== 'undefined'}
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    class="h-8 text-xs font-medium shrink-0"
+                    onclick={() => {
+                      navigator.clipboard.writeText(recommendedRedirectUri);
+                      toast.success('Redirect URI copied to clipboard');
+                    }}
+                  >
+                    <Copy class="h-3.5 w-3.5 mr-1.5" />
+                    Copy
+                  </Button>
+                {/if}
+              </div>
+            </div>
+
+            <!-- Platform-specific step-by-step instructions -->
+            <div class="bg-background/60 rounded-lg p-3 space-y-3 border border-border/40">
+              <div class="flex items-center gap-2">
+                {#if isTauriMode()}
+                  <Monitor class="h-4 w-4 text-muted-foreground" />
+                  <span class="text-xs font-semibold text-foreground">Desktop App Setup</span>
+                {:else}
+                  <Globe2 class="h-4 w-4 text-muted-foreground" />
+                  <span class="text-xs font-semibold text-foreground">Web App Setup</span>
+                {/if}
+              </div>
+              
+              <ol class="text-xs space-y-2 text-muted-foreground">
+                {#if isTauriMode()}
+                  <li class="flex gap-2">
+                    <span class="shrink-0 w-5 h-5 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold">1</span>
+                    <span>Click the button below to open Azure Portal</span>
+                  </li>
+                  <li class="flex gap-2">
+                    <span class="shrink-0 w-5 h-5 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold">2</span>
+                    <span>Click <strong class="text-foreground">Add a platform</strong> → <strong class="text-foreground">Mobile and desktop applications</strong></span>
+                  </li>
+                  <li class="flex gap-2">
+                    <span class="shrink-0 w-5 h-5 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold">3</span>
+                    <span>Check the <code class="text-[10px] bg-muted px-1 rounded">http://localhost</code> checkbox or add the URI above as a custom URI</span>
+                  </li>
+                  <li class="flex gap-2">
+                    <span class="shrink-0 w-5 h-5 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold">4</span>
+                    <span>Click <strong class="text-foreground">Configure</strong> to save</span>
+                  </li>
+                {:else}
+                  <li class="flex gap-2">
+                    <span class="shrink-0 w-5 h-5 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold">1</span>
+                    <span>Click the button below to open Azure Portal</span>
+                  </li>
+                  <li class="flex gap-2">
+                    <span class="shrink-0 w-5 h-5 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold">2</span>
+                    <span>Click <strong class="text-foreground">Add a platform</strong> → <strong class="text-foreground">Single-page application</strong></span>
+                  </li>
+                  <li class="flex gap-2">
+                    <span class="shrink-0 w-5 h-5 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold">3</span>
+                    <span>Paste the redirect URI: <code class="text-[10px] bg-muted px-1 rounded">http://localhost/auth/callback</code></span>
+                  </li>
+                  <li class="flex gap-2">
+                    <span class="shrink-0 w-5 h-5 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold">4</span>
+                    <span>Click <strong class="text-foreground">Configure</strong> to save</span>
+                  </li>
+                {/if}
+              </ol>
+              
+              <p class="text-[10px] text-muted-foreground/70 pt-1 border-t border-border/30">
+                <strong>Note:</strong> You need owner or admin privileges on this app registration. The port-less localhost URI works for any port.
+              </p>
+            </div>
+
+            <!-- Deep link to Azure Portal -->
             <Button 
-              variant="outline" 
-              size="sm" 
-              class="w-full bg-background border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/50 hover:text-blue-800 dark:hover:text-blue-200"
+              type="button"
+              variant="default" 
+              class="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-medium shadow-lg shadow-orange-500/20"
               onclick={() => window.open(`https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/Authentication/appId/${resolvedClientId}`, '_blank')}
             >
-              Open app in Entra portal
-              <ExternalLink class="ml-2 h-3.5 w-3.5" />
+              <SquareArrowOutUpRight class="h-4 w-4 mr-2" />
+              Open Authentication Settings in Azure Portal
             </Button>
+
+            <!-- Confirmation checkbox -->
+            <div class="pt-2 border-t border-orange-400/30">
+              <Checkbox.Root
+                checked={redirectUriConfirmed}
+                onCheckedChange={(checked) => { redirectUriConfirmed = checked === true; }}
+                class="flex items-start gap-3 group cursor-pointer"
+              >
+                <div class="shrink-0 mt-0.5">
+                  <div class={`h-5 w-5 rounded border-2 flex items-center justify-center transition-all ${redirectUriConfirmed ? 'bg-green-500 border-green-500' : 'border-orange-400 bg-background hover:border-orange-500'}`}>
+                    {#if redirectUriConfirmed}
+                      <Check class="h-3.5 w-3.5 text-white" />
+                    {/if}
+                  </div>
+                </div>
+                <div class="space-y-0.5">
+                  <span class={`text-sm font-medium ${redirectUriConfirmed ? 'text-green-600 dark:text-green-400' : 'text-foreground'}`}>
+                    {redirectUriConfirmed ? 'Redirect URI configured ✓' : 'I have added the redirect URI in Azure Portal'}
+                  </span>
+                  <p class="text-xs text-muted-foreground">
+                    Confirm that you have completed the steps above. This is required to enable user token flows.
+                  </p>
+                </div>
+              </Checkbox.Root>
+            </div>
           </div>
         {/if}
       </div>

@@ -327,6 +327,9 @@ interface CallbackServerResult {
 }
 
 const INTERACTIVE_BASE_SCOPES = ['openid', 'profile', 'offline_access'] as const;
+const AUTH_CODE_TIMEOUT_MS = 120000;
+const AUTH_CODE_TIMEOUT_MESSAGE =
+  'Authentication timed out waiting for the browser to redirect. If you see AADSTS50011, add http://localhost to the app\'s Mobile/Desktop redirect URIs and try again.';
 
 function uniqScopes(scopes: string[]): string[] {
   const seen = new Set<string>();
@@ -711,7 +714,7 @@ export async function handleUserToken(params: unknown): Promise<msal.Authenticat
 
       // Wait for callback (with timeout)
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Authentication timed out')), 300000); // 5 min
+        setTimeout(() => reject(new Error(AUTH_CODE_TIMEOUT_MESSAGE)), AUTH_CODE_TIMEOUT_MS);
       });
 
       const code = await Promise.race([codePromise, timeoutPromise]);
