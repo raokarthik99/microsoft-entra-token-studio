@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
 
@@ -7,6 +8,8 @@ const execFileAsync = promisify(execFile);
 const AZ_TIMEOUT_MS = 30_000;
 const AZ_MAX_BUFFER = 10 * 1024 * 1024;
 const IS_WINDOWS = process.platform === 'win32';
+const WINDOWS_AZ_EXTS = ['.exe', '.cmd', '.bat', '.com'];
+const CMD_QUOTE_PATTERN = /[ \t&()^|<>]/;
 
 const COMMON_CLI_PATHS: Record<NodeJS.Platform, string[]> = {
   darwin: ['/opt/homebrew/bin', '/usr/local/bin', '/usr/local/sbin'],
@@ -78,39 +81,80 @@ function ensureCliPaths() {
   process.env.PATH = [...additions, ...parts].join(path.delimiter);
 }
 
-function escapeCmdValue(value: string): string {
-  return value
+function findAzPath(): string | null {
+  const searchPaths = (process.env.PATH ?? '').split(path.delimiter).filter(Boolean);
+  if (searchPaths.length === 0) return null;
+  const extensions = IS_WINDOWS ? WINDOWS_AZ_EXTS : [''];
+  for (const ext of extensions) {
+    for (const dir of searchPaths) {
+      const candidate = IS_WINDOWS ? path.join(dir, `az${ext}`) : path.join(dir, 'az');
+      if (fs.existsSync(candidate)) return candidate;
+    }
+  }
+  return null;
+}
+
+function findCliPythonFromAz(azPath: string): string | null {
+  const candidates = [
+    path.resolve(path.dirname(azPath), '..', 'python.exe'),
+    path.resolve(path.dirname(azPath), '..', '..', 'python.exe'),
+  ];
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
+function escapeCmdArg(value: string): string {
+  let escaped = value
     .replace(/\^/g, '^^')
     .replace(/"/g, '""')
     .replace(/%/g, '^%')
     .replace(/!/g, '^!');
-}
-
-function quoteCmdArg(value: string): string {
-  if (value.length === 0) return '""';
-  const escaped = escapeCmdValue(value);
-  if (/[ \t&()^|<>]/.test(escaped)) {
-    return `"${escaped}"`;
+  if (CMD_QUOTE_PATTERN.test(escaped)) {
+    escaped = `"${escaped}"`;
   }
   return escaped;
 }
 
-function buildCmdCommand(args: string[]): string {
-  return ['az', ...args].map(quoteCmdArg).join(' ');
+function buildCmdCommandLine(exe: string, args: string[]): string {
+  const parts = [escapeCmdArg(exe), ...args.map(escapeCmdArg)];
+  return `"${parts.join(' ')}"`;
+}
+
+function resolveAzCommand(args: string[]): { command: string; args: string[] } {
+  if (!IS_WINDOWS) {
+    return { command: 'az', args };
+  }
+  ensureCliPaths();
+  const azPath = findAzPath();
+  if (!azPath) {
+    return { command: 'az', args };
+  }
+  const ext = path.extname(azPath).toLowerCase();
+  if (ext === '.exe' || ext === '.com') {
+    return { command: azPath, args };
+  }
+  if (ext === '.cmd' || ext === '.bat') {
+    const pythonPath = findCliPythonFromAz(azPath);
+    if (pythonPath) {
+      return { command: pythonPath, args: ['-m', 'azure.cli', ...args] };
+    }
+    return {
+      command: 'cmd.exe',
+      args: ['/d', '/s', '/c', buildCmdCommandLine(azPath, args)],
+    };
+  }
+  return { command: azPath, args };
 }
 
 async function runAzJson<T>(args: string[]): Promise<AzureCliResult<T>> {
   try {
-    ensureCliPaths();
-    const { stdout, stderr } = IS_WINDOWS
-      ? await execFileAsync('cmd.exe', ['/d', '/s', '/c', buildCmdCommand(args)], {
-          timeout: AZ_TIMEOUT_MS,
-          maxBuffer: AZ_MAX_BUFFER,
-        })
-      : await execFileAsync('az', args, {
-          timeout: AZ_TIMEOUT_MS,
-          maxBuffer: AZ_MAX_BUFFER,
-        });
+    const { command, args: commandArgs } = resolveAzCommand(args);
+    const { stdout, stderr } = await execFileAsync(command, commandArgs, {
+      timeout: AZ_TIMEOUT_MS,
+      maxBuffer: AZ_MAX_BUFFER,
+    });
 
     if (stderr && !stdout) {
       return { success: false, error: stderr.trim() };
