@@ -262,9 +262,9 @@
 
 <div class="flex h-full flex-col space-y-3">
   {#if enableToolbar}
-    <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/40 p-3">
-      <div class="flex flex-1 flex-wrap items-center gap-2">
-        <div class="relative w-full min-w-[220px] max-w-sm">
+    <div class="flex flex-col gap-3 rounded-lg border bg-muted/40 p-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+      <div class="flex flex-1 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+        <div class="relative w-full sm:min-w-[200px] sm:max-w-sm">
           <Search class="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search target, scope, or status"
@@ -273,13 +273,13 @@
           />
         </div>
 
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
           <Select.Root
             type="single"
             value={typeFilter}
             onValueChange={(value) => (typeFilter = value as typeof typeFilter)}
           >
-            <Select.Trigger class="w-[150px]">
+            <Select.Trigger class="w-full sm:w-[130px]">
               {typeFilter === "all" ? "All types" : typeFilter === "app" ? "App tokens" : "User tokens"}
             </Select.Trigger>
             <Select.Content>
@@ -294,7 +294,7 @@
             value={statusFilter}
             onValueChange={(value) => (statusFilter = value as typeof statusFilter)}
           >
-            <Select.Trigger class="w-[170px]">
+            <Select.Trigger class="w-full sm:w-[140px]">
               {statusFilter === "all"
                 ? "All statuses"
                 : statusFilter === "expired"
@@ -317,7 +317,7 @@
               value={appFilter}
               onValueChange={(value) => (appFilter = value)}
             >
-              <Select.Trigger class="w-[150px]">
+              <Select.Trigger class="w-full sm:w-[130px]">
                 {appFilter === "all" ? "All apps" : uniqueApps.find(a => a.id === appFilter)?.name || "App"}
               </Select.Trigger>
               <Select.Content>
@@ -363,7 +363,8 @@
 
   <div class={cn("flex flex-1 flex-col overflow-hidden rounded-lg border bg-card shadow-sm", compact ? "p-3" : "p-4")}>
   <div class="flex-1 overflow-auto">
-      <Table class="table-auto w-full">
+      <div class="overflow-x-auto">
+      <Table class="table-auto w-full min-w-[700px]">
         <TableHeader>
           <TableRow>
             {#if enableSelection}
@@ -447,7 +448,7 @@
                 {/if}
               </button>
             </TableHead>
-            <TableHead class="w-[160px]">
+            <TableHead class="w-[160px] hidden lg:table-cell">
               <button
                 type="button"
                 class="flex items-center gap-1 text-xs font-semibold text-muted-foreground"
@@ -468,7 +469,7 @@
                 {/if}
               </button>
             </TableHead>
-            <TableHead class="w-[160px]">
+            <TableHead class="w-[160px] hidden xl:table-cell">
               <button
                 type="button"
                 class="flex items-center gap-1 text-xs font-semibold text-muted-foreground"
@@ -597,11 +598,11 @@
                     <p class="text-xs text-muted-foreground">No expiry data</p>
                   {/if}
                 </TableCell>
-                <TableCell class="align-top">
+                <TableCell class="align-top hidden lg:table-cell">
                   <div class="text-sm font-medium leading-tight">{row.issuedOn.toLocaleString()}</div>
                   <div class="text-[11px] text-muted-foreground">Issued {row.issuedAgo}</div>
                 </TableCell>
-                <TableCell class="align-top">
+                <TableCell class="align-top hidden xl:table-cell">
                   {#if row.expiresOn}
                     <div class="text-sm font-medium leading-tight">{row.expiresOn.toLocaleString()}</div>
                     <div class="text-[11px] text-muted-foreground">
@@ -633,6 +634,7 @@
           {/if}
         </TableBody>
       </Table>
+      </div>
     </div>
     {#if showFooterState}
       <div class={cn("flex items-center gap-2 border-t text-muted-foreground", compact ? "px-3 py-2" : "px-4 py-3")}>

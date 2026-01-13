@@ -210,9 +210,9 @@
 
 <div class="flex h-full flex-col space-y-3">
   {#if enableToolbar}
-    <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/40 p-3">
-      <div class="flex flex-1 flex-wrap items-center gap-2">
-        <div class="relative w-full min-w-[220px] max-w-sm">
+    <div class="flex flex-col gap-3 rounded-lg border bg-muted/40 p-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+      <div class="flex flex-1 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+        <div class="relative w-full sm:min-w-[200px] sm:max-w-sm">
           <Search class="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search by name, client ID, or vault"
@@ -221,13 +221,13 @@
           />
         </div>
 
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
           <Select.Root
             type="single"
             value={credentialFilter}
             onValueChange={(value) => (credentialFilter = value as CredentialFilter)}
           >
-            <Select.Trigger class="w-[150px]">
+            <Select.Trigger class="w-full sm:w-[140px]">
               {credentialFilter === "all" ? "All credentials" : credentialFilter === "secret" ? "Secrets" : "Certificates"}
             </Select.Trigger>
             <Select.Content>
@@ -243,8 +243,8 @@
               value={tagFilter}
               onValueChange={(value) => (tagFilter = value as typeof tagFilter)}
             >
-              <Select.Trigger class="w-[170px]">
-                <div class="flex items-center gap-2">
+              <Select.Trigger class="w-full sm:w-[150px]">
+                <div class="flex items-center gap-2 min-w-0">
                   <Tags class="h-4 w-4" />
                   {tagFilter === "all" ? "All tags" : `Tag: ${tagFilter}`}
                 </div>
@@ -293,7 +293,8 @@
 
   <div class="flex flex-1 flex-col overflow-hidden rounded-lg border bg-card shadow-sm p-4">
     <div class="flex-1 overflow-auto">
-      <Table class="table-auto w-full">
+      <div class="overflow-x-auto">
+      <Table class="table-auto w-full min-w-[800px]">
         <TableHeader>
           <TableRow>
             {#if enableSelection}
@@ -312,7 +313,7 @@
               </TableHead>
             {/if}
 
-            <TableHead>
+            <TableHead class="min-w-[180px] max-w-[280px]">
               <button
                 type="button"
                 class="flex items-center gap-1 text-xs font-semibold text-muted-foreground"
@@ -333,7 +334,7 @@
                 {/if}
               </button>
             </TableHead>
-            <TableHead class="w-[180px]">
+            <TableHead class="w-[180px] hidden lg:table-cell">
               <button
                 type="button"
                 class="flex items-center gap-1 text-xs font-semibold text-muted-foreground"
@@ -375,8 +376,8 @@
                 {/if}
               </button>
             </TableHead>
-            <TableHead class="w-[160px]">Key Vault</TableHead>
-            <TableHead class="w-[140px]">
+            <TableHead class="w-[160px] hidden xl:table-cell">Key Vault</TableHead>
+            <TableHead class="w-[140px] hidden md:table-cell">
               <button
                 type="button"
                 class="flex items-center gap-1 text-xs font-semibold text-muted-foreground"
@@ -459,7 +460,7 @@
                   </TableCell>
                 {/if}
 
-                <TableCell class="align-middle">
+                <TableCell class="align-middle max-w-[280px]">
                   <div class="flex items-center gap-2 min-w-0">
                     <span
                       class="inline-block h-2.5 w-2.5 rounded-full border border-border/60 shrink-0"
@@ -467,10 +468,17 @@
                       aria-hidden="true"
                       title={row.app.color || "App color"}
                     ></span>
-                    <span class="font-medium leading-tight truncate" title={row.app.name}>{row.app.name}</span>
+                    <Tooltip.Root>
+                      <Tooltip.Trigger class="min-w-0">
+                        <span class="font-medium leading-tight truncate block max-w-[220px]">{row.app.name}</span>
+                      </Tooltip.Trigger>
+                      <Tooltip.Content>
+                        <span class="text-sm">{row.app.name}</span>
+                      </Tooltip.Content>
+                    </Tooltip.Root>
                   </div>
                   {#if row.app.description}
-                    <p class="text-xs text-muted-foreground truncate max-w-[260px]">{row.app.description}</p>
+                    <p class="text-xs text-muted-foreground truncate max-w-[240px] mt-0.5" title={row.app.description}>{row.app.description}</p>
                   {/if}
                   {#if row.app.tags?.length}
                     <div class="mt-1 flex items-center gap-1">
@@ -495,8 +503,8 @@
                     </div>
                   {/if}
                 </TableCell>
-                <TableCell class="align-middle">
-                  <code class="font-mono text-xs text-muted-foreground truncate block" title={row.app.clientId}>{row.app.clientId}</code>
+                <TableCell class="align-middle hidden lg:table-cell">
+                  <code class="font-mono text-xs text-muted-foreground truncate block max-w-[160px]" title={row.app.clientId}>{row.app.clientId}</code>
                 </TableCell>
                 <TableCell class="align-middle">
                   <div class="flex flex-col gap-1 items-start">
@@ -514,13 +522,13 @@
                     </span>
                   </div>
                 </TableCell>
-                <TableCell class="align-middle">
-                  <div class="flex items-center gap-1.5 text-sm text-muted-foreground">
-                    <Cloud class="h-3.5 w-3.5" />
-                    <span class="truncate max-w-[160px]" title={row.app.keyVault.uri}>{row.vaultName}</span>
+                <TableCell class="align-middle hidden xl:table-cell">
+                  <div class="flex items-center gap-1.5 text-sm text-muted-foreground min-w-0">
+                    <Cloud class="h-3.5 w-3.5 shrink-0" />
+                    <span class="truncate max-w-[140px]" title={row.app.keyVault.uri}>{row.vaultName}</span>
                   </div>
                 </TableCell>
-                <TableCell class="align-middle">
+                <TableCell class="align-middle hidden md:table-cell">
                   {#if row.lastUsedOn}
                     <div class="text-sm font-medium leading-tight">{row.lastUsedOn.toLocaleString()}</div>
                     <div class="text-xs text-muted-foreground">Used {row.lastUsedLabel}</div>
@@ -542,6 +550,7 @@
           {/if}
         </TableBody>
       </Table>
+      </div>
     </div>
     {#if showFooter}
       <div class="flex items-center gap-3 border-t px-4 py-3 text-muted-foreground">
