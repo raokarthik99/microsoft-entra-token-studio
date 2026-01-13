@@ -1178,7 +1178,7 @@
             <Label class="flex items-center gap-1">
               Client App <span class="text-destructive">*</span>
             </Label>
-            <Tooltip.Root>
+            <Tooltip.Root ignoreNonKeyboardFocus>
               <Tooltip.Trigger tabindex={-1}>
                 <Info class="h-3.5 w-3.5 text-muted-foreground hover:text-foreground transition-colors cursor-help" />
               </Tooltip.Trigger>
@@ -1456,7 +1456,7 @@
         <div class="space-y-2">
           <Label class="flex items-center gap-1">
             Redirect URI
-            <Tooltip.Root>
+            <Tooltip.Root ignoreNonKeyboardFocus>
               <Tooltip.Trigger tabindex={-1}>
                 <Info class="h-3.5 w-3.5 text-muted-foreground hover:text-foreground transition-colors cursor-help" />
               </Tooltip.Trigger>
@@ -1526,7 +1526,7 @@
         <div class="space-y-3">
           <Label class="flex items-center gap-1">
             Key Vault <span class="text-destructive">*</span>
-            <Tooltip.Root>
+            <Tooltip.Root ignoreNonKeyboardFocus>
               <Tooltip.Trigger tabindex={-1}>
                 <Info class="h-3.5 w-3.5 text-muted-foreground hover:text-foreground transition-colors cursor-help" />
               </Tooltip.Trigger>
@@ -1739,7 +1739,7 @@
             <div class="flex items-center justify-between gap-2">
               <Label class="flex items-center gap-1">
                 Secret Name <span class="text-destructive">*</span>
-                <Tooltip.Root>
+                <Tooltip.Root ignoreNonKeyboardFocus>
                   <Tooltip.Trigger tabindex={-1}>
                     <Info class="h-3.5 w-3.5 text-muted-foreground hover:text-foreground transition-colors cursor-help" />
                   </Tooltip.Trigger>
@@ -1889,7 +1889,7 @@
             <div class="flex items-center justify-between gap-2">
               <Label class="flex items-center gap-1">
                 Certificate Name <span class="text-destructive">*</span>
-                <Tooltip.Root>
+                <Tooltip.Root ignoreNonKeyboardFocus>
                   <Tooltip.Trigger tabindex={-1}>
                     <Info class="h-3.5 w-3.5 text-muted-foreground hover:text-foreground transition-colors cursor-help" />
                   </Tooltip.Trigger>
