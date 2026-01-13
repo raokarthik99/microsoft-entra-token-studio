@@ -125,10 +125,21 @@
     letter-spacing: -0.01em;
     overflow-x: hidden;
     max-width: 100vw;
-    background-image:
-      radial-gradient(1400px 80% at 10% 10%, color-mix(in oklch, var(--primary) 6%, transparent), transparent),
-      radial-gradient(1200px 70% at 85% 0%, color-mix(in oklch, var(--chart-2) 5%, transparent), transparent),
-      linear-gradient(180deg, color-mix(in oklch, var(--muted) 4%, transparent), transparent 45%);
+    background-image: radial-gradient(
+        1400px 80% at 10% 10%,
+        color-mix(in oklch, var(--primary) 6%, transparent),
+        transparent
+      ),
+      radial-gradient(
+        1200px 70% at 85% 0%,
+        color-mix(in oklch, var(--chart-2) 5%, transparent),
+        transparent
+      ),
+      linear-gradient(
+        180deg,
+        color-mix(in oklch, var(--muted) 4%, transparent),
+        transparent 45%
+      );
     background-attachment: fixed;
   }
 
