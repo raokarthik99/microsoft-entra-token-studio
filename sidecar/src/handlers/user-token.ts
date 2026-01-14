@@ -703,9 +703,9 @@ export async function handleUserToken(params: unknown): Promise<msal.Authenticat
           return spawn('open', [authUrl], { stdio: 'ignore', detached: true });
         }
         if (process.platform === 'win32') {
-          // Use start with proper quoting - the empty string after start is the window title,
-          // and the URL needs to be in quotes to prevent & from being interpreted as command separator
-          return spawn('cmd.exe', ['/c', 'start', '""', `"${authUrl}"`], { stdio: 'ignore', detached: true, windowsHide: true });
+          // Use explorer.exe to open URLs - it handles special characters correctly
+          // without cmd.exe parsing issues with & characters
+          return spawn('explorer.exe', [authUrl], { stdio: 'ignore', detached: true });
         }
         return spawn('xdg-open', [authUrl], { stdio: 'ignore', detached: true });
       })();
