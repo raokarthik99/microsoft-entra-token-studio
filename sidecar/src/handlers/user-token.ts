@@ -703,8 +703,9 @@ export async function handleUserToken(params: unknown): Promise<msal.Authenticat
           return spawn('open', [authUrl], { stdio: 'ignore', detached: true });
         }
         if (process.platform === 'win32') {
-          // `start` is a cmd built-in
-          return spawn('cmd', ['/c', 'start', '', authUrl], { stdio: 'ignore', detached: true, windowsHide: true });
+          // Use PowerShell's Start-Process to avoid cmd.exe interpreting & as command separator
+          // which truncates OAuth URLs at the first & character
+          return spawn('powershell.exe', ['-NoProfile', '-Command', `Start-Process "${authUrl}"`], { stdio: 'ignore', detached: true, windowsHide: true });
         }
         return spawn('xdg-open', [authUrl], { stdio: 'ignore', detached: true });
       })();
