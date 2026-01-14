@@ -1106,29 +1106,41 @@ import { Checkbox } from 'bits-ui';
             onValueChange={handleSubscriptionChange}
             disabled={loadingSubscriptions || validating}
           >
-            <Select.Trigger class="w-full">
-              {#if selectedSubscription}
-                {selectedSubscription.name}
-              {:else}
-                Select a subscription
-              {/if}
+            <Select.Trigger class="w-full justify-start">
+              <span class="w-0 flex-1 truncate text-left" title={selectedSubscription?.name}>
+                {selectedSubscription?.name ?? 'Select a subscription'}
+              </span>
             </Select.Trigger>
             <Select.Content>
               {#if azureSubscriptions.length === 0}
                 <Select.Item value="none" disabled>No subscriptions found</Select.Item>
               {:else}
                 {#each azureSubscriptions as sub}
-                  <Select.Item value={sub.id}>
-                    <div class="flex flex-col">
-                      <div class="flex items-center gap-2">
-                        <span class="font-medium">{sub.name}</span>
-                        {#if sub.isDefault}
-                          <Badge variant="secondary" class="h-5 px-2 text-[10px]">Default</Badge>
-                        {/if}
+                  <Tooltip.Root delayDuration={300}>
+                    <Tooltip.Trigger>
+                      {#snippet child({ props })}
+                        <div {...props} class="w-full">
+                          <Select.Item value={sub.id}>
+                            <div class="flex w-0 flex-1 flex-col overflow-hidden">
+                              <div class="flex items-center gap-2">
+                                <span class="truncate font-medium">{sub.name}</span>
+                                {#if sub.isDefault}
+                                  <Badge variant="secondary" class="h-5 px-2 text-[10px] shrink-0">Default</Badge>
+                                {/if}
+                              </div>
+                              <span class="truncate text-[11px] text-muted-foreground font-mono">{sub.id}</span>
+                            </div>
+                          </Select.Item>
+                        </div>
+                      {/snippet}
+                    </Tooltip.Trigger>
+                    <Tooltip.Content side="right" class="max-w-sm">
+                      <div class="space-y-1">
+                        <p class="text-sm font-medium break-all">{sub.name}</p>
+                        <p class="text-[11px] font-mono text-muted-foreground break-all">{sub.id}</p>
                       </div>
-                      <span class="text-[11px] text-muted-foreground font-mono">{formatId(sub.id)}</span>
-                    </div>
-                  </Select.Item>
+                    </Tooltip.Content>
+                  </Tooltip.Root>
                 {/each}
               {/if}
             </Select.Content>
@@ -1156,16 +1168,25 @@ import { Checkbox } from 'bits-ui';
           <Label class="flex items-center gap-1">
             Tenant ID <span class="text-destructive">*</span>
           </Label>
-          <div class="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/40 px-3 py-2">
-            <span class="font-mono text-sm text-muted-foreground">
-              {tenantId || 'Select a subscription to populate'}
-            </span>
-            {#if selectedSubscription?.name}
-              <Badge variant="secondary" class="text-[10px] font-medium">
-                {selectedSubscription.name}
-              </Badge>
+          <Tooltip.Root delayDuration={300}>
+            <Tooltip.Trigger class="block w-full text-left">
+              <div class="flex items-center rounded-lg border border-border/60 bg-muted/40 px-3 py-2 overflow-hidden">
+                <span class="truncate font-mono text-sm text-muted-foreground">
+                  {tenantId || 'Select a subscription to populate'}
+                </span>
+              </div>
+            </Tooltip.Trigger>
+            {#if tenantId}
+              <Tooltip.Content side="top" class="max-w-sm">
+                <div class="space-y-1">
+                  <p class="text-[11px] font-mono break-all">{tenantId}</p>
+                  {#if selectedSubscription?.name}
+                    <p class="text-xs text-muted-foreground">From: {selectedSubscription.name}</p>
+                  {/if}
+                </div>
+              </Tooltip.Content>
             {/if}
-          </div>
+          </Tooltip.Root>
           <p class="text-[11px] text-muted-foreground">
             Pulled from the subscription’s tenant. Changing subscriptions updates this ID for token requests and Key Vault access.
           </p>
@@ -1279,21 +1300,28 @@ import { Checkbox } from 'bits-ui';
 
             <!-- Selected App Display (when selected) -->
             {#if resolvedClientId}
-              <div class="flex items-center justify-between gap-3 px-4 py-3 bg-primary/5 border-b border-primary/20">
-                <div class="flex items-center gap-3 min-w-0 flex-1">
+              <div class="flex items-center justify-between gap-3 px-4 py-3 bg-primary/5 border-b border-primary/20 overflow-hidden">
+                <div class="flex items-center gap-3 min-w-0 flex-1 overflow-hidden">
                   <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 text-primary shrink-0">
                     <CheckCircle2 class="h-4 w-4" />
                   </div>
-                  <div class="min-w-0 flex-1">
+                  <div class="w-0 flex-1 overflow-hidden">
                     <Tooltip.Root delayDuration={300}>
-                      <Tooltip.Trigger class="text-left max-w-full">
-                        <p class="text-sm font-semibold truncate w-full">{resolvedAppName}</p>
+                      <Tooltip.Trigger class="block w-full text-left">
+                        <p class="truncate text-sm font-semibold">{resolvedAppName}</p>
                       </Tooltip.Trigger>
                       <Tooltip.Content side="top" class="max-w-sm">
                         <p class="break-all">{resolvedAppName}</p>
                       </Tooltip.Content>
                     </Tooltip.Root>
-                    <p class="text-[11px] font-mono text-muted-foreground truncate w-full">{resolvedClientId}</p>
+                    <Tooltip.Root delayDuration={300}>
+                      <Tooltip.Trigger class="block w-full text-left">
+                        <p class="truncate text-[11px] font-mono text-muted-foreground">{resolvedClientId}</p>
+                      </Tooltip.Trigger>
+                      <Tooltip.Content side="top" class="max-w-sm">
+                        <p class="break-all">{resolvedClientId}</p>
+                      </Tooltip.Content>
+                    </Tooltip.Root>
                   </div>
                 </div>
                 <Button
@@ -1315,7 +1343,7 @@ import { Checkbox } from 'bits-ui';
 
             <!-- Results Area -->
             <ScrollArea class="h-[200px]">
-              <div class="p-2">
+              <div class="p-2 overflow-x-hidden">
                 {#if loadingApps}
                   <div class="flex flex-col items-center justify-center gap-2 py-8 text-muted-foreground">
                     <Loader2 class="h-5 w-5 animate-spin" />
@@ -1358,35 +1386,41 @@ import { Checkbox } from 'bits-ui';
                       </div>
                     {/if}
                     {#each azureApps as app}
-                      <button
-                        type="button"
-                        class={`group w-full rounded-lg px-3 py-2.5 text-left transition-all ${
-                          clientId === app.appId
-                            ? 'bg-primary/10 ring-1 ring-primary/30'
-                            : 'hover:bg-muted/60'
-                        }`}
-                        onclick={() => handleAppSelection(app)}
-                        disabled={validating}
-                      >
-                        <div class="flex items-center justify-between gap-3">
-                          <div class="flex flex-col min-w-0 flex-1">
-                            <Tooltip.Root delayDuration={300}>
-                              <Tooltip.Trigger class="text-left max-w-full">
-                                <span class="text-sm font-medium truncate w-full">{app.displayName || 'Unnamed app'}</span>
-                              </Tooltip.Trigger>
-                              <Tooltip.Content side="top" class="max-w-sm">
-                                <p class="break-all">{app.displayName || 'Unnamed app'}</p>
-                              </Tooltip.Content>
-                            </Tooltip.Root>
-                            <span class="text-[11px] font-mono text-muted-foreground truncate w-full">{app.appId}</span>
+                      <Tooltip.Root delayDuration={300}>
+                        <Tooltip.Trigger>
+                          {#snippet child({ props })}
+                            <button
+                              {...props}
+                              type="button"
+                              class={`group w-full min-w-0 overflow-hidden rounded-lg px-3 py-2.5 text-left transition-all ${
+                                clientId === app.appId
+                                  ? 'bg-primary/10 ring-1 ring-primary/30'
+                                  : 'hover:bg-muted/60'
+                              }`}
+                              onclick={() => handleAppSelection(app)}
+                              disabled={validating}
+                            >
+                              <div class="flex min-w-0 items-center justify-between gap-3">
+                                <div class="flex w-0 flex-1 flex-col overflow-hidden">
+                                  <span class="block w-full truncate text-sm font-medium">{app.displayName || 'Unnamed app'}</span>
+                                  <span class="block w-full truncate text-[11px] font-mono text-muted-foreground">{app.appId}</span>
+                                </div>
+                                {#if clientId === app.appId}
+                                  <CheckCircle2 class="h-4 w-4 text-primary shrink-0" />
+                                {:else}
+                                  <div class="h-4 w-4 rounded-full border-2 border-muted-foreground/30 shrink-0 group-hover:border-muted-foreground/50 transition-colors"></div>
+                                {/if}
+                              </div>
+                            </button>
+                          {/snippet}
+                        </Tooltip.Trigger>
+                        <Tooltip.Content side="top" class="max-w-sm">
+                          <div class="space-y-1">
+                            <p class="text-sm font-medium">{app.displayName || 'Unnamed app'}</p>
+                            <p class="text-[11px] font-mono text-muted-foreground break-all">{app.appId}</p>
                           </div>
-                          {#if clientId === app.appId}
-                            <CheckCircle2 class="h-4 w-4 text-primary shrink-0" />
-                          {:else}
-                            <div class="h-4 w-4 rounded-full border-2 border-muted-foreground/30 shrink-0 group-hover:border-muted-foreground/50 transition-colors"></div>
-                          {/if}
-                        </div>
-                      </button>
+                        </Tooltip.Content>
+                      </Tooltip.Root>
                     {/each}
                   </div>
                 {/if}
@@ -1708,23 +1742,37 @@ import { Checkbox } from 'bits-ui';
                     </div>
                   {:else}
                     {#each filteredVaultItems as item}
-                      <Combobox.Item
-                        value={item.value}
-                        label={item.label}
-                        class="data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground [&_svg:not([class*='text-'])]:text-muted-foreground outline-hidden *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2 relative flex w-full cursor-default select-none items-center gap-2 rounded-sm py-1.5 pe-8 ps-2 text-sm data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0"
-                      >
-                        {#snippet children({ selected })}
-                          <span class="absolute end-2 flex size-3.5 items-center justify-center">
-                            {#if selected}
-                              <Check class="size-4" />
-                            {/if}
-                          </span>
-                          <div class="flex flex-col">
-                            <span class="font-medium">{item.vault.name || item.vault.uri}</span>
-                            <span class="text-[11px] text-muted-foreground font-mono">{item.vault.uri}</span>
+                      <Tooltip.Root delayDuration={300}>
+                        <Tooltip.Trigger>
+                          {#snippet child({ props })}
+                            <div {...props} class="w-full">
+                              <Combobox.Item
+                                value={item.value}
+                                label={item.label}
+                                class="data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground [&_svg:not([class*='text-'])]:text-muted-foreground outline-hidden *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2 relative flex w-full cursor-default select-none items-center gap-2 rounded-sm py-1.5 pe-8 ps-2 text-sm data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0"
+                              >
+                                {#snippet children({ selected })}
+                                  <span class="absolute end-2 flex size-3.5 items-center justify-center">
+                                    {#if selected}
+                                      <Check class="size-4" />
+                                    {/if}
+                                  </span>
+                                  <div class="flex w-0 flex-1 flex-col overflow-hidden">
+                                    <span class="font-medium truncate">{item.vault.name || item.vault.uri}</span>
+                                    <span class="text-[11px] text-muted-foreground font-mono truncate">{item.vault.uri}</span>
+                                  </div>
+                                {/snippet}
+                              </Combobox.Item>
+                            </div>
+                          {/snippet}
+                        </Tooltip.Trigger>
+                        <Tooltip.Content side="right" class="max-w-sm">
+                          <div class="space-y-1">
+                            <p class="text-sm font-medium break-all">{item.vault.name || item.vault.uri}</p>
+                            <p class="text-[11px] font-mono text-muted-foreground break-all">{item.vault.uri}</p>
                           </div>
-                        {/snippet}
-                      </Combobox.Item>
+                        </Tooltip.Content>
+                      </Tooltip.Root>
                     {/each}
                   {/if}
                 </Combobox.Viewport>
@@ -1922,25 +1970,36 @@ import { Checkbox } from 'bits-ui';
                       </div>
                     {:else}
                       {#each filteredSecretItems as item}
-                        <Combobox.Item
-                          value={item.value}
-                          label={item.label}
-                          class="data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground [&_svg:not([class*='text-'])]:text-muted-foreground outline-hidden *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2 relative flex w-full cursor-default select-none items-center gap-2 rounded-sm py-1.5 pe-8 ps-2 text-sm data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0"
-                        >
-                          {#snippet children({ selected })}
-                            <span class="absolute end-2 flex size-3.5 items-center justify-center">
-                              {#if selected}
-                                <Check class="size-4" />
-                              {/if}
-                            </span>
-                            <div class="flex w-full items-center justify-between gap-3">
-                              <span class="font-medium">{item.credential.name}</span>
-                              {#if formatExpiry(item.credential.expires)}
-                                <span class="text-[10px] text-muted-foreground">exp {formatExpiry(item.credential.expires)}</span>
-                              {/if}
-                            </div>
-                          {/snippet}
-                        </Combobox.Item>
+                        <Tooltip.Root delayDuration={300}>
+                          <Tooltip.Trigger>
+                            {#snippet child({ props })}
+                              <div {...props} class="w-full">
+                                <Combobox.Item
+                                  value={item.value}
+                                  label={item.label}
+                                  class="data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground [&_svg:not([class*='text-'])]:text-muted-foreground outline-hidden *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2 relative flex w-full cursor-default select-none items-center gap-2 rounded-sm py-1.5 pe-8 ps-2 text-sm data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0"
+                                >
+                                  {#snippet children({ selected })}
+                                    <span class="absolute end-2 flex size-3.5 items-center justify-center">
+                                      {#if selected}
+                                        <Check class="size-4" />
+                                      {/if}
+                                    </span>
+                                    <div class="flex w-0 flex-1 items-center justify-between gap-3 overflow-hidden">
+                                      <span class="truncate font-medium">{item.credential.name}</span>
+                                      {#if formatExpiry(item.credential.expires)}
+                                        <span class="shrink-0 text-[10px] text-muted-foreground">exp {formatExpiry(item.credential.expires)}</span>
+                                      {/if}
+                                    </div>
+                                  {/snippet}
+                                </Combobox.Item>
+                              </div>
+                            {/snippet}
+                          </Tooltip.Trigger>
+                          <Tooltip.Content side="right" class="max-w-sm">
+                            <p class="text-sm font-medium break-all">{item.credential.name}</p>
+                          </Tooltip.Content>
+                        </Tooltip.Root>
                       {/each}
                     {/if}
                   </Combobox.Viewport>
@@ -2072,25 +2131,36 @@ import { Checkbox } from 'bits-ui';
                       </div>
                     {:else}
                       {#each filteredCertItems as item}
-                        <Combobox.Item
-                          value={item.value}
-                          label={item.label}
-                          class="data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground [&_svg:not([class*='text-'])]:text-muted-foreground outline-hidden *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2 relative flex w-full cursor-default select-none items-center gap-2 rounded-sm py-1.5 pe-8 ps-2 text-sm data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0"
-                        >
-                          {#snippet children({ selected })}
-                            <span class="absolute end-2 flex size-3.5 items-center justify-center">
-                              {#if selected}
-                                <Check class="size-4" />
-                              {/if}
-                            </span>
-                            <div class="flex w-full items-center justify-between gap-3">
-                              <span class="font-medium">{item.credential.name}</span>
-                              {#if formatExpiry(item.credential.expires)}
-                                <span class="text-[10px] text-muted-foreground">exp {formatExpiry(item.credential.expires)}</span>
-                              {/if}
-                            </div>
-                          {/snippet}
-                        </Combobox.Item>
+                        <Tooltip.Root delayDuration={300}>
+                          <Tooltip.Trigger>
+                            {#snippet child({ props })}
+                              <div {...props} class="w-full">
+                                <Combobox.Item
+                                  value={item.value}
+                                  label={item.label}
+                                  class="data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground [&_svg:not([class*='text-'])]:text-muted-foreground outline-hidden *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2 relative flex w-full cursor-default select-none items-center gap-2 rounded-sm py-1.5 pe-8 ps-2 text-sm data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0"
+                                >
+                                  {#snippet children({ selected })}
+                                    <span class="absolute end-2 flex size-3.5 items-center justify-center">
+                                      {#if selected}
+                                        <Check class="size-4" />
+                                      {/if}
+                                    </span>
+                                    <div class="flex w-0 flex-1 items-center justify-between gap-3 overflow-hidden">
+                                      <span class="truncate font-medium">{item.credential.name}</span>
+                                      {#if formatExpiry(item.credential.expires)}
+                                        <span class="shrink-0 text-[10px] text-muted-foreground">exp {formatExpiry(item.credential.expires)}</span>
+                                      {/if}
+                                    </div>
+                                  {/snippet}
+                                </Combobox.Item>
+                              </div>
+                            {/snippet}
+                          </Tooltip.Trigger>
+                          <Tooltip.Content side="right" class="max-w-sm">
+                            <p class="text-sm font-medium break-all">{item.credential.name}</p>
+                          </Tooltip.Content>
+                        </Tooltip.Root>
                       {/each}
                     {/if}
                   </Combobox.Viewport>
