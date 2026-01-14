@@ -22,7 +22,17 @@
   import logo from '$lib/assets/token-studio-icon.png';
   import { page } from '$app/stores';
   import { isTauriMode } from '$lib/utils/runtime';
-  import { tauriUser, tauriUserRevision, clearTauriUser, restoreTauriUserForApp, setTauriUser, updateTauriUser } from '$lib/states/tauri-user';
+  import {
+    tauriUser,
+    tauriUserRevision,
+    clearTauriUser,
+    restoreTauriUserForApp,
+    restoreTauriUserPhotoForApp,
+    persistTauriUserPhotoForApp,
+    isSameTauriIdentity,
+    setTauriUser,
+    updateTauriUser,
+  } from '$lib/states/tauri-user';
   import { identityPreference } from '$lib/states/identity.svelte';
   import { toast } from 'svelte-sonner';
 
@@ -195,7 +205,16 @@
     auth.setPhoto(url);
   }
 
-  async function loadTauriProfile(app: AppConfig, accessToken?: string) {
+  async function loadTauriProfile(
+    app: AppConfig,
+    accessToken?: string,
+    expectedAccount?: { homeAccountId?: string; username?: string } | null,
+  ) {
+    const requestedIdentity = expectedAccount
+      ? { homeAccountId: expectedAccount.homeAccountId, username: expectedAccount.username }
+      : $tauriUser
+        ? { homeAccountId: $tauriUser.homeAccountId, username: $tauriUser.username }
+        : null;
     try {
       const token =
         accessToken ||
@@ -221,6 +240,14 @@
         }),
       ]);
 
+      // Ensure we only apply results to the currently active identity/app.
+      const activeApp = appRegistry.activeApp;
+      const currentUser = $tauriUser;
+
+      if (!activeApp || activeApp.id !== app.id) return;
+      if (!currentUser) return;
+      if (!requestedIdentity || !isSameTauriIdentity(requestedIdentity, currentUser)) return;
+
       if (meResponse.ok) {
         const me = (await meResponse.json()) as { id?: string; displayName?: string };
         if (me.id) {
@@ -229,15 +256,18 @@
       }
 
       if (!photoResponse.ok) {
-        setTauriPhotoUrl(null);
+        if (photoResponse.status === 404) {
+          setTauriPhotoUrl(null);
+          void persistTauriUserPhotoForApp(app, null);
+        }
         return;
       }
 
       const blob = await photoResponse.blob();
       setTauriPhotoUrl(URL.createObjectURL(blob));
+      void persistTauriUserPhotoForApp(app, blob);
     } catch {
       // Best-effort: profile photos are optional; don't block UI or prompt.
-      setTauriPhotoUrl(null);
     }
   }
 
@@ -258,6 +288,10 @@
     clearTauriUser();
     setTauriPhotoUrl(null);
     const stored = await restoreTauriUserForApp(app);
+    const storedPhoto = await restoreTauriUserPhotoForApp(app);
+    if (storedPhoto) {
+      setTauriPhotoUrl(URL.createObjectURL(storedPhoto));
+    }
 
     try {
       const { getUserAccounts } = await import('$lib/services/tauri-api');
@@ -282,6 +316,10 @@
         (stored?.homeAccountId
           ? accounts.find((acc) => acc.homeAccountId === stored.homeAccountId)
           : null) ?? accounts[0];
+
+      if (stored && !isSameTauriIdentity(stored, preferred)) {
+        setTauriPhotoUrl(null);
+      }
 
       setTauriUser(
         {
@@ -441,8 +479,19 @@
         );
 
         if (response.account) {
+          const currentIdentity = $tauriUser
+            ? { homeAccountId: $tauriUser.homeAccountId, username: $tauriUser.username }
+            : null;
+          const nextIdentity = {
+            homeAccountId: response.account.homeAccountId,
+            username: response.account.username,
+          };
+
+          if (currentIdentity && !isSameTauriIdentity(currentIdentity, nextIdentity)) {
+            setTauriPhotoUrl(null);
+          }
           setTauriUser(response.account, appRegistry.activeApp);
-          void loadTauriProfile(appRegistry.activeApp, response.accessToken);
+          void loadTauriProfile(appRegistry.activeApp, response.accessToken, response.account);
           toast.success('Signed in');
         }
       } catch (err: any) {

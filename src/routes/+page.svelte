@@ -63,6 +63,7 @@
     Zap,
     ExternalLink,
     ShieldAlert,
+    X,
   } from "@lucide/svelte";
   import { auth, authServiceStore } from '$lib/stores/auth';
   import { tauriUser, setTauriUser } from '$lib/states/tauri-user';
@@ -381,6 +382,9 @@
         resourceInput,
       );
 
+      // Check if cancelled during wait
+      if (tokenDockState.status !== 'loading') return;
+
       result = data;
       const issuedAt = Date.now();
       const historyItem: HistoryItem = {
@@ -454,6 +458,9 @@
           scopes: response.scopes,
         };
 
+        // Check if cancelled during wait
+        if (tokenDockState.status !== 'loading') return;
+
         // Update desktop session metadata for UI display (no tokens persisted)
         if (response.account) {
           setTauriUser(response.account, appRegistry.activeApp);
@@ -476,6 +483,9 @@
         };
       }
       
+      // Check if cancelled during wait
+      if (tokenDockState.status !== 'loading') return;
+
       result = {
         accessToken: tokenResponse.accessToken,
         tokenType: tokenResponse.tokenType,
@@ -1142,15 +1152,28 @@
                     {/if}
                   </div>
 
-                  <Button type="submit" class="w-full gap-2" disabled={loading}>
+                  <div class="flex gap-2">
+                    <Button type="submit" class="flex-1 gap-2" disabled={loading}>
+                      {#if loading}
+                        <Loader2 class="h-4 w-4 animate-spin" />
+                        {switchingAccount ? 'Switching account...' : 'Acquiring token...'}
+                      {:else}
+                        <Play class="h-4 w-4" />
+                        <span>Issue token</span>
+                      {/if}
+                    </Button>
                     {#if loading}
-                      <Loader2 class="h-4 w-4 animate-spin" />
-                      {switchingAccount ? 'Switching account...' : 'Acquiring token...'}
-                    {:else}
-                      <Play class="h-4 w-4" />
-                      <span>Issue token</span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        class="gap-2"
+                        onclick={() => { tokenDockState.cancel(); loading = false; switchingAccount = false; }}
+                      >
+                        <X class="h-4 w-4" />
+                        Cancel
+                      </Button>
                     {/if}
-                  </Button>
+                  </div>
                 </form>
               </Card.Content>
             </Card.Root>
@@ -1386,15 +1409,28 @@
                   <div class="rounded-lg border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
                     Tokens are issued via your confidential client credentials and stay locally unless you copy them.
                   </div>
-                  <Button type="submit" class="w-full gap-2" disabled={loading}>
+                  <div class="flex gap-2">
+                    <Button type="submit" class="flex-1 gap-2" disabled={loading}>
+                      {#if loading}
+                        <Loader2 class="h-4 w-4 animate-spin" />
+                        Processing...
+                      {:else}
+                        <Play class="h-4 w-4" />
+                        <span>Issue token</span>
+                      {/if}
+                    </Button>
                     {#if loading}
-                      <Loader2 class="h-4 w-4 animate-spin" />
-                      Processing...
-                    {:else}
-                      <Play class="h-4 w-4" />
-                      <span>Issue token</span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        class="gap-2"
+                        onclick={() => { tokenDockState.cancel(); loading = false; }}
+                      >
+                        <X class="h-4 w-4" />
+                        Cancel
+                      </Button>
                     {/if}
-                  </Button>
+                  </div>
                 </form>
               </Card.Content>
             </Card.Root>

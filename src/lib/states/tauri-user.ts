@@ -19,6 +19,42 @@ export interface TauriUser {
   objectId?: string;
 }
 
+function normalizeHomeAccountId(value?: string | null): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
+function normalizeUsername(value?: string | null): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed.toLowerCase() : null;
+}
+
+export function isSameTauriIdentity(
+  a: { homeAccountId?: string | null; username?: string | null },
+  b: { homeAccountId?: string | null; username?: string | null },
+): boolean {
+  const aHome = normalizeHomeAccountId(a.homeAccountId);
+  const bHome = normalizeHomeAccountId(b.homeAccountId);
+  if (aHome && bHome) return aHome === bHome;
+
+  const aUsername = normalizeUsername(a.username);
+  const bUsername = normalizeUsername(b.username);
+  return Boolean(aUsername && bUsername && aUsername === bUsername);
+}
+
+function isBlobLike(value: unknown): value is Blob {
+  if (!value) return false;
+  if (typeof Blob !== 'undefined' && value instanceof Blob) return true;
+
+  const candidate = value as any;
+  return (
+    typeof candidate === 'object' &&
+    typeof candidate.arrayBuffer === 'function' &&
+    typeof candidate.slice === 'function' &&
+    typeof candidate.type === 'string'
+  );
+}
+
 const tauriUserStore = writable<TauriUser | null>(null);
 const tauriUserRevisionStore = writable(0);
 
@@ -28,11 +64,17 @@ function bumpTauriUserRevision(): void {
 
 type TauriAppContext = Pick<AppConfig, 'id' | 'clientId' | 'tenantId'>;
 
+interface StoredTauriUserPhoto {
+  blob: Blob;
+  setAt: number;
+}
+
 interface StoredTauriUserSession {
   clientId: string;
   tenantId: string;
   user: TauriUser;
   setAt: number;
+  photo?: StoredTauriUserPhoto;
 }
 
 type StoredTauriUserSessions = Record<string, StoredTauriUserSession>;
@@ -57,6 +99,10 @@ async function loadSessions(): Promise<StoredTauriUserSessions> {
 async function saveSessions(sessions: StoredTauriUserSessions): Promise<void> {
   sessionsCache = sessions;
   await clientStorage.set(CLIENT_STORAGE_KEYS.tauriUserSessions, sessions);
+}
+
+function isSameUser(a: TauriUser, b: TauriUser): boolean {
+  return isSameTauriIdentity(a, b);
 }
 
 export async function restoreTauriUserForApp(app: TauriAppContext | null): Promise<TauriUser | null> {
@@ -87,12 +133,70 @@ export async function restoreTauriUserForApp(app: TauriAppContext | null): Promi
 
 export async function persistTauriUserForApp(app: TauriAppContext, user: TauriUser): Promise<void> {
   const sessions = await loadSessions();
+  const existing = sessions[app.id];
+  const preservePhoto =
+    existing &&
+    existing.clientId === app.clientId &&
+    existing.tenantId === app.tenantId &&
+    Boolean(existing.photo) &&
+    isSameUser(existing.user, user);
+
   sessions[app.id] = {
     clientId: app.clientId,
     tenantId: app.tenantId,
     user,
     setAt: Date.now(),
+    ...(preservePhoto && existing.photo ? { photo: existing.photo } : {}),
   };
+  await saveSessions(sessions);
+}
+
+export async function restoreTauriUserPhotoForApp(app: TauriAppContext | null): Promise<Blob | null> {
+  if (!app) return null;
+
+  const sessions = await loadSessions();
+  const session = sessions[app.id];
+  if (!session) return null;
+
+  // If the app was edited (client/tenant changed), treat the old session as stale.
+  if (session.clientId !== app.clientId || session.tenantId !== app.tenantId) {
+    delete sessions[app.id];
+    await saveSessions(sessions);
+    return null;
+  }
+
+  return isBlobLike(session.photo?.blob) ? session.photo!.blob : null;
+}
+
+export async function persistTauriUserPhotoForApp(app: TauriAppContext, blob: Blob | null): Promise<void> {
+  const sessions = await loadSessions();
+  const existing = sessions[app.id];
+  const currentUser = get(tauriUserStore);
+
+  const user = currentUser ?? existing?.user;
+  if (!user) return;
+
+  const existingIsValid =
+    existing &&
+    existing.clientId === app.clientId &&
+    existing.tenantId === app.tenantId &&
+    isSameUser(existing.user, user);
+
+  const next: StoredTauriUserSession = {
+    clientId: app.clientId,
+    tenantId: app.tenantId,
+    user,
+    setAt: Date.now(),
+    ...(existingIsValid && existing.photo ? { photo: existing.photo } : {}),
+  };
+
+  if (blob) {
+    next.photo = { blob, setAt: Date.now() };
+  } else {
+    delete next.photo;
+  }
+
+  sessions[app.id] = next;
   await saveSessions(sessions);
 }
 

@@ -27,7 +27,8 @@
     Star,
     StarOff,
     Pin,
-    PinOff
+    PinOff,
+    X
   } from '@lucide/svelte';
   import type { FavoriteItem, HistoryItem } from '$lib/types';
 
@@ -324,6 +325,16 @@
               <div class="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 class="h-4 w-4 animate-spin" />
                 <span>Issuing token...</span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  class="ml-auto h-7 px-2 text-[11px] gap-1.5 hover:bg-destructive/10 hover:text-destructive"
+                  onclick={() => tokenDockState.cancel()}
+                  title="Cancel request"
+                >
+                  <X class="h-3.5 w-3.5" />
+                  Cancel
+                </Button>
               </div>
             {:else if hasToken && tokenVisible}
               <div class="line-clamp-4 whitespace-pre-wrap break-all font-mono text-[11px] leading-relaxed text-foreground/90">
