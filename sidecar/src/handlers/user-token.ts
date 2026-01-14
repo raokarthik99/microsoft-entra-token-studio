@@ -703,9 +703,10 @@ export async function handleUserToken(params: unknown): Promise<msal.Authenticat
           return spawn('open', [authUrl], { stdio: 'ignore', detached: true });
         }
         if (process.platform === 'win32') {
-          // Use explorer.exe to open URLs - it handles special characters correctly
-          // without cmd.exe parsing issues with & characters
-          return spawn('explorer.exe', [authUrl], { stdio: 'ignore', detached: true });
+          // Escape & with ^ for cmd.exe (standard approach used by 'open' npm package)
+          // This prevents cmd from interpreting & as command separator
+          const escapedUrl = authUrl.replace(/&/g, '^&');
+          return spawn('cmd.exe', ['/c', 'start', '', escapedUrl], { stdio: 'ignore', detached: true, windowsHide: true });
         }
         return spawn('xdg-open', [authUrl], { stdio: 'ignore', detached: true });
       })();
