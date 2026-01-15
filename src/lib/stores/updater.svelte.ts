@@ -1,10 +1,10 @@
 import { browser } from '$app/environment';
 import { isTauriMode } from '$lib/utils/runtime';
 import { toast } from 'svelte-sonner';
-import type { DownloadEvent, Update } from '@tauri-apps/plugin-updater';
+import type { CheckOptions, DownloadEvent, Update } from '@tauri-apps/plugin-updater';
 
 type UpdaterApi = {
-	check: (options?: unknown) => Promise<Update | null>;
+	check: (options?: CheckOptions) => Promise<Update | null>;
 	getVersion: () => Promise<string>;
 	relaunch: () => Promise<void>;
 };

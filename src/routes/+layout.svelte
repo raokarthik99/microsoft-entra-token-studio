@@ -17,8 +17,9 @@
   import { appRegistry } from '$lib/states/app-registry.svelte';
   import type { AppConfig } from '$lib/types';
   import TokenDock from "$lib/components/TokenDock.svelte";
-  import AppFormDialog from "$lib/components/app-form-dialog.svelte";
-  import ConfirmDialog from "$lib/components/confirm-dialog.svelte";
+import AppFormDialog from "$lib/components/app-form-dialog.svelte";
+import ConfirmDialog from "$lib/components/confirm-dialog.svelte";
+import NodeMissingError from "$lib/components/NodeMissingError.svelte";
   import { ShieldAlert } from "@lucide/svelte";
   import { clientStorage, CLIENT_STORAGE_KEYS } from '$lib/services/client-storage';
   import logo from '$lib/assets/token-studio-icon.png';
@@ -51,6 +52,35 @@
   let freAck4 = $state(false); // Not affiliated with Microsoft
 
   const canProceedFre = $derived(freAck1 && freAck2 && freAck3 && freAck4);
+
+  // Sidecar health state (for Node.js detection)
+  let sidecarError: string | null = $state(null);
+  let sidecarErrorCode: string | null = $state(null);
+  let sidecarRetrying = $state(false);
+
+  async function checkSidecar() {
+    if (!isTauriMode()) return true;
+    
+    try {
+      const { checkSidecarHealth } = await import('$lib/services/tauri-api');
+      const health = await checkSidecarHealth();
+      sidecarError = health.error;
+      sidecarErrorCode = health.errorCode ?? null;
+      return health.running;
+    } catch (err: any) {
+      sidecarError = err?.message ?? 'Failed to check sidecar health';
+      return false;
+    }
+  }
+
+  async function handleSidecarRetry() {
+    sidecarRetrying = true;
+    try {
+      await checkSidecar();
+    } finally {
+      sidecarRetrying = false;
+    }
+  }
 
   async function handleFreConfirm() {
     await clientStorage.set(CLIENT_STORAGE_KEYS.freAcknowledged, true);
@@ -135,6 +165,9 @@
 
       // Desktop (Tauri) mode uses the sidecar for user tokens; msal-browser isn't used.
       if (isTauriMode()) {
+        // Check sidecar health early (detects missing Node.js)
+        await checkSidecar();
+        
         auth.setUser(null);
         authServiceStore.set(null);
         authService = null;
@@ -580,6 +613,12 @@
       <p class="text-sm text-muted-foreground">{!isFreChecked ? 'Initializing...' : 'Loading application...'}</p>
     </div>
   </div>
+{:else if sidecarErrorCode === 'NODE_NOT_FOUND'}
+  <NodeMissingError 
+    error={sidecarError ?? 'Node.js not found'} 
+    onRetry={handleSidecarRetry} 
+    retrying={sidecarRetrying} 
+  />
 {:else if freOpen}
   <div class="flex h-screen w-full items-center justify-center bg-background">
      <!-- Empty container to block view, dialog will float above -->

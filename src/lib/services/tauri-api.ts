@@ -58,7 +58,9 @@ interface AzureCliResult<T> {
 interface SidecarHealth {
   running: boolean;
   error: string | null;
+  errorCode?: 'NODE_NOT_FOUND' | 'SIDECAR_SCRIPT_NOT_FOUND' | null;
 }
+
 
 interface AzureSubscription {
   id: string;

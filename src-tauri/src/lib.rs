@@ -106,12 +106,25 @@ async fn check_sidecar_health() -> serde_json::Value {
 
     let running = manager.child.is_some();
     let error = manager.start_error.clone();
+    
+    // Extract error code from error message if present
+    let error_code = error.as_ref().and_then(|e| {
+        if e.contains("[NODE_NOT_FOUND]") {
+            Some("NODE_NOT_FOUND")
+        } else if e.contains("Could not find sidecar") {
+            Some("SIDECAR_SCRIPT_NOT_FOUND")
+        } else {
+            None
+        }
+    });
 
     serde_json::json!({
         "running": running,
-        "error": error
+        "error": error,
+        "errorCode": error_code
     })
 }
+
 
 /// List Azure subscriptions via Azure CLI
 #[tauri::command]

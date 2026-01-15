@@ -211,24 +211,62 @@ impl SidecarManager {
         }
     }
 
-    /// Check if Node.js is available in PATH or common locations
+    /// Check if Node.js is available in PATH or common locations.
+    /// Supports macOS, Windows, and Linux with common version manager paths.
     fn find_node_executable() -> Option<PathBuf> {
         use std::process::Command as StdCommand;
-        
+
+        // Platform-specific node executable name
+        #[cfg(target_os = "windows")]
+        let node_cmd = "node.exe";
+        #[cfg(not(target_os = "windows"))]
+        let node_cmd = "node";
+
         // First try "node" directly (works if in PATH)
-        if StdCommand::new("node")
+        if StdCommand::new(node_cmd)
             .arg("--version")
             .output()
             .map(|o| o.status.success())
             .unwrap_or(false)
         {
-            return Some(PathBuf::from("node"));
+            return Some(PathBuf::from(node_cmd));
         }
 
-        // Common Node.js installation paths on macOS
+        // Platform-specific common installation paths
+        #[cfg(target_os = "macos")]
         let common_paths: Vec<PathBuf> = vec![
             PathBuf::from("/usr/local/bin/node"),
             PathBuf::from("/opt/homebrew/bin/node"),
+            PathBuf::from("/usr/bin/node"),
+        ];
+
+        #[cfg(target_os = "windows")]
+        let common_paths: Vec<PathBuf> = {
+            let mut paths = vec![
+                PathBuf::from("C:\\Program Files\\nodejs\\node.exe"),
+                PathBuf::from("C:\\Program Files (x86)\\nodejs\\node.exe"),
+            ];
+            // Add paths from environment variables
+            if let Ok(program_files) = std::env::var("ProgramFiles") {
+                paths.push(PathBuf::from(format!("{}\\nodejs\\node.exe", program_files)));
+            }
+            if let Ok(program_files_x86) = std::env::var("ProgramFiles(x86)") {
+                paths.push(PathBuf::from(format!("{}\\nodejs\\node.exe", program_files_x86)));
+            }
+            paths
+        };
+
+        #[cfg(target_os = "linux")]
+        let common_paths: Vec<PathBuf> = vec![
+            PathBuf::from("/usr/local/bin/node"),
+            PathBuf::from("/usr/bin/node"),
+            PathBuf::from("/snap/bin/node"),
+        ];
+
+        // Fallback for other Unix-like systems
+        #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+        let common_paths: Vec<PathBuf> = vec![
+            PathBuf::from("/usr/local/bin/node"),
             PathBuf::from("/usr/bin/node"),
         ];
 
@@ -238,26 +276,109 @@ impl SidecarManager {
             }
         }
 
-        // Check nvm installation path (common on developer machines)
+        // Check home directory-based version managers
         if let Some(home) = dirs::home_dir() {
-            // nvm installs node versions in ~/.nvm/versions/node/<version>/bin/node
-            // We check if the nvm directory exists but won't enumerate versions
-            let nvm_base = home.join(".nvm/versions/node");
-            if nvm_base.exists() {
-                // Try to find any installed node version
-                if let Ok(entries) = std::fs::read_dir(&nvm_base) {
-                    for entry in entries.flatten() {
-                        let node_bin = entry.path().join("bin/node");
-                        if node_bin.exists() {
-                            return Some(node_bin);
+            // === nvm (Node Version Manager) - macOS/Linux ===
+            #[cfg(not(target_os = "windows"))]
+            {
+                let nvm_base = home.join(".nvm/versions/node");
+                if nvm_base.exists() {
+                    if let Ok(entries) = std::fs::read_dir(&nvm_base) {
+                        for entry in entries.flatten() {
+                            let node_bin = entry.path().join("bin/node");
+                            if node_bin.exists() {
+                                return Some(node_bin);
+                            }
                         }
                     }
+                }
+            }
+
+            // === nvm-windows ===
+            #[cfg(target_os = "windows")]
+            {
+                // nvm-windows stores in %APPDATA%\nvm
+                if let Ok(appdata) = std::env::var("APPDATA") {
+                    let nvm_base = PathBuf::from(appdata).join("nvm");
+                    if nvm_base.exists() {
+                        if let Ok(entries) = std::fs::read_dir(&nvm_base) {
+                            for entry in entries.flatten() {
+                                let node_bin = entry.path().join("node.exe");
+                                if node_bin.exists() {
+                                    return Some(node_bin);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // === fnm (Fast Node Manager) ===
+            #[cfg(target_os = "windows")]
+            {
+                // fnm on Windows: %LOCALAPPDATA%\fnm_multishells or %APPDATA%\fnm\node-versions
+                if let Ok(localappdata) = std::env::var("LOCALAPPDATA") {
+                    let fnm_base = PathBuf::from(localappdata).join("fnm").join("node-versions");
+                    if fnm_base.exists() {
+                        if let Ok(entries) = std::fs::read_dir(&fnm_base) {
+                            for entry in entries.flatten() {
+                                let node_bin = entry.path().join("installation").join("node.exe");
+                                if node_bin.exists() {
+                                    return Some(node_bin);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            #[cfg(not(target_os = "windows"))]
+            {
+                // fnm on Unix: ~/.local/share/fnm/node-versions/<version>/installation/bin/node
+                let fnm_base = home.join(".local/share/fnm/node-versions");
+                if fnm_base.exists() {
+                    if let Ok(entries) = std::fs::read_dir(&fnm_base) {
+                        for entry in entries.flatten() {
+                            let node_bin = entry.path().join("installation/bin/node");
+                            if node_bin.exists() {
+                                return Some(node_bin);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // === Volta ===
+            #[cfg(target_os = "windows")]
+            let volta_node = home.join(".volta\\bin\\node.exe");
+            #[cfg(not(target_os = "windows"))]
+            let volta_node = home.join(".volta/bin/node");
+            if volta_node.exists() {
+                return Some(volta_node);
+            }
+
+            // === asdf (Unix only) ===
+            #[cfg(not(target_os = "windows"))]
+            {
+                let asdf_node = home.join(".asdf/shims/node");
+                if asdf_node.exists() {
+                    return Some(asdf_node);
+                }
+            }
+
+            // === Homebrew on non-standard paths (Linux) ===
+            #[cfg(target_os = "linux")]
+            {
+                let linuxbrew = home.join(".linuxbrew/bin/node");
+                if linuxbrew.exists() {
+                    return Some(linuxbrew);
                 }
             }
         }
 
         None
     }
+
 
     /// Start the Node.js sidecar process
     pub async fn start(&mut self) -> Result<(), String> {
@@ -335,12 +456,27 @@ impl SidecarManager {
 
         // Find Node.js executable
         let node_path = Self::find_node_executable().ok_or_else(|| {
-            let msg = "Node.js not found. Please install Node.js (https://nodejs.org) and ensure it's in your PATH. \
-                       On macOS, you may need to install via Homebrew: brew install node".to_string();
+            // Platform-specific installation instructions
+            #[cfg(target_os = "macos")]
+            let install_hint = "Install via Homebrew: brew install node";
+            #[cfg(target_os = "windows")]
+            let install_hint = "Download from https://nodejs.org or install via: winget install OpenJS.NodeJS.LTS";
+            #[cfg(target_os = "linux")]
+            let install_hint = "Install via your package manager (apt install nodejs, dnf install nodejs, pacman -S nodejs, or snap install node --classic)";
+            #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+            let install_hint = "Download from https://nodejs.org";
+
+            let msg = format!(
+                "[NODE_NOT_FOUND] Node.js (version 20 or higher) is required but was not found. \
+                Please install Node.js and ensure it's in your PATH. {}. \
+                Download: https://nodejs.org",
+                install_hint
+            );
             log::error!("{}", msg);
             self.start_error = Some(msg.clone());
             msg
         })?;
+
 
         log::info!("Using Node.js from: {:?}", node_path);
 
