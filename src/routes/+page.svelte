@@ -1562,6 +1562,39 @@
 
                 </div>
               </div>
+            {:else if tokenDockState.status === 'loading'}
+              <div class="flex flex-col items-center justify-center gap-4 rounded-xl border border-primary/30 bg-primary/5 py-16 text-center">
+                <div class="mb-2 rounded-full bg-primary/10 p-4">
+                  <Loader2 class="h-8 w-8 text-primary animate-spin" />
+                </div>
+                <div class="space-y-2">
+                  <h3 class="text-lg font-semibold text-foreground">Acquiring token...</h3>
+                  {#if tokenDockState.context?.type || tokenDockState.context?.target}
+                    <p class="text-sm text-muted-foreground max-w-sm">
+                      {#if tokenDockState.context?.type}
+                        <span class="font-medium">{tokenDockState.context.type}</span>
+                      {/if}
+                      {#if tokenDockState.context?.target}
+                        <span class="block mt-1 font-mono text-xs text-muted-foreground/80 truncate max-w-[280px]">
+                          {tokenDockState.context.target}
+                        </span>
+                      {/if}
+                    </p>
+                  {:else}
+                    <p class="text-sm text-muted-foreground">
+                      Please wait while we acquire your token...
+                    </p>
+                  {/if}
+                </div>
+                <Button
+                  variant="outline"
+                  class="gap-2 mt-2 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/50"
+                  onclick={() => { tokenDockState.cancel(); loading = false; }}
+                >
+                  <X class="h-4 w-4" />
+                  Cancel
+                </Button>
+              </div>
             {:else if hasResult && result}
               <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <div class="rounded-lg border bg-muted/25 p-4">
