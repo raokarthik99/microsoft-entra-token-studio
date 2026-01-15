@@ -9,6 +9,8 @@
   import AppSidebar from "$lib/components/app-sidebar.svelte";
   import AppHeader from "$lib/components/app-header.svelte";
   import AppFooter from "$lib/components/app-footer.svelte";
+  import UpdateBanner from "$lib/components/UpdateBanner.svelte";
+  import { updaterState } from '$lib/stores/updater.svelte';
   import { onMount, onDestroy } from 'svelte';
   import { AuthService } from '$lib/services/auth';
   import { auth, authServiceStore } from '$lib/stores/auth';
@@ -141,6 +143,10 @@
         const activeApp = appRegistry.activeApp;
         const key = activeApp ? `${activeApp.id}:${activeApp.clientId}:${activeApp.tenantId}` : 'none';
         lastTauriSyncKey = key;
+        
+        // Auto-check for updates on startup
+        updaterState.checkForUpdates();
+        
         await syncTauriUserForApp(activeApp ?? null);
         return;
       }
@@ -189,6 +195,8 @@
       window.removeEventListener('click', handleGlobalClick);
     };
   });
+  
+
 
   let lastTauriSyncKey: string | null = $state(null);
   let lastTauriPhotoKey: string | null = $state(null);
@@ -687,6 +695,7 @@
           onAddApp={handleAddApp} 
           photoUrl={$auth.photoUrl} 
         />
+        <UpdateBanner />
 
         <div class="flex flex-1 flex-col gap-6 p-6 pt-2">
           <div class="mx-auto w-full max-w-6xl space-y-6">

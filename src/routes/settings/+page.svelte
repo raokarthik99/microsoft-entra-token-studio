@@ -20,9 +20,10 @@ import { appRegistry } from '$lib/states/app-registry.svelte';
   import type { ImportPreview } from '$lib/types';
   import { Loader2, Download, Upload, FileJson, Clock3, Star } from "@lucide/svelte";
   import ConfirmDialog from "$lib/components/confirm-dialog.svelte";
-  import { Cloud, LayoutGrid, Settings2, AlertTriangle } from "@lucide/svelte";
+  import { Cloud, LayoutGrid, Settings2, AlertTriangle, RefreshCw } from "@lucide/svelte";
   import { tauriUser, clearTauriUser } from '$lib/states/tauri-user';
   import { isTauriMode } from '$lib/utils/runtime';
+  import { updaterState } from '$lib/stores/updater.svelte';
 
   function getInitials(name: string) {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
@@ -387,6 +388,67 @@ import { appRegistry } from '$lib/states/app-registry.svelte';
     </Card.Root>
 
 
+
+    {#if isTauriMode()}
+      <Card.Root class="border bg-card/70 lg:col-span-2">
+        <Card.Header class="pb-2">
+          <Card.Title>Application Updates</Card.Title>
+          <Card.Description>Check for updates and manage your application version.</Card.Description>
+        </Card.Header>
+        <Card.Content class="space-y-5">
+          <div class="flex items-center justify-between gap-4 rounded-xl border bg-muted/30 p-4">
+            <div class="space-y-1">
+              <Label>Current Version</Label>
+              <p class="text-sm text-muted-foreground">
+                v{updaterState.version || 'Unknown'}
+              </p>
+            </div>
+            <div class="flex items-center gap-2">
+              {#if updaterState.error}
+                 <Badge variant="destructive">Update check failed</Badge>
+              {:else if updaterState.updateAvailable}
+                 <Badge variant="default" class="bg-green-600 text-white hover:bg-green-700">Update Available: v{updaterState.newVersion}</Badge>
+              {:else}
+                 <Badge variant="secondary">Latest</Badge>
+              {/if}
+              
+              <Button 
+                variant="outline" 
+                size="sm" 
+                class="gap-2"
+                onclick={() => updaterState.checkForUpdates(true)}
+                disabled={updaterState.checking || updaterState.downloading}
+              >
+                {#if updaterState.checking}
+                  <Loader2 class="h-3.5 w-3.5 animate-spin" />
+                  Checking...
+                {:else if updaterState.downloading}
+                  <Loader2 class="h-3.5 w-3.5 animate-spin" />
+                  Downloading...
+                {:else}
+                  <RefreshCw class="h-3.5 w-3.5" />
+                  Check for updates
+                {/if}
+              </Button>
+
+              {#if updaterState.updateAvailable && !updaterState.downloading}
+                 <Button 
+                   size="sm" 
+                   onclick={() => updaterState.installUpdate()}
+                 >
+                   Update Now
+                 </Button>
+              {/if}
+            </div>
+          </div>
+          {#if updaterState.error}
+            <p class="text-xs text-destructive">
+              Update error: {updaterState.error}
+            </p>
+          {/if}
+        </Card.Content>
+      </Card.Root>
+    {/if}
 
     <Card.Root class="border bg-card/70 lg:col-span-2">
       <Card.Header class="pb-2">

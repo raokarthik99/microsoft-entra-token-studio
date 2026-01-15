@@ -1,0 +1,197 @@
+import { browser } from '$app/environment';
+import { isTauriMode } from '$lib/utils/runtime';
+import { toast } from 'svelte-sonner';
+import type { DownloadEvent, Update } from '@tauri-apps/plugin-updater';
+
+type UpdaterApi = {
+	check: (options?: unknown) => Promise<Update | null>;
+	getVersion: () => Promise<string>;
+	relaunch: () => Promise<void>;
+};
+
+let updaterApi: UpdaterApi | null = null;
+let updaterApiPromise: Promise<UpdaterApi | null> | null = null;
+
+async function loadUpdaterApi(): Promise<UpdaterApi | null> {
+	if (!browser || !isTauriMode()) return null;
+	if (updaterApi) return updaterApi;
+
+	if (!updaterApiPromise) {
+		updaterApiPromise = (async () => {
+			const [{ check }, { relaunch }, { getVersion }] = await Promise.all([
+				import('@tauri-apps/plugin-updater'),
+				import('@tauri-apps/plugin-process'),
+				import('@tauri-apps/api/app'),
+			]);
+			return { check, relaunch, getVersion };
+		})().catch((error) => {
+			console.error('Failed to load updater APIs', error);
+			return null;
+		});
+	}
+
+	updaterApi = await updaterApiPromise;
+	return updaterApi;
+}
+
+function updaterSupported(): boolean {
+	return browser && isTauriMode();
+}
+
+export class UpdateStore {
+	checking = $state(false);
+	updateAvailable = $state(false);
+	version = $state('');
+	newVersion = $state('');
+	downloaded = $state(false);
+	downloading = $state(false);
+	contentLength = $state(0);
+	downloadedLength = $state(0);
+	error = $state<string | null>(null);
+
+	// Holds the update object from Tauri
+	private update: Update | null = null;
+
+	constructor() {
+		this.init();
+	}
+
+	async init() {
+		if (!updaterSupported()) return;
+		const api = await loadUpdaterApi();
+		if (!api) return;
+
+		try {
+			this.version = await api.getVersion();
+		} catch (e) {
+			console.error('Failed to get app version', e);
+		}
+	}
+
+	async checkForUpdates(manual = false) {
+		if (this.checking || this.downloading) return;
+		this.error = null;
+		if (!updaterSupported()) {
+			this.error = 'Update checks are only available in the desktop app.';
+			if (manual) {
+				toast.error(this.error);
+			}
+			return;
+		}
+
+		const api = await loadUpdaterApi();
+		if (!api) {
+			this.error = 'Updater is unavailable right now.';
+			if (manual) {
+				toast.error(this.error);
+			}
+			return;
+		}
+
+		this.checking = true;
+
+		try {
+			const update = await api.check();
+
+			if (update) {
+				this.update = update;
+				this.updateAvailable = true;
+				this.newVersion = update.version;
+				this.downloaded = false;
+				this.contentLength = 0;
+				this.downloadedLength = 0;
+				if (manual) {
+					// toast.success(`Time to update! v${update.version} is available.`);
+				}
+			} else {
+				this.update = null;
+				this.updateAvailable = false;
+				this.newVersion = '';
+				this.downloaded = false;
+				this.contentLength = 0;
+				this.downloadedLength = 0;
+				if (manual) {
+					toast.success('You are on the latest version.');
+				}
+			}
+		} catch (e) {
+			console.error('Update check failed', e);
+			this.error = e instanceof Error ? e.message : 'Unknown error';
+			this.update = null;
+			this.updateAvailable = false;
+			this.newVersion = '';
+			this.downloaded = false;
+			this.contentLength = 0;
+			this.downloadedLength = 0;
+			if (manual) {
+				toast.error(`Update check failed: ${this.error}`);
+			}
+		} finally {
+			this.checking = false;
+		}
+	}
+
+	async installUpdate() {
+		if (this.downloading) return;
+		this.error = null;
+		if (!updaterSupported()) {
+			this.error = 'Updater is only available in the desktop app.';
+			toast.error(this.error);
+			return;
+		}
+
+		const api = await loadUpdaterApi();
+		if (!api) {
+			this.error = 'Updater is unavailable right now.';
+			toast.error(this.error);
+			return;
+		}
+
+		if (!this.update) {
+			await this.checkForUpdates(true);
+			if (!this.update) return;
+		}
+
+		this.downloading = true;
+		this.error = null;
+		this.downloaded = false;
+		this.contentLength = 0;
+		this.downloadedLength = 0;
+		let downloaded = 0;
+		let contentLength = 0;
+
+		try {
+			await this.update.downloadAndInstall((event: DownloadEvent) => {
+				switch (event.event) {
+					case 'Started':
+						contentLength = event.data.contentLength ?? 0;
+						this.contentLength = contentLength;
+						// toast.info('Update download started');
+						break;
+					case 'Progress':
+						downloaded += event.data.chunkLength ?? 0;
+						this.downloadedLength = downloaded;
+						break;
+					case 'Finished':
+						this.downloaded = true;
+						if (contentLength > 0) {
+							this.downloadedLength = contentLength;
+						}
+						// toast.success('Update downloaded. Restaring...');
+						break;
+				}
+			});
+
+			await api.relaunch();
+		} catch (e) {
+			console.error('Update install failed', e);
+			this.error = e instanceof Error ? e.message : 'Unknown error';
+			toast.error(`Update failed: ${this.error}`);
+		} finally {
+			this.downloading = false;
+		}
+	}
+}
+
+// Create a singleton instance
+export const updaterState = new UpdateStore();

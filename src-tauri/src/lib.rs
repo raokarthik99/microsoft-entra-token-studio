@@ -269,6 +269,7 @@ fn exit_app(app: tauri::AppHandle) {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_deep_link::init())
@@ -327,12 +328,6 @@ pub fn run() {
                 let sidecar = get_sidecar().await;
                 let _manager = sidecar.lock().await;
                 log::info!("Sidecar initialized");
-
-                // Check for updates on startup (non-blocking, release only)
-                #[cfg(not(debug_assertions))]
-                {
-                    check_for_updates(&handle).await;
-                }
                 let _ = handle;
             });
 
@@ -340,33 +335,4 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
-}
-
-/// Check for updates and notify user if available
-#[allow(dead_code)]
-async fn check_for_updates(app: &tauri::AppHandle) {
-    use tauri_plugin_updater::UpdaterExt;
-
-    let updater = match app.updater() {
-        Ok(u) => u,
-        Err(e) => {
-            log::error!("Failed to get updater: {}", e);
-            return;
-        }
-    };
-
-    match updater.check().await {
-        Ok(Some(update)) => {
-            log::info!("Update available: {}", update.version);
-            if let Err(e) = update.download_and_install(|_, _| {}, || {}).await {
-                log::error!("Failed to install update: {}", e);
-            }
-        }
-        Ok(None) => {
-            log::info!("No updates available");
-        }
-        Err(e) => {
-            log::error!("Failed to check for updates: {}", e);
-        }
-    }
 }
