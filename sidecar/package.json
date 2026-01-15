@@ -8,7 +8,8 @@
   "scripts": {
     "clean": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
     "build": "pnpm clean && pnpm exec esbuild src/index.ts --bundle --platform=node --target=node20 --outfile=dist/index.cjs --format=cjs --minify",
-    "build:dev": "pnpm clean && pnpm exec esbuild src/index.ts --bundle --platform=node --target=node20 --outfile=dist/index.cjs --format=cjs --minify --sourcemap --sources-content=false",
+    "build:dev": "pnpm exec esbuild src/index.ts --bundle --platform=node --target=node20 --outfile=dist/index.cjs --format=cjs --sourcemap",
+    "build:watch": "pnpm exec esbuild src/index.ts --bundle --platform=node --target=node20 --outfile=dist/index.cjs --format=cjs --sourcemap --watch",
     "dev": "tsc --noEmit --watch",
     "typecheck": "tsc --noEmit",
     "start": "node dist/index.cjs"
