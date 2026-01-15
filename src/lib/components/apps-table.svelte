@@ -260,7 +260,7 @@
         </div>
       </div>
 
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         {#if enableSelection && onDeleteMany && selectedCount > 0}
           <Button
             variant="destructive"
@@ -269,22 +269,23 @@
             onclick={handleBulkDelete}
           >
             <Trash2 class="h-4 w-4" />
-            {`Disconnect ${selectedCount} selected`}
+            <span class="hidden sm:inline">Disconnect {selectedCount} selected</span>
+            <span class="sm:hidden">{selectedCount}</span>
           </Button>
         {/if}
         {#if isFiltered}
           <Button variant="ghost" size="sm" class="gap-2" onclick={resetFilters} title="Reset filters">
             <Filter class="h-4 w-4" />
-            Reset
+            <span class="hidden sm:inline">Reset</span>
           </Button>
         {/if}
-        <Badge variant="outline" class="text-xs font-normal">
+        <Badge variant="outline" class="text-xs font-normal whitespace-nowrap">
           {filteredRows.length} / {baseRows.length} apps
         </Badge>
         {#if onAdd}
           <Button size="sm" class="gap-2" onclick={onAdd}>
             <Plus class="h-4 w-4" />
-            Connect Client App
+            <span class="hidden sm:inline">Connect Client App</span>
           </Button>
         {/if}
       </div>
@@ -293,8 +294,7 @@
 
   <div class="flex flex-1 flex-col overflow-hidden rounded-lg border bg-card shadow-sm p-4">
     <div class="flex-1 overflow-auto">
-      <div class="overflow-x-auto">
-      <Table class="table-auto w-full min-w-[800px]">
+      <Table class="table-auto w-full">
         <TableHeader>
           <TableRow>
             {#if enableSelection}
@@ -550,7 +550,6 @@
           {/if}
         </TableBody>
       </Table>
-      </div>
     </div>
     {#if showFooter}
       <div class="flex items-center gap-3 border-t px-4 py-3 text-muted-foreground">

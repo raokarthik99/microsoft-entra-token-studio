@@ -345,16 +345,17 @@
             onclick={handleBulkDelete}
           >
             <Trash2 class="h-4 w-4" />
-            {`Delete ${selectedCount} selected`}
+            <span class="hidden sm:inline">Delete {selectedCount} selected</span>
+            <span class="sm:hidden">{selectedCount}</span>
           </Button>
         {/if}
         {#if isFiltered}
           <Button variant="ghost" size="sm" class="gap-2" onclick={resetFilters} title="Reset filters">
             <Filter class="h-4 w-4" />
-            Reset
+            <span class="hidden sm:inline">Reset</span>
           </Button>
         {/if}
-        <Badge variant="outline" class="text-xs font-normal">
+        <Badge variant="outline" class="text-xs font-normal whitespace-nowrap">
           {filteredRows.length} / {baseRows.length} {limit ? "recent" : "total"}
         </Badge>
       </div>
@@ -363,8 +364,7 @@
 
   <div class={cn("flex flex-1 flex-col overflow-hidden rounded-lg border bg-card shadow-sm", compact ? "p-3" : "p-4")}>
   <div class="flex-1 overflow-auto">
-      <div class="overflow-x-auto">
-      <Table class="table-auto w-full min-w-[700px]">
+      <Table class="table-auto w-full">
         <TableHeader>
           <TableRow>
             {#if enableSelection}
@@ -634,7 +634,6 @@
           {/if}
         </TableBody>
       </Table>
-      </div>
     </div>
     {#if showFooterState}
       <div class={cn("flex items-center gap-2 border-t text-muted-foreground", compact ? "px-3 py-2" : "px-4 py-3")}>

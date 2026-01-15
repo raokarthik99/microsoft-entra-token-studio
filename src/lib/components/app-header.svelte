@@ -64,7 +64,7 @@
 <header class="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
   <div class="flex items-center gap-3">
     <SidebarTrigger class="-ml-1" />
-    <Separator orientation="vertical" class="hidden h-6 md:block" />
+    <Separator orientation="vertical" class="hidden h-6 lg:block" />
     <div class="flex flex-col">
       <Breadcrumb.Root>
         <Breadcrumb.List class="text-sm font-semibold leading-tight text-foreground">
