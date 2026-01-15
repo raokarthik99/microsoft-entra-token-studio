@@ -1,5 +1,7 @@
 <script lang="ts">
   import * as Tooltip from '$lib/shadcn/components/ui/tooltip';
+  import ConditionalTooltip from '$lib/components/ConditionalTooltip.svelte';
+  import TruncatedText from '$lib/components/TruncatedText.svelte';
   import { Button } from '$lib/shadcn/components/ui/button';
   import { Badge } from '$lib/shadcn/components/ui/badge';
   import { Input } from '$lib/shadcn/components/ui/input';
@@ -1116,31 +1118,27 @@ import { Checkbox } from 'bits-ui';
                 <Select.Item value="none" disabled>No subscriptions found</Select.Item>
               {:else}
                 {#each azureSubscriptions as sub}
-                  <Tooltip.Root delayDuration={300}>
-                    <Tooltip.Trigger>
-                      {#snippet child({ props })}
-                        <div {...props} class="w-full">
-                          <Select.Item value={sub.id}>
-                            <div class="flex w-0 flex-1 flex-col overflow-hidden">
-                              <div class="flex items-center gap-2">
-                                <span class="truncate font-medium">{sub.name}</span>
-                                {#if sub.isDefault}
-                                  <Badge variant="secondary" class="h-5 px-2 text-[10px] shrink-0">Default</Badge>
-                                {/if}
-                              </div>
-                              <span class="truncate text-[11px] text-muted-foreground font-mono">{sub.id}</span>
-                            </div>
-                          </Select.Item>
+                  <ConditionalTooltip side="right" contentClass="max-w-sm" delayDuration={300}>
+                    {#snippet children({ props })}
+                      <Select.Item value={sub.id}>
+                        <div class="flex w-0 flex-1 flex-col overflow-hidden">
+                          <div class="flex items-center gap-2">
+                            <span class="truncate font-medium">{sub.name}</span>
+                            {#if sub.isDefault}
+                              <Badge variant="secondary" class="h-5 px-2 text-[10px] shrink-0">Default</Badge>
+                            {/if}
+                          </div>
+                          <span class="truncate text-[11px] text-muted-foreground font-mono">{sub.id}</span>
                         </div>
-                      {/snippet}
-                    </Tooltip.Trigger>
-                    <Tooltip.Content side="right" class="max-w-sm">
+                      </Select.Item>
+                    {/snippet}
+                    {#snippet tooltipContent()}
                       <div class="space-y-1">
                         <p class="text-sm font-medium break-all">{sub.name}</p>
                         <p class="text-[11px] font-mono text-muted-foreground break-all">{sub.id}</p>
                       </div>
-                    </Tooltip.Content>
-                  </Tooltip.Root>
+                    {/snippet}
+                  </ConditionalTooltip>
                 {/each}
               {/if}
             </Select.Content>
@@ -1168,25 +1166,28 @@ import { Checkbox } from 'bits-ui';
           <Label class="flex items-center gap-1">
             Tenant ID <span class="text-destructive">*</span>
           </Label>
-          <Tooltip.Root delayDuration={300}>
-            <Tooltip.Trigger class="block w-full text-left">
-              <div class="flex items-center rounded-lg border border-border/60 bg-muted/40 px-3 py-2 overflow-hidden">
-                <span class="truncate font-mono text-sm text-muted-foreground">
-                  {tenantId || 'Select a subscription to populate'}
-                </span>
-              </div>
-            </Tooltip.Trigger>
+          <div class="flex items-center rounded-lg border border-border/60 bg-muted/40 px-3 py-2 overflow-hidden">
             {#if tenantId}
-              <Tooltip.Content side="top" class="max-w-sm">
-                <div class="space-y-1">
-                  <p class="text-[11px] font-mono break-all">{tenantId}</p>
-                  {#if selectedSubscription?.name}
-                    <p class="text-xs text-muted-foreground">From: {selectedSubscription.name}</p>
-                  {/if}
-                </div>
-              </Tooltip.Content>
+              <TruncatedText
+                text={tenantId}
+                class="font-mono text-sm text-muted-foreground"
+                tooltipSide="top"
+              >
+                {#snippet tooltipContent()}
+                  <div class="space-y-1">
+                    <p class="text-[11px] font-mono break-all">{tenantId}</p>
+                    {#if selectedSubscription?.name}
+                      <p class="text-xs text-muted-foreground">From: {selectedSubscription.name}</p>
+                    {/if}
+                  </div>
+                {/snippet}
+              </TruncatedText>
+            {:else}
+              <span class="truncate font-mono text-sm text-muted-foreground">
+                Select a subscription to populate
+              </span>
             {/if}
-          </Tooltip.Root>
+          </div>
           <p class="text-[11px] text-muted-foreground">
             Pulled from the subscription’s tenant. Changing subscriptions updates this ID for token requests and Key Vault access.
           </p>
@@ -1239,12 +1240,17 @@ import { Checkbox } from 'bits-ui';
                 <Input
                   id="app-search"
                   class="pl-10 pr-10 h-10 bg-background/80 border-0 shadow-none focus-visible:ring-1"
-                  placeholder="Search by name or App ID..."
+                  placeholder="Type 3+ characters or paste an App ID..."
                   bind:value={appSearchInput}
                   disabled={validating}
                   onkeydown={handleAppSearchKeydown}
                 />
               </div>
+              {#if appSearchTooShort && appSearchInput}
+                <span class="text-[11px] text-amber-600 dark:text-amber-400 font-medium whitespace-nowrap">
+                  {minAppSearchChars - appSearchInput.length === 1 ? '1 more char' : `${minAppSearchChars - appSearchInput.length} more chars`}
+                </span>
+              {/if}
               <Button
                 type="button"
                 size="sm"
@@ -1306,22 +1312,18 @@ import { Checkbox } from 'bits-ui';
                     <CheckCircle2 class="h-4 w-4" />
                   </div>
                   <div class="w-0 flex-1 overflow-hidden">
-                    <Tooltip.Root delayDuration={300}>
-                      <Tooltip.Trigger class="block w-full text-left">
-                        <p class="truncate text-sm font-semibold">{resolvedAppName}</p>
-                      </Tooltip.Trigger>
-                      <Tooltip.Content side="top" class="max-w-sm">
-                        <p class="break-all">{resolvedAppName}</p>
-                      </Tooltip.Content>
-                    </Tooltip.Root>
-                    <Tooltip.Root delayDuration={300}>
-                      <Tooltip.Trigger class="block w-full text-left">
-                        <p class="truncate text-[11px] font-mono text-muted-foreground">{resolvedClientId}</p>
-                      </Tooltip.Trigger>
-                      <Tooltip.Content side="top" class="max-w-sm">
-                        <p class="break-all">{resolvedClientId}</p>
-                      </Tooltip.Content>
-                    </Tooltip.Root>
+                    <TruncatedText
+                      text={resolvedAppName}
+                      as="p"
+                      class="text-sm font-semibold"
+                      tooltipSide="top"
+                    />
+                    <TruncatedText
+                      text={resolvedClientId}
+                      as="p"
+                      class="text-[11px] font-mono text-muted-foreground"
+                      tooltipSide="top"
+                    />
                   </div>
                 </div>
                 <Button
@@ -1386,41 +1388,38 @@ import { Checkbox } from 'bits-ui';
                       </div>
                     {/if}
                     {#each azureApps as app}
-                      <Tooltip.Root delayDuration={300}>
-                        <Tooltip.Trigger>
-                          {#snippet child({ props })}
-                            <button
-                              {...props}
-                              type="button"
-                              class={`group w-full min-w-0 overflow-hidden rounded-lg px-3 py-2.5 text-left transition-all ${
-                                clientId === app.appId
-                                  ? 'bg-primary/10 ring-1 ring-primary/30'
-                                  : 'hover:bg-muted/60'
-                              }`}
-                              onclick={() => handleAppSelection(app)}
-                              disabled={validating}
-                            >
-                              <div class="flex min-w-0 items-center justify-between gap-3">
-                                <div class="flex w-0 flex-1 flex-col overflow-hidden">
-                                  <span class="block w-full truncate text-sm font-medium">{app.displayName || 'Unnamed app'}</span>
-                                  <span class="block w-full truncate text-[11px] font-mono text-muted-foreground">{app.appId}</span>
-                                </div>
-                                {#if clientId === app.appId}
-                                  <CheckCircle2 class="h-4 w-4 text-primary shrink-0" />
-                                {:else}
-                                  <div class="h-4 w-4 rounded-full border-2 border-muted-foreground/30 shrink-0 group-hover:border-muted-foreground/50 transition-colors"></div>
-                                {/if}
+                      <ConditionalTooltip side="top" contentClass="max-w-sm" delayDuration={300}>
+                        {#snippet children({ props })}
+                          <button
+                            type="button"
+                            class={`group w-full min-w-0 overflow-hidden rounded-lg px-3 py-2.5 text-left transition-all ${
+                              clientId === app.appId
+                                ? 'bg-primary/10 ring-1 ring-primary/30'
+                                : 'hover:bg-muted/60'
+                            }`}
+                            onclick={() => handleAppSelection(app)}
+                            disabled={validating}
+                          >
+                            <div class="flex min-w-0 items-center justify-between gap-3">
+                              <div class="flex w-0 flex-1 flex-col overflow-hidden">
+                                <span class="block w-full truncate text-sm font-medium">{app.displayName || 'Unnamed app'}</span>
+                                <span class="block w-full truncate text-[11px] font-mono text-muted-foreground">{app.appId}</span>
                               </div>
-                            </button>
-                          {/snippet}
-                        </Tooltip.Trigger>
-                        <Tooltip.Content side="top" class="max-w-sm">
+                              {#if clientId === app.appId}
+                                <CheckCircle2 class="h-4 w-4 text-primary shrink-0" />
+                              {:else}
+                                <div class="h-4 w-4 rounded-full border-2 border-muted-foreground/30 shrink-0 group-hover:border-muted-foreground/50 transition-colors"></div>
+                              {/if}
+                            </div>
+                          </button>
+                        {/snippet}
+                        {#snippet tooltipContent()}
                           <div class="space-y-1">
                             <p class="text-sm font-medium">{app.displayName || 'Unnamed app'}</p>
                             <p class="text-[11px] font-mono text-muted-foreground break-all">{app.appId}</p>
                           </div>
-                        </Tooltip.Content>
-                      </Tooltip.Root>
+                        {/snippet}
+                      </ConditionalTooltip>
                     {/each}
                   </div>
                 {/if}
@@ -1432,7 +1431,7 @@ import { Checkbox } from 'bits-ui';
               <div class="px-3 py-2 border-t border-border/40 bg-muted/10">
                 <p class="text-[10px] text-muted-foreground/70">
                   {#if appSearchTooShort}
-                    Enter at least {minAppSearchChars} characters to search.
+                    <span class="text-amber-600 dark:text-amber-400 font-medium">Enter at least {minAppSearchChars} characters to search</span>
                   {:else if guidPattern.test(appSearchQuery)}
                     Press Enter or click Search to find this exact App ID
                   {:else}
@@ -1742,37 +1741,33 @@ import { Checkbox } from 'bits-ui';
                     </div>
                   {:else}
                     {#each filteredVaultItems as item}
-                      <Tooltip.Root delayDuration={300}>
-                        <Tooltip.Trigger>
-                          {#snippet child({ props })}
-                            <div {...props} class="w-full">
-                              <Combobox.Item
-                                value={item.value}
-                                label={item.label}
-                                class="data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground [&_svg:not([class*='text-'])]:text-muted-foreground outline-hidden *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2 relative flex w-full cursor-default select-none items-center gap-2 rounded-sm py-1.5 pe-8 ps-2 text-sm data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0"
-                              >
-                                {#snippet children({ selected })}
-                                  <span class="absolute end-2 flex size-3.5 items-center justify-center">
-                                    {#if selected}
-                                      <Check class="size-4" />
-                                    {/if}
-                                  </span>
-                                  <div class="flex w-0 flex-1 flex-col overflow-hidden">
-                                    <span class="font-medium truncate">{item.vault.name || item.vault.uri}</span>
-                                    <span class="text-[11px] text-muted-foreground font-mono truncate">{item.vault.uri}</span>
-                                  </div>
-                                {/snippet}
-                              </Combobox.Item>
-                            </div>
-                          {/snippet}
-                        </Tooltip.Trigger>
-                        <Tooltip.Content side="right" class="max-w-sm">
+                      <ConditionalTooltip side="right" contentClass="max-w-sm" delayDuration={300}>
+                        {#snippet children({ props })}
+                          <Combobox.Item
+                            value={item.value}
+                            label={item.label}
+                            class="data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground [&_svg:not([class*='text-'])]:text-muted-foreground outline-hidden *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2 relative flex w-full cursor-default select-none items-center gap-2 rounded-sm py-1.5 pe-8 ps-2 text-sm data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0"
+                          >
+                            {#snippet children({ selected })}
+                              <span class="absolute end-2 flex size-3.5 items-center justify-center">
+                                {#if selected}
+                                  <Check class="size-4" />
+                                {/if}
+                              </span>
+                              <div class="flex w-0 flex-1 flex-col overflow-hidden">
+                                <span class="font-medium truncate">{item.vault.name || item.vault.uri}</span>
+                                <span class="text-[11px] text-muted-foreground font-mono truncate">{item.vault.uri}</span>
+                              </div>
+                            {/snippet}
+                          </Combobox.Item>
+                        {/snippet}
+                        {#snippet tooltipContent()}
                           <div class="space-y-1">
                             <p class="text-sm font-medium break-all">{item.vault.name || item.vault.uri}</p>
                             <p class="text-[11px] font-mono text-muted-foreground break-all">{item.vault.uri}</p>
                           </div>
-                        </Tooltip.Content>
-                      </Tooltip.Root>
+                        {/snippet}
+                      </ConditionalTooltip>
                     {/each}
                   {/if}
                 </Combobox.Viewport>

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { AlertTriangle, AlertCircle, ExternalLink, Copy, ChevronDown, Key, Shield, Wifi, Clock, HelpCircle } from 'lucide-svelte';
+  import { AlertTriangle, AlertCircle, ExternalLink, Copy, ChevronDown, Key, Shield, Wifi, Clock, HelpCircle } from '@lucide/svelte';
   import { Button } from '$lib/shadcn/components/ui/button';
   import { Badge } from '$lib/shadcn/components/ui/badge';
   import * as Collapsible from '$lib/shadcn/components/ui/collapsible';
