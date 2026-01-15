@@ -19,9 +19,11 @@
     "@azure/keyvault-certificates": "^4.10.0",
     "@azure/keyvault-keys": "^4.10.0",
     "@azure/keyvault-secrets": "^4.10.0",
-    "@azure/msal-node": "^3.8.3"
+    "@azure/msal-node": "^3.8.3",
+    "escape-html": "^1.0.3"
   },
   "devDependencies": {
+    "@types/escape-html": "^1.0.4",
     "@types/node": "^22.0.0",
     "esbuild": "^0.27.2",
     "typescript": "^5.9.3"
