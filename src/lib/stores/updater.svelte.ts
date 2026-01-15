@@ -12,6 +12,36 @@ type UpdaterApi = {
 let updaterApi: UpdaterApi | null = null;
 let updaterApiPromise: Promise<UpdaterApi | null> | null = null;
 
+function normalizeUpdaterError(error: unknown): string {
+	if (error instanceof Error) return error.message;
+	if (typeof error === 'string') return error;
+	if (error && typeof error === 'object') {
+		const message = 'message' in error ? (error as { message?: unknown }).message : undefined;
+		if (typeof message === 'string' && message.trim()) return message;
+		try {
+			return JSON.stringify(error);
+		} catch {
+			return 'Unknown error';
+		}
+	}
+	return 'Unknown error';
+}
+
+function formatUpdaterError(message: string): string {
+	const trimmed = message.trim();
+	if (!trimmed) return 'Unknown error';
+	if (/(^|\\b)(404|not\\s+found)(\\b|$)/i.test(trimmed)) {
+		return 'Update feed not found (404). If the release is still a draft, publish it to enable updates.';
+	}
+	if (/timed?\\s*out|timeout|etimedout/i.test(trimmed)) {
+		return 'Update check timed out. Please try again.';
+	}
+	if (/network|offline|fetch|connection/i.test(trimmed)) {
+		return 'Network error while checking for updates.';
+	}
+	return trimmed;
+}
+
 async function loadUpdaterApi(): Promise<UpdaterApi | null> {
 	if (!browser || !isTauriMode()) return null;
 	if (updaterApi) return updaterApi;
@@ -116,7 +146,7 @@ export class UpdateStore {
 			}
 		} catch (e) {
 			console.error('Update check failed', e);
-			this.error = e instanceof Error ? e.message : 'Unknown error';
+			this.error = formatUpdaterError(normalizeUpdaterError(e));
 			this.update = null;
 			this.updateAvailable = false;
 			this.newVersion = '';
@@ -185,7 +215,7 @@ export class UpdateStore {
 			await api.relaunch();
 		} catch (e) {
 			console.error('Update install failed', e);
-			this.error = e instanceof Error ? e.message : 'Unknown error';
+			this.error = formatUpdaterError(normalizeUpdaterError(e));
 			toast.error(`Update failed: ${this.error}`);
 		} finally {
 			this.downloading = false;
