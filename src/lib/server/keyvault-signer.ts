@@ -20,15 +20,28 @@ import {
 } from "@azure/keyvault-keys";
 import type { KeyVaultConfig } from "$lib/types";
 
-// Cache TTL: 5 minutes (in milliseconds)
-// Short enough to pick up PIM access changes, long enough to reduce Key Vault calls
-const CACHE_TTL_MS = 5 * 60 * 1000;
+// Cache TTL: 15 minutes (in milliseconds)
+// Error-based cache invalidation provides safety for access revocation scenarios
+// while reducing Key Vault roundtrips for better performance
+const CACHE_TTL_MS = 15 * 60 * 1000;
 
-// Cache for certificate metadata (thumbprint, x5c, keyId)
+// Singleton DefaultAzureCredential - reused across all Key Vault operations
+// The credential handles its own token lifecycle and refresh internally
+let sharedCredential: DefaultAzureCredential | null = null;
+
+function getSharedCredential(): DefaultAzureCredential {
+  if (!sharedCredential) {
+    sharedCredential = new DefaultAzureCredential();
+  }
+  return sharedCredential;
+}
+
+// Cache for certificate metadata (thumbprint, x5c, keyId) + CryptographyClient
 interface CertMetadata {
   thumbprint: string;
   x5c: string; // Base64-encoded DER certificate
   keyId: string; // Key Vault key URL for signing
+  cryptoClient: CryptographyClient; // Cached client for signing operations
 }
 
 interface CachedCertMetadata {
@@ -80,7 +93,7 @@ async function getCertificateMetadata(
   }
 
   try {
-    const credential = new DefaultAzureCredential();
+    const credential = getSharedCredential();
     const certClient = new CertificateClient(config.uri, credential);
 
     // Get certificate (public info only - no private key access needed)
@@ -113,10 +126,14 @@ async function getCertificateMetadata(
     // x5c: Base64-encoded DER certificate (for certificate chain in JWT header)
     const x5c = Buffer.from(certificate.cer).toString("base64");
 
+    // Create CryptographyClient tied to this certificate's lifecycle
+    const cryptoClient = new CryptographyClient(certificate.keyId, credential);
+
     const metadata: CertMetadata = {
       thumbprint,
       x5c,
       keyId: certificate.keyId,
+      cryptoClient,
     };
 
     // Cache successful result with TTL
@@ -191,12 +208,9 @@ export async function signJwtWithKeyVault(
   // Hash the signing input (RS256 = RSA-SHA256)
   const hash = crypto.createHash("sha256").update(signingInput).digest();
 
-  // Sign using Key Vault CryptographyClient
+  // Sign using cached CryptographyClient (created with metadata)
   // The private key NEVER leaves Key Vault - only the signature is returned
-  const credential = new DefaultAzureCredential();
-  const cryptoClient = new CryptographyClient(metadata.keyId, credential);
-
-  const signResult = await cryptoClient.sign(
+  const signResult = await metadata.cryptoClient.sign(
     KnownSignatureAlgorithms.RS256,
     hash
   );

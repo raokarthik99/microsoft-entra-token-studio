@@ -38,13 +38,42 @@ interface MsalClientState {
 // Per-app MSAL client caching
 const msalClients = new Map<string, MsalClientState>();
 
-// Certificate metadata cache
+// Certificate metadata cache with CryptographyClient
 interface CertMetadata {
   thumbprint: string;
   x5c: string;
   keyId: string;
+  cryptoClient: CryptographyClient; // Cached client for signing operations
 }
-const certMetadataCache = new Map<string, CertMetadata>();
+
+interface CachedCertMetadata {
+  value: CertMetadata;
+  expiresAt: number;
+}
+
+// Cache TTL: 15 minutes (in milliseconds)
+// Error-based cache invalidation provides safety for access revocation scenarios
+const CACHE_TTL_MS = 15 * 60 * 1000;
+
+const certMetadataCache = new Map<string, CachedCertMetadata>();
+
+// Singleton DefaultAzureCredential - reused across all Key Vault operations
+let sharedCredential: DefaultAzureCredential | null = null;
+
+function getSharedCredential(): DefaultAzureCredential {
+  if (!sharedCredential) {
+    sharedCredential = new DefaultAzureCredential();
+  }
+  return sharedCredential;
+}
+
+function getCacheKey(vaultUri: string, certName: string): string {
+  return `${vaultUri.toLowerCase()}:${certName.toLowerCase()}`;
+}
+
+function isCacheValid(cached: CachedCertMetadata | undefined): cached is CachedCertMetadata {
+  return cached !== undefined && Date.now() < cached.expiresAt;
+}
 
 function getMsalCacheKey(config: TokenAppConfig): string {
   const credentialName = config.keyVault.credentialType === 'certificate' 
@@ -66,32 +95,55 @@ async function getCertificateMetadata(config: KeyVaultConfig): Promise<CertMetad
     throw new Error('Key Vault URI and certificate name are required');
   }
 
-  const cacheKey = `${config.uri}:${config.certName}`.toLowerCase();
+  const cacheKey = getCacheKey(config.uri, config.certName);
   const cached = certMetadataCache.get(cacheKey);
-  if (cached) return cached;
 
-  const credential = new DefaultAzureCredential();
-  const certClient = new CertificateClient(config.uri, credential);
-  const certificate = await certClient.getCertificate(config.certName);
-
-  if (!certificate.properties.x509Thumbprint) {
-    throw new Error(`Certificate '${config.certName}' does not have a valid thumbprint`);
-  }
-  if (!certificate.cer) {
-    throw new Error(`Certificate '${config.certName}' public key not accessible`);
-  }
-  if (!certificate.keyId) {
-    throw new Error(`Certificate '${config.certName}' does not have an associated key`);
+  // Return cached value if valid and not expired
+  if (isCacheValid(cached)) {
+    return cached.value;
   }
 
-  const metadata: CertMetadata = {
-    thumbprint: Buffer.from(certificate.properties.x509Thumbprint).toString('hex').toUpperCase(),
-    x5c: Buffer.from(certificate.cer).toString('base64'),
-    keyId: certificate.keyId,
-  };
+  // Clear expired entry
+  if (cached) {
+    certMetadataCache.delete(cacheKey);
+  }
 
-  certMetadataCache.set(cacheKey, metadata);
-  return metadata;
+  try {
+    const credential = getSharedCredential();
+    const certClient = new CertificateClient(config.uri, credential);
+    const certificate = await certClient.getCertificate(config.certName);
+
+    if (!certificate.properties.x509Thumbprint) {
+      throw new Error(`Certificate '${config.certName}' does not have a valid thumbprint`);
+    }
+    if (!certificate.cer) {
+      throw new Error(`Certificate '${config.certName}' public key not accessible`);
+    }
+    if (!certificate.keyId) {
+      throw new Error(`Certificate '${config.certName}' does not have an associated key`);
+    }
+
+    // Create CryptographyClient tied to this certificate's lifecycle
+    const cryptoClient = new CryptographyClient(certificate.keyId, credential);
+
+    const metadata: CertMetadata = {
+      thumbprint: Buffer.from(certificate.properties.x509Thumbprint).toString('hex').toUpperCase(),
+      x5c: Buffer.from(certificate.cer).toString('base64'),
+      keyId: certificate.keyId,
+      cryptoClient,
+    };
+
+    // Cache successful result with TTL
+    certMetadataCache.set(cacheKey, {
+      value: metadata,
+      expiresAt: Date.now() + CACHE_TTL_MS,
+    });
+    return metadata;
+  } catch (err: any) {
+    // Never cache errors - clear any stale entry and throw
+    certMetadataCache.delete(cacheKey);
+    throw err;
+  }
 }
 
 async function signJwtWithKeyVault(
@@ -124,11 +176,11 @@ async function signJwtWithKeyVault(
   const payloadB64 = base64UrlEncode(JSON.stringify(payload));
   const signingInput = `${headerB64}.${payloadB64}`;
 
+  // Hash the signing input (RS256 = RSA-SHA256)
   const hash = crypto.createHash('sha256').update(signingInput).digest();
 
-  const credential = new DefaultAzureCredential();
-  const cryptoClient = new CryptographyClient(metadata.keyId, credential);
-  const signResult = await cryptoClient.sign(KnownSignatureAlgorithms.RS256, hash);
+  // Sign using cached CryptographyClient (created with metadata)
+  const signResult = await metadata.cryptoClient.sign(KnownSignatureAlgorithms.RS256, hash);
   
   if (!signResult.result) {
     throw new Error('Key Vault signing operation returned no result');
@@ -143,7 +195,7 @@ async function fetchSecretFromKeyVault(config: KeyVaultConfig): Promise<string> 
     throw new Error('Key Vault URI and secret name are required');
   }
 
-  const credential = new DefaultAzureCredential();
+  const credential = getSharedCredential();
   const secretClient = new SecretClient(config.uri, credential);
   const secret = await secretClient.getSecret(config.secretName);
 
