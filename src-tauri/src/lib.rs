@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 
 mod sidecar;
 
@@ -267,7 +267,23 @@ fn exit_app(app: tauri::AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default();
+
+    // Single-instance plugin MUST be registered first to work correctly.
+    // This ensures only one app instance runs and deep-links are forwarded to it.
+    #[cfg(desktop)]
+    {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            // Focus the main window when a second instance is launched
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.set_focus();
+            }
+            // Note: Deep-link events are automatically emitted by the deep-link plugin
+            // when the single-instance plugin has the "deep-link" feature enabled
+        }));
+    }
+
+    builder
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
