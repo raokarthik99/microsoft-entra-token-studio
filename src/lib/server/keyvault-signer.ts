@@ -19,6 +19,24 @@ import {
   KnownSignatureAlgorithms,
 } from "@azure/keyvault-keys";
 import type { KeyVaultConfig } from "$lib/types";
+import {
+  KeyVaultError,
+  createAccessDeniedError,
+  createCertExpiredError,
+  createCertExpiringSoonWarning,
+  createNotFoundError,
+  createCredentialUnavailableError,
+  createNetworkError,
+  createSigningFailedError,
+  createUnknownError,
+  isAccessDeniedError,
+  isNotFoundError,
+  isCredentialUnavailableError,
+  isNetworkError,
+  isExpired,
+  daysUntil,
+  EXPIRY_WARNING_DAYS,
+} from "./keyvault-errors";
 
 // Cache TTL: 15 minutes (in milliseconds)
 // Error-based cache invalidation provides safety for access revocation scenarios
@@ -42,6 +60,7 @@ interface CertMetadata {
   x5c: string; // Base64-encoded DER certificate
   keyId: string; // Key Vault key URL for signing
   cryptoClient: CryptographyClient; // Cached client for signing operations
+  expiresOn?: Date; // Certificate expiry date for proactive warnings
 }
 
 interface CachedCertMetadata {
@@ -99,23 +118,50 @@ async function getCertificateMetadata(
     // Get certificate (public info only - no private key access needed)
     const certificate = await certClient.getCertificate(config.certName);
 
+    // Check certificate expiry
+    const expiresOn = certificate.properties.expiresOn;
+    if (expiresOn) {
+      if (isExpired(expiresOn)) {
+        throw createCertExpiredError(config.certName, expiresOn, config.uri);
+      }
+      const days = daysUntil(expiresOn);
+      if (days <= EXPIRY_WARNING_DAYS) {
+        // Log warning but don't block - the token will still work
+        console.warn(
+          `[KeyVault] Certificate '${config.certName}' expires in ${days} day(s)`
+        );
+      }
+    }
+
     if (!certificate.properties.x509Thumbprint) {
       // Don't cache validation errors - let the next request retry
-      throw new Error(
-        `Certificate '${config.certName}' does not have a valid thumbprint`
-      );
+      throw new KeyVaultError({
+        code: 'UNKNOWN',
+        message: `Certificate '${config.certName}' does not have a valid thumbprint`,
+        action: 'Verify the certificate was uploaded correctly to Key Vault.',
+        severity: 'error',
+        context: { vaultUri: config.uri, resourceName: config.certName },
+      });
     }
 
     if (!certificate.cer) {
-      throw new Error(
-        `Certificate '${config.certName}' public key not accessible`
-      );
+      throw new KeyVaultError({
+        code: 'UNKNOWN',
+        message: `Certificate '${config.certName}' public key not accessible`,
+        action: 'Ensure the certificate has an associated public key.',
+        severity: 'error',
+        context: { vaultUri: config.uri, resourceName: config.certName },
+      });
     }
 
     if (!certificate.keyId) {
-      throw new Error(
-        `Certificate '${config.certName}' does not have an associated key`
-      );
+      throw new KeyVaultError({
+        code: 'UNKNOWN',
+        message: `Certificate '${config.certName}' does not have an associated key`,
+        action: 'Ensure the certificate was created with a key (not imported as cert-only).',
+        severity: 'error',
+        context: { vaultUri: config.uri, resourceName: config.certName },
+      });
     }
 
     // Thumbprint: SHA-1 hex of DER certificate (for x5t claim)
@@ -134,6 +180,7 @@ async function getCertificateMetadata(
       x5c,
       keyId: certificate.keyId,
       cryptoClient,
+      expiresOn,
     };
 
     // Cache successful result with TTL
@@ -145,7 +192,14 @@ async function getCertificateMetadata(
   } catch (err: any) {
     // Never cache errors - clear any stale entry and throw
     certMetadataCache.delete(cacheKey);
-    throw new Error(formatError(err, config.certName));
+    
+    // If already a KeyVaultError, rethrow as-is
+    if (err instanceof KeyVaultError) {
+      throw err;
+    }
+    
+    // Convert to structured KeyVaultError
+    throw createKeyVaultErrorFromRaw(err, 'certificate', config.certName, config.uri);
   }
 }
 
@@ -242,19 +296,55 @@ export function clearSignerCacheForConfig(config: KeyVaultConfig): void {
 }
 
 /**
- * Format Azure SDK errors into user-friendly messages
+ * Convert raw Azure SDK errors to structured KeyVaultError
  */
-function formatError(err: any, certName: string): string {
-  if (err.code === "CertificateNotFound" || err.statusCode === 404) {
-    return `Certificate '${certName}' not found in Key Vault`;
+function createKeyVaultErrorFromRaw(
+  err: any,
+  resourceType: 'certificate' | 'secret',
+  resourceName: string,
+  vaultUri?: string
+): KeyVaultError {
+  if (isAccessDeniedError(err)) {
+    return createAccessDeniedError(resourceType, resourceName, vaultUri);
   }
-  if (err.code === "Forbidden" || err.statusCode === 403) {
-    return `Access denied to Key Vault. For certificate signing, ensure you have 'Key Vault Crypto User' and 'Key Vault Certificates User' roles.`;
+  if (isNotFoundError(err)) {
+    return createNotFoundError(resourceType, resourceName, vaultUri);
   }
-  if (err.code === "CredentialUnavailableError") {
-    return 'Azure credentials not available. Run "az login" in your terminal.';
+  if (isCredentialUnavailableError(err)) {
+    return createCredentialUnavailableError();
   }
-  return (
-    err.message || `Failed to access certificate '${certName}' in Key Vault`
-  );
+  if (isNetworkError(err)) {
+    return createNetworkError(vaultUri, err?.message);
+  }
+  return createUnknownError(err, resourceType, resourceName, vaultUri);
+}
+
+/**
+ * Get certificate expiry warning if applicable
+ * Returns a warning KeyVaultError if cert is expiring soon, undefined otherwise
+ */
+export async function getCertificateExpiryWarning(
+  config: KeyVaultConfig
+): Promise<KeyVaultError | undefined> {
+  if (!config.uri || !config.certName) return undefined;
+  
+  try {
+    const cacheKey = getCacheKey(config.uri, config.certName);
+    const cached = certMetadataCache.get(cacheKey);
+    
+    if (isCacheValid(cached) && cached.value.expiresOn) {
+      const days = daysUntil(cached.value.expiresOn);
+      if (days <= EXPIRY_WARNING_DAYS && days > 0) {
+        return createCertExpiringSoonWarning(
+          config.certName,
+          cached.value.expiresOn,
+          days,
+          config.uri
+        );
+      }
+    }
+  } catch {
+    // Ignore errors in warning check
+  }
+  return undefined;
 }

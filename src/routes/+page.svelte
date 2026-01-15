@@ -15,6 +15,7 @@
   import { time } from '$lib/stores/time';
   import { toast } from "svelte-sonner";
   import SuggestionsInput from "$lib/components/SuggestionsInput.svelte";
+  import KeyVaultErrorDisplay from "$lib/components/KeyVaultErrorDisplay.svelte";
 
   import { Button } from "$lib/shadcn/components/ui/button";
   import { Input } from "$lib/shadcn/components/ui/input";
@@ -1535,33 +1536,11 @@
 
           <Card.Content class="space-y-5 pt-2">
             {#if error}
-              <div class="space-y-3 rounded-xl border border-destructive/40 bg-destructive/10 p-5 text-destructive">
-                <div class="flex flex-wrap items-center justify-between gap-3">
-                  <div class="flex items-center gap-2 font-semibold">
-                    <AlertTriangle class="h-4 w-4" />
-                    Token request failed
-                  </div>
-                  <div class="flex items-center gap-2">
-                    <Button size="sm" variant="ghost" class="h-9 px-3 hover:bg-destructive/20" onclick={() => copyToClipboard(error || '')} title="Copy error message">
-                      <Copy class="h-4 w-4" />
-                      Copy error
-                    </Button>
-                    <Button size="sm" variant="secondary" onclick={requestResetAll} title="Clear inputs and try again">Clear inputs</Button>
-                  </div>
-                </div>
-                <p class="text-sm leading-relaxed break-all">{error}</p>
-                <div class="grid gap-2 text-xs text-destructive/80">
-                  <div class="flex items-center gap-2">
-                    <Info class="h-3.5 w-3.5" />
-                    Verify redirect URI matches your Entra app exactly (scheme/host/port/path).
-                  </div>
-                  <div class="flex items-center gap-2">
-                    <Info class="h-3.5 w-3.5" />
-                    Confirm scopes/resources are consented for this tenant and flow type.
-                  </div>
-
-                </div>
-              </div>
+              <KeyVaultErrorDisplay 
+                error={error} 
+                onCopy={() => toast.success('Error copied to clipboard')}
+                onClear={requestResetAll}
+              />
             {:else if tokenDockState.status === 'loading'}
               <div class="flex flex-col items-center justify-center gap-4 rounded-xl border border-primary/30 bg-primary/5 py-16 text-center">
                 <div class="mb-2 rounded-full bg-primary/10 p-4">

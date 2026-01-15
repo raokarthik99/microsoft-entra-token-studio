@@ -13,6 +13,23 @@
 import { DefaultAzureCredential } from "@azure/identity";
 import { SecretClient } from "@azure/keyvault-secrets";
 import type { KeyVaultConfig } from "$lib/types";
+import {
+  KeyVaultError,
+  createAccessDeniedError,
+  createSecretExpiredError,
+  createSecretExpiringSoonWarning,
+  createNotFoundError,
+  createCredentialUnavailableError,
+  createNetworkError,
+  createUnknownError,
+  isAccessDeniedError,
+  isNotFoundError,
+  isCredentialUnavailableError,
+  isNetworkError,
+  isExpired,
+  daysUntil,
+  EXPIRY_WARNING_DAYS,
+} from "./keyvault-errors";
 
 // Cache TTL: 5 minutes (in milliseconds)
 // Short enough to pick up PIM access changes, long enough to reduce Key Vault calls
@@ -22,6 +39,7 @@ const CACHE_TTL_MS = 5 * 60 * 1000;
 interface CachedSecret {
   value: string;
   expiresAt: number;
+  secretExpiresOn?: Date; // Secret's own expiry date for proactive warnings
 }
 const secretCache = new Map<string, CachedSecret>();
 
@@ -71,41 +89,51 @@ export async function fetchSecretWithConfig(
 
     const secret = await secretClient.getSecret(config.secretName);
 
+    // Check secret expiry
+    const secretExpiresOn = secret.properties.expiresOn;
+    if (secretExpiresOn) {
+      if (isExpired(secretExpiresOn)) {
+        throw createSecretExpiredError(config.secretName, secretExpiresOn, config.uri);
+      }
+      const days = daysUntil(secretExpiresOn);
+      if (days <= EXPIRY_WARNING_DAYS) {
+        // Log warning but don't block - the secret will still work
+        console.warn(
+          `[KeyVault] Secret '${config.secretName}' expires in ${days} day(s)`
+        );
+      }
+    }
+
     if (!secret.value) {
       // Don't cache empty value errors - let the next request retry
-      throw new Error(`Secret '${config.secretName}' value is empty`);
+      throw new KeyVaultError({
+        code: 'UNKNOWN',
+        message: `Secret '${config.secretName}' value is empty`,
+        action: 'Verify the secret has a value stored in Key Vault.',
+        severity: 'error',
+        context: { vaultUri: config.uri, resourceName: config.secretName },
+      });
     }
 
     // Cache successful result with TTL
     secretCache.set(cacheKey, {
       value: secret.value,
       expiresAt: Date.now() + CACHE_TTL_MS,
+      secretExpiresOn,
     });
     return secret.value;
   } catch (err: any) {
     // Never cache errors - clear any stale entry and throw
     secretCache.delete(cacheKey);
-    throw new Error(formatError(err, config.secretName));
+    
+    // If already a KeyVaultError, rethrow as-is
+    if (err instanceof KeyVaultError) {
+      throw err;
+    }
+    
+    // Convert to structured KeyVaultError
+    throw createKeyVaultErrorFromRaw(err, 'secret', config.secretName, config.uri);
   }
-}
-
-/**
- * Format Azure SDK errors into user-friendly messages
- */
-function formatError(err: any, resourceName: string): string {
-  if (err.code === "SecretNotFound" || err.statusCode === 404) {
-    return `Secret '${resourceName}' not found in Key Vault`;
-  }
-  if (err.code === "Forbidden" || err.statusCode === 403) {
-    return `Access denied to Key Vault. Ensure you have the 'Key Vault Secrets User' role.`;
-  }
-  if (err.code === "CredentialUnavailableError") {
-    return 'Azure credentials not available. Run "az login" in your terminal.';
-  }
-  if (err.message?.includes("isAxiosError is not a function")) {
-    return "Connection failed. Check Key Vault URI and network connection";
-  }
-  return err.message || `Failed to fetch secret from Key Vault`;
 }
 
 /**
@@ -122,4 +150,58 @@ export function clearCredentialCacheForConfig(config: KeyVaultConfig): void {
   if (config.secretName) {
     secretCache.delete(getCacheKey(config.uri, config.secretName));
   }
+}
+
+/**
+ * Convert raw Azure SDK errors to structured KeyVaultError
+ */
+function createKeyVaultErrorFromRaw(
+  err: any,
+  resourceType: 'certificate' | 'secret',
+  resourceName: string,
+  vaultUri?: string
+): KeyVaultError {
+  if (isAccessDeniedError(err)) {
+    return createAccessDeniedError(resourceType, resourceName, vaultUri);
+  }
+  if (isNotFoundError(err)) {
+    return createNotFoundError(resourceType, resourceName, vaultUri);
+  }
+  if (isCredentialUnavailableError(err)) {
+    return createCredentialUnavailableError();
+  }
+  if (isNetworkError(err)) {
+    return createNetworkError(vaultUri, err?.message);
+  }
+  return createUnknownError(err, resourceType, resourceName, vaultUri);
+}
+
+/**
+ * Get secret expiry warning if applicable
+ * Returns a warning KeyVaultError if secret is expiring soon, undefined otherwise
+ */
+export async function getSecretExpiryWarning(
+  config: KeyVaultConfig
+): Promise<KeyVaultError | undefined> {
+  if (!config.uri || !config.secretName) return undefined;
+  
+  try {
+    const cacheKey = getCacheKey(config.uri, config.secretName);
+    const cached = secretCache.get(cacheKey);
+    
+    if (isCacheValid(cached) && cached.secretExpiresOn) {
+      const days = daysUntil(cached.secretExpiresOn);
+      if (days <= EXPIRY_WARNING_DAYS && days > 0) {
+        return createSecretExpiringSoonWarning(
+          config.secretName,
+          cached.secretExpiresOn,
+          days,
+          config.uri
+        );
+      }
+    }
+  } catch {
+    // Ignore errors in warning check
+  }
+  return undefined;
 }
