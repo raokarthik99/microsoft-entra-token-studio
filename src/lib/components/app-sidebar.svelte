@@ -36,7 +36,6 @@
                   <span class="block truncate text-sm font-semibold leading-tight">Entra Token Studio</span>
                 </div>
               </div>
-              <Badge variant="secondary" class="ml-auto text-[11px]">v1</Badge>
             </a>
           {/snippet}
         </Sidebar.MenuButton>
