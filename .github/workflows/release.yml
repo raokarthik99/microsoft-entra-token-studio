@@ -134,6 +134,8 @@ jobs:
           releaseId: ${{ needs.create-release.outputs.release_id }}
           args: ${{ matrix.args }}
           tauriScript: pnpm tauri
+          # Merge platform entries in latest.json instead of overwriting
+          updaterJsonKeepUniversal: true
           # Avoid GitHub asset name sanitization that turns spaces into dots.
           assetNamePattern: "Entra-Token-Studio-${{ matrix.asset_label }}[ext]"
 
