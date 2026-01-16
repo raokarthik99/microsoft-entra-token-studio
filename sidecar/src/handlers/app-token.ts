@@ -33,6 +33,7 @@ export interface AppTokenParams {
 interface MsalClientState {
   app: msal.ConfidentialClientApplication;
   useCertificate: boolean;
+  createdAt: number;  // Timestamp for TTL-based invalidation
 }
 
 // Per-app MSAL client caching
@@ -412,8 +413,14 @@ async function initializeMsalClient(config: TokenAppConfig): Promise<MsalClientS
   const cacheKey = getMsalCacheKey(config);
   const existing = msalClients.get(cacheKey);
   
-  if (existing) {
+  // Check if cached client is still within TTL (handles secret rotation)
+  if (existing && Date.now() - existing.createdAt < CACHE_TTL_MS) {
     return existing;
+  }
+  
+  // Clear expired client if any
+  if (existing) {
+    msalClients.delete(cacheKey);
   }
 
   const authority = `https://login.microsoftonline.com/${config.tenantId}`;
@@ -434,7 +441,7 @@ async function initializeMsalClient(config: TokenAppConfig): Promise<MsalClientS
       },
     });
 
-    const state: MsalClientState = { app, useCertificate: true };
+    const state: MsalClientState = { app, useCertificate: true, createdAt: Date.now() };
     msalClients.set(cacheKey, state);
     return state;
   }
@@ -454,7 +461,7 @@ async function initializeMsalClient(config: TokenAppConfig): Promise<MsalClientS
     },
   });
 
-  const state: MsalClientState = { app, useCertificate: false };
+  const state: MsalClientState = { app, useCertificate: false, createdAt: Date.now() };
   msalClients.set(cacheKey, state);
   return state;
 }
@@ -467,15 +474,33 @@ export async function handleAppToken(params: unknown): Promise<msal.Authenticati
     throw new Error('Invalid configuration: clientId, tenantId, and keyVault.uri are required');
   }
 
+  const cacheKey = getMsalCacheKey(config);
   const msalState = await initializeMsalClient(config);
   
-  const result = await msalState.app.acquireTokenByClientCredential({
-    scopes,
-  });
-  
-  if (!result) {
-    throw new Error('Failed to acquire token - no result returned');
-  }
+  try {
+    const result = await msalState.app.acquireTokenByClientCredential({
+      scopes,
+    });
+    
+    if (!result) {
+      throw new Error('Failed to acquire token - no result returned');
+    }
 
-  return result;
+    return result;
+  } catch (err: any) {
+    // Invalidate client on auth errors that suggest stale credentials
+    // AADSTS7000215: Invalid client secret
+    // AADSTS7000222: The provided client secret keys are expired
+    const errorCode = err?.errorCode || err?.error || '';
+    const message = err?.message || '';
+    if (
+      errorCode === 'invalid_client' ||
+      message.includes('AADSTS7000215') ||
+      message.includes('AADSTS7000222') ||
+      message.includes('invalid client secret')
+    ) {
+      msalClients.delete(cacheKey);
+    }
+    throw err;
+  }
 }
