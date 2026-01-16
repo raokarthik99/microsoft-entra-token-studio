@@ -5,6 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
+  cookie: 0.7.0
   devalue: 5.6.2
 
 importers:
@@ -996,8 +997,8 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
-  cookie@0.6.0:
-    resolution: {integrity: sha512-U71cyTamuh1CRNCfpGY6to28lxvNwPG4Guz/EVjgf3Jmzv0vlDp1atT9eS5dDjMYHucpHbWns6Lwf3BKz6svdw==}
+  cookie@0.7.0:
+    resolution: {integrity: sha512-qCf+V4dtlNhSRXGAZatc1TasyFO6GjohcOul807YOb5ik3+kQSnb4d7iajeCL8QHaJ4uZEjCgiCJerKXwdRVlQ==}
     engines: {node: '>= 0.6'}
 
   debug@4.4.3:
@@ -1998,7 +1999,7 @@ snapshots:
       '@sveltejs/vite-plugin-svelte': 6.2.1(svelte@5.45.2)(vite@7.2.4(@types/node@24.10.1)(jiti@2.6.1)(lightningcss@1.30.2))
       '@types/cookie': 0.6.0
       acorn: 8.15.0
-      cookie: 0.6.0
+      cookie: 0.7.0
       devalue: 5.6.2
       esm-env: 1.2.2
       kleur: 4.1.5
@@ -2253,7 +2254,7 @@ snapshots:
       tree-kill: 1.2.2
       yargs: 17.7.2
 
-  cookie@0.6.0: {}
+  cookie@0.7.0: {}
 
   debug@4.4.3:
     dependencies:
