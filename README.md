@@ -369,13 +369,10 @@ The [release.yml](.github/workflows/release.yml) workflow:
 
 #### Auto-Update Mechanism
 
-When users run the desktop app, it checks for updates on startup:
-
-```
-https://github.com/raokarthik99/microsoft-entra-token-studio/releases/latest/download/latest.json
-```
-
 If a newer version exists, the app downloads and installs the update automatically. Updates are verified using the public key in [tauri.conf.json](src-tauri/tauri.conf.json).
+
+#### Manual Update Fallback
+If the auto-updater fails due to network issues or environment restrictions, the app provides a direct link to the [GitHub Releases](https://github.com/raokarthik99/microsoft-entra-token-studio/releases) page. You can follow the manual update steps provided there or in the release notes.
 
 #### First-Time Setup (One-Time)
 
@@ -597,6 +594,7 @@ sidecar/                          # Node.js sidecar for desktop app
 | **Scope/resource errors**     | App tokens use resources with `/.default`; user tokens use specific scopes with consent              |
 | **Popups blocked (web)**      | Allow popups for `localhost` in your browser settings                                                |
 | **Consent errors**            | Check the scopes panel for guidance; you may need admin consent for certain scopes                   |
+| **Update check fails**      | Ensure you have internet access. If it persists, download the latest version manually from [Releases](https://github.com/raokarthik99/microsoft-entra-token-studio/releases). |
 
 ---
 

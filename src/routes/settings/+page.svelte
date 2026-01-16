@@ -3,7 +3,7 @@
   import * as Card from "$lib/shadcn/components/ui/card";
   import { Button } from "$lib/shadcn/components/ui/button";
   import { Label } from "$lib/shadcn/components/ui/label";
-  import { Trash2, LogOut, User, ShieldAlert } from "@lucide/svelte";
+  import { Trash2, LogOut, User, ShieldAlert, ExternalLink } from "@lucide/svelte";
   import * as Select from "$lib/shadcn/components/ui/select";
   import { setMode, userPrefersMode } from "mode-watcher";
   import { Badge } from "$lib/shadcn/components/ui/badge";
@@ -442,9 +442,23 @@ import { appRegistry } from '$lib/states/app-registry.svelte';
             </div>
           </div>
           {#if updaterState.error}
-            <p class="text-xs text-destructive">
-              Update error: {updaterState.error}
-            </p>
+            <div class="rounded-md border border-destructive/30 bg-destructive/10 p-3 space-y-2">
+              <p class="text-xs text-destructive">
+                Update error: {updaterState.error}
+              </p>
+              <p class="text-xs text-muted-foreground">
+                You can also check for updates and download the latest version manually from
+                <a 
+                  href="https://github.com/raokarthik99/microsoft-entra-token-studio/releases"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="inline-flex items-center gap-1 text-primary hover:underline font-medium"
+                >
+                  GitHub Releases
+                  <ExternalLink class="h-3 w-3" />
+                </a>
+              </p>
+            </div>
           {/if}
         </Card.Content>
       </Card.Root>

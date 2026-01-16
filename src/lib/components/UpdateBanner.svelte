@@ -1,9 +1,11 @@
 <script lang="ts">
 	import { updaterState } from '$lib/stores/updater.svelte';
 	import { isTauriMode } from '$lib/utils/runtime';
-	import { X } from '@lucide/svelte';
+	import { X, ExternalLink, AlertTriangle } from '@lucide/svelte';
 	import { slide } from 'svelte/transition';
 	import { Button } from '$lib/shadcn/components/ui/button';
+
+	const GITHUB_RELEASES_URL = 'https://github.com/raokarthik99/microsoft-entra-token-studio/releases';
 
 	let dismissed = $state(false);
 	let lastVersion = $state('');
@@ -65,4 +67,25 @@
 			</button>
 		</div>
 	</div>
+	{#if updaterState.error}
+		<div
+			transition:slide
+			role="alert"
+			class="bg-destructive/10 border-b border-destructive/30 text-destructive relative flex items-center justify-between gap-4 px-4 py-2 text-sm"
+		>
+			<div class="flex items-center gap-2">
+				<AlertTriangle class="h-4 w-4 shrink-0" />
+				<span class="truncate">{updaterState.error}</span>
+			</div>
+			<a
+				href={GITHUB_RELEASES_URL}
+				target="_blank"
+				rel="noopener noreferrer"
+				class="inline-flex items-center gap-1 text-primary hover:underline font-medium whitespace-nowrap text-xs"
+			>
+				Download manually
+				<ExternalLink class="h-3 w-3" />
+			</a>
+		</div>
+	{/if}
 {/if}
