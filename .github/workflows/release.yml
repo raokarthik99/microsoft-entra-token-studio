@@ -3,11 +3,11 @@ name: Release
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - "v*.*.*"
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to release (without v prefix, e.g. 1.0.0 or 1.0.0-beta.1)'
+        description: "Version to release (without v prefix, e.g. 1.0.0 or 1.0.0-beta.1)"
         required: true
 
 concurrency:
@@ -32,7 +32,7 @@ jobs:
             // Determine tag name
             let version = context.ref.replace('refs/tags/v', '');
             let tagName = context.ref.replace('refs/tags/', '');
-            
+
             // Handle workflow_dispatch override
             if (context.eventName === 'workflow_dispatch') {
               version = context.payload.inputs.version;
@@ -44,7 +44,7 @@ jobs:
               repo: context.repo.repo,
               tag_name: tagName,
               name: `Entra Token Studio v${version}`,
-              body: `## ⚠️ Important: First-Time Installation Notes\n\n### macOS Users\nThis open-source app is **not signed with an Apple Developer certificate** (which costs $99/year). When you first open the app, macOS Gatekeeper will show an error: **"Entra Token Studio is damaged and can't be opened."**\n\n**This is expected behavior for unsigned apps downloaded from the internet.** To fix it:\n\n1. Open **Terminal**\n2. Run this command:\n   \`\`\`bash\n   xattr -cr /Applications/Entra\\\\ Token\\\\ Studio.app\n   \`\`\`\n3. Open the app again - it will now work normally\n\n> 💡 **Why does this happen?** macOS quarantines apps downloaded from the internet. Without Apple notarization, Gatekeeper blocks them. The \`xattr -cr\` command removes the quarantine flag, allowing the app to run.\n\n### Windows Users\nYou may see **"Windows protected your PC"** (SmartScreen warning) because the app is not signed with an EV code signing certificate.\n\n1. Click **More info**\n2. Click **Run anyway**\n\n---\n\n## Installation\n\nDownload the installer for your platform:\n\n| Platform | File |\n|----------|------|\n| **macOS (Apple Silicon)** | \`.dmg\` (aarch64) |\n| **macOS (Intel)** | \`.dmg\` (x86_64) |\n| **Windows** | \`.exe\` |\n| **Linux** | \`.AppImage\` or \`.deb\` |\n\n---\n\n## Auto-Update\n\nExisting installations will automatically detect and install the latest release on next launch.`,
+              body: `## ⚠️ Important: Installation Notes\n\n### macOS Users\nThis open-source app is **not signed with an Apple Developer certificate** (which costs $99/year). When you first open the app, macOS Gatekeeper will show an error: **"Entra Token Studio is damaged and can't be opened."**\n\n**This is expected behavior for unsigned apps downloaded from the internet.** To fix it:\n\n1. Open **Terminal**\n2. Run this command:\n   \`\`\`bash\n   xattr -cr /Applications/Entra\\\\ Token\\\\ Studio.app\n   \`\`\`\n3. Open the app again - it will now work normally\n\n> 💡 **Why does this happen?** macOS quarantines apps downloaded from the internet. Without Apple notarization, Gatekeeper blocks them. The \`xattr -cr\` command removes the quarantine flag, allowing the app to run.\n\n### Windows Users\nYou may see **"Windows protected your PC"** (SmartScreen warning) because the app is not signed with an EV code signing certificate.\n\n1. Click **More info**\n2. Click **Run anyway**\n\n---\n\n## Installation\n\nDownload the installer for your platform:\n\n| Platform | File |\n|----------|------|\n| **macOS (Apple Silicon)** | \`.dmg\` (aarch64) |\n| **macOS (Intel)** | \`.dmg\` (x86_64) |\n| **Windows** | \`.exe\` |\n| **Linux** | \`.AppImage\` or \`.deb\` |\n\n---\n\n## Auto-Update\n\nExisting installations will automatically detect and install the latest release on next launch.`,
               draft: true,
               prerelease: version.includes('-')
             });
@@ -60,23 +60,23 @@ jobs:
         include:
           # macOS builds
           - platform: macos-latest
-            args: '--target aarch64-apple-darwin'
-            rust_targets: 'aarch64-apple-darwin'
-            asset_label: 'macos-aarch64'
+            args: "--target aarch64-apple-darwin"
+            rust_targets: "aarch64-apple-darwin"
+            asset_label: "macos-aarch64"
           - platform: macos-latest
-            args: '--target x86_64-apple-darwin'
-            rust_targets: 'x86_64-apple-darwin'
-            asset_label: 'macos-x64'
+            args: "--target x86_64-apple-darwin"
+            rust_targets: "x86_64-apple-darwin"
+            asset_label: "macos-x64"
           # Linux build
           - platform: ubuntu-22.04
-            args: ''
-            rust_targets: ''
-            asset_label: 'linux'
+            args: ""
+            rust_targets: ""
+            asset_label: "linux"
           # Windows build
           - platform: windows-latest
-            args: ''
-            rust_targets: ''
-            asset_label: 'windows'
+            args: ""
+            rust_targets: ""
+            asset_label: "windows"
 
     runs-on: ${{ matrix.platform }}
 
@@ -92,8 +92,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'pnpm'
+          node-version: "20"
+          cache: "pnpm"
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -103,7 +103,7 @@ jobs:
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
-          workspaces: './src-tauri -> target'
+          workspaces: "./src-tauri -> target"
 
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
@@ -135,4 +135,4 @@ jobs:
           args: ${{ matrix.args }}
           tauriScript: pnpm tauri
           # Avoid GitHub asset name sanitization that turns spaces into dots.
-          assetNamePattern: 'Entra-Token-Studio-${{ matrix.asset_label }}[ext]'
+          assetNamePattern: "Entra-Token-Studio-${{ matrix.asset_label }}[ext]"

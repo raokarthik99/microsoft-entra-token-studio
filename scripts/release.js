@@ -83,7 +83,10 @@ async function main() {
        console.log("   (Remote tag might not exist or already deleted, continuing...)");
     }
 
-    // 3. Create & Push
+    // 3. Ensure current HEAD is on the remote branch before tagging
+    run(`git push origin HEAD`);
+
+    // 4. Create & Push tag
     run(`git tag ${tagName}`);
     run(`git push origin ${tagName}`);
 
@@ -142,10 +145,13 @@ async function main() {
   run(`git add .`);
   run(`git commit -m "chore: release ${newTagName}"`);
 
-  // 5. Tag
+  // 5. Push commit before tagging so the branch is updated first
+  run(`git push origin HEAD`);
+
+  // 6. Tag
   run(`git tag ${newTagName}`);
 
-  // 6. Push
+  // 7. Push tag
   run(`git push origin ${newTagName}`);
 
   console.log(`\n✨ Released ${newTagName} successfully!\n`);
