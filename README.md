@@ -87,17 +87,21 @@ If you've worked in an enterprise environment with Microsoft Entra ID (formerly 
 
 ## Features
 
-| Feature                 | Description                                                                                                                        |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| **Multi-App Workspace** | Connect multiple app registrations and switch between them seamlessly before generating tokens. Per-app colors, tags, and notes. When you disconnect an app, all linked history, favorites, and pinned tokens are automatically cleaned up. |
-| **Multi-User Support**  | Easy sign-in flow for user tokens with identity switching. If you change the connected app, the previous app's user is automatically signed out—tokens always issue in the correct context. |
-| **App Tokens**          | Local client credentials flow (web server route or desktop sidecar) using Azure Key Vault secrets/certificates (Key Vault signing for certs) |
-| **User Tokens**         | Web: MSAL.js (PKCE) with silent + popup. Desktop: system-browser auth via msal-node + loopback redirect. |
-| **Token Inspection**    | Live expiry badges, floating token dock, full-screen inspector, decoded claims search/filter, and per-claim copy                   |
-| **Favorites & History** | All entries linked to their connected app for clarity. Save configurations with tags/colors/descriptions; pin up to 5 favorites for one-click reissue. Reissue flow automatically uses the correct app. |
-| **Smart Suggestions**   | Quick-pick inputs for scopes/resources sourced from favorites, history, and built-in Graph/Azure presets with admin-consent badges |
-| **Data Portability**    | Export/import all local data (history, favorites, app configs) with security acknowledgments and validation                        |
-| **Theme Support**       | Light, dark, and system theme options                                                                                              |
+| Feature                    | Description                                                                                                                        |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| **Multi-App Workspace**    | Connect multiple app registrations and switch between them seamlessly before generating tokens. Per-app colors, tags, and notes. When you disconnect an app, all linked history, favorites, and pinned tokens are automatically cleaned up. |
+| **Multi-User Support**     | Easy sign-in flow for user tokens with identity switching. If you change the connected app, the previous app's user is automatically signed out—tokens always issue in the correct context. |
+| **App Tokens**             | Local client credentials flow (web server route or desktop sidecar) using Azure Key Vault secrets/certificates (Key Vault signing for certs) |
+| **User Tokens**            | Web: MSAL.js (PKCE) with silent + popup. Desktop: system-browser auth via msal-node + loopback redirect. Includes loading states and cancel flows. |
+| **Token Inspection**       | Live expiry badges, floating token dock, full-screen inspector, decoded claims search/filter, and per-claim copy                   |
+| **Favorites & History**    | All entries linked to their connected app for clarity. Save configurations with tags/colors/descriptions; pin up to 5 favorites for one-click reissue. Reissue flow automatically uses the correct app. |
+| **Smart Suggestions**      | Quick-pick inputs for scopes/resources sourced from favorites, history, and built-in Graph/Azure presets with admin-consent badges |
+| **Key Vault Integration**  | Structured error handling with actionable guidance, Azure Portal deep links, credential expiry detection, and severity levels. Automatic credential caching with TTL-based invalidation. |
+| **Azure CLI Integration**  | Desktop app lists subscriptions, app registrations, Key Vaults, secrets, and certificates directly via Azure CLI—no manual copying of IDs required. |
+| **Auto-Updates**           | Desktop app checks for updates on startup and displays an in-app banner with one-click install. Updates are cryptographically signed. |
+| **Responsive Design**      | Fully responsive layout with auto-collapsing sidebar, mobile-friendly tables and toolbars, and proper truncation with tooltips. |
+| **Data Portability**       | Export/import all local data (history, favorites, app configs) with security acknowledgments and validation                        |
+| **Theme Support**          | Light, dark, and system theme options                                                                                              |
 
 ---
 

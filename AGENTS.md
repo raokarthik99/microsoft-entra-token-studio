@@ -8,13 +8,15 @@
   - **Desktop (experimental)**: Tauri 2 (Rust) + a Node.js sidecar for Azure SDK operations
 - **Multi-app support**: Users can configure multiple Entra app registrations through the UI. App configs are stored in IndexedDB; credentials are stored in Azure Key Vault.
 - **App tokens**: Client credentials flow via `POST /api/token/app` (web) or the Tauri sidecar (desktop). Supports Key Vault **client secrets** and **certificates**. For certificates, signing happens via Key Vault's `CryptographyClient`—the private key never leaves Key Vault.
-- **Credential management**: App tokens use credentials stored exclusively in Azure Key Vault. For secrets, the backend fetches the value at runtime. For certificates, the backend requests a signature from Key Vault (private key never leaves). No local `.env` secrets are used for app tokens.
+- **Credential management**: App tokens use credentials stored exclusively in Azure Key Vault. For secrets, the backend fetches the value at runtime (with TTL-based caching and automatic invalidation on auth failures). For certificates, the backend requests a signature from Key Vault (private key never leaves). Structured error handling provides actionable guidance with Azure Portal deep links.
+- **Azure CLI integration (desktop)**: The desktop app can list Azure subscriptions, app registrations, Key Vaults, secrets, and certificates directly via Azure CLI—no manual copying of IDs required.
 - **User tokens**:
   - Web: Authorization Code + PKCE via `@azure/msal-browser` (silent acquisition + popup fallback)
   - Desktop: Authorization Code + PKCE via `@azure/msal-node` in the sidecar (silent acquisition + system browser fallback)
 - **Authentication UX**: Users can explore the app without signing in. Sign-in is triggered as part of the user token flow when issuing tokens (web popup or desktop system browser).
 - **Token status tracking**: Real-time expiry monitoring with color-coded badges (expired, expiring, valid).
 - **Full-screen token inspector**: Immersive token analysis view with ESC key support.
+- **Token acquisition UX**: Loading states with cancel flows during token issuance. Deep-link token acquisition from pinned favorites.
 - **Favorites system**: Save frequently used targets with names, tags, colors, and descriptions for quick access and reissue.
 - **Quick-pick inputs**: Resource and scope fields surface pinned favorites, recents, and Graph/Azure presets with admin-consent badges for sensitive scopes.
 - **Dynamic routing**: First-time users (no apps configured) are redirected to the Apps page; returning users land on Playground.
@@ -36,21 +38,27 @@
 - **Suggestions**: `src/lib/states/suggestions.svelte.ts` ranks quick-pick options from pinned favorites, history, and presets. `src/lib/data/scope-metadata.ts` holds Graph scope metadata plus scope/resource presets. `src/lib/components/SuggestionsInput.svelte` is the shared input used on Playground resource/scope fields.
 - **UI Components** (`src/lib/components/`):
   - `app-selector.svelte` — Header dropdown for switching between configured apps.
-  - `app-form-dialog.svelte` — Sheet for connecting/editing apps (includes Key Vault validation).
+  - `app-form-dialog.svelte` — Sheet for connecting/editing apps (includes Key Vault validation with structured error display).
   - `apps-table.svelte` — App list + actions for multi-app management.
+  - `FilterableAppSelect.svelte` — Searchable combobox for selecting apps with compact/full variants.
   - `DecodedClaims.svelte` — Searchable, filterable claims viewer with important/all toggle and per-claim copy.
   - `PinnedTokensNav.svelte` — Pinned favorites navigation (quick reissue).
-  - `TokenDock.svelte` — Floating token dock for the active token.
+  - `TokenDock.svelte` — Floating token dock for the active token with loading/cancel states.
   - `TokenFullScreenView.svelte` — Immersive full-screen token inspector with raw token, decoded claims, and scopes.
   - `TokenStatusBadge.svelte` — Real-time status indicators based on token expiry.
   - `HistoryList.svelte` — Shared history list with Load, Reissue, Delete, search/filter/sort, and status-aware styling.
   - `FavoritesList.svelte` — Favorites management with advanced filtering and bulk operations.
   - `FavoriteFormSheet.svelte` — Form for creating and editing favorites.
   - `SuggestionsInput.svelte` — Quick-pick input with keyboard navigation that prefers pinned favorites, recents, and presets.
+  - `KeyVaultErrorDisplay.svelte` — Structured Key Vault error display with actionable guidance, Azure Portal deep links, and severity levels.
+  - `NodeMissingError.svelte` — Node.js dependency error display with platform-specific installation instructions.
+  - `UpdateBanner.svelte` — In-app update notification banner with download progress and one-click install.
+  - `TruncatedText.svelte` — Text truncation with automatic tooltip on overflow.
+  - `ConditionalTooltip.svelte` — Tooltip that only appears when content is truncated.
   - Collapsible primitives: `shadcn/components/ui/collapsible/{collapsible.svelte,collapsible-content.svelte,collapsible-trigger.svelte}`.
   - Layout: `app-header.svelte`, `app-sidebar.svelte`, `app-footer.svelte`, `UserMenu.svelte`.
-- **State management**: Svelte 5 runes-based state in `src/lib/states/`; reactive time store in `src/lib/stores/time.ts` for real-time expiry updates.
-- **Server-side Azure/Key Vault (web)**: `src/lib/server/app-token-service.ts`, `src/lib/server/credential-fetcher.ts`, `src/lib/server/keyvault-signer.ts`, and `src/lib/server/keyvault-validator.ts`.
+- **State management**: Svelte 5 runes-based state in `src/lib/states/`; reactive time store in `src/lib/stores/time.ts` for real-time expiry updates; updater store in `src/lib/stores/updater.svelte.ts` for desktop auto-updates.
+- **Server-side Azure/Key Vault (web)**: `src/lib/server/app-token-service.ts` (with credential caching), `src/lib/server/credential-fetcher.ts`, `src/lib/server/keyvault-signer.ts`, `src/lib/server/keyvault-validator.ts`, and `src/lib/server/keyvault-errors.ts` (structured error types).
 - **Legacy/env health helpers (web)**: `src/lib/server/msal.ts` and `src/lib/server/keyvault.ts` support env-var health checks and legacy flows; avoid extending these for new features.
 - **Desktop backend**: `src-tauri/src/lib.rs` defines Tauri commands; `src-tauri/src/sidecar.rs` starts and manages the Node sidecar. The sidecar lives in `sidecar/` and exposes JSON-RPC methods from `sidecar/src/index.ts` and `sidecar/src/handlers/*`.
 - Shared logic/UI in `src/lib` (`shadcn/` for shadcn-svelte primitives, `utils.ts` for JWT/expiry/status helpers, `types.ts` for TypeScript interfaces, `services/data-export.ts` for IndexedDB backup/restore). Keep server imports out of client modules.
@@ -125,4 +133,9 @@
 ## Recent Changes
 - 001-pinned-tokens: Added SvelteKit 2, Svelte 5 runes, shadcn components, `idb-keyval` for IndexedDB persistence, existing favorites/history state modules
 - Scope/resource quick-pick inputs for Playground flows powered by favorites/history/presets with Graph scope metadata badges
-- Desktop runtime: added Tauri host + Node sidecar, plus runtime-aware API routing for app/user token flows
+- Desktop runtime: Tauri 2 host + Node sidecar with runtime-aware API routing for app/user token flows
+- Key Vault improvements: Structured error types with actionable guidance, credential caching with TTL-based invalidation, expiry detection for secrets and certificates
+- UX refinements: Responsive layout with auto-collapsing sidebar, tooltips with truncation, loading states and cancel flows for token acquisition, filterable app selection combobox
+- Auto-updater: Desktop app checks for updates on startup with in-app banner, cryptographically signed updates, download progress display
+- Azure CLI integration (desktop): List subscriptions, app registrations, Key Vaults, secrets, and certificates directly from the app
+- Windows compatibility: Improved URL and CLI launching for Windows environments
