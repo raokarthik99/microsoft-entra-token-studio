@@ -1,7 +1,6 @@
-onlyBuiltDependencies:
-  - esbuild
-  - '@tailwindcss/oxide'
-
 overrides:
   cookie@<0.7.0: '>=0.7.0'
   jws@<3.2.3: '>=3.2.3'
+
+packages:
+  - sidecar

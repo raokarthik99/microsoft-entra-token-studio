@@ -128,7 +128,7 @@
       <div class="space-y-3 rounded-lg border bg-muted/30 p-3">
         <div class="flex items-center gap-2 text-xs font-medium text-muted-foreground">
           <span>Token context</span>
-          <Tooltip.Root>
+          <Tooltip.Root ignoreNonKeyboardFocus>
             <Tooltip.Trigger class="text-muted-foreground">
               <Info class="h-3.5 w-3.5" aria-hidden="true" />
             </Tooltip.Trigger>
@@ -158,7 +158,7 @@
       <div class="space-y-2">
         <div class="flex items-center gap-2">
           <Label for="name" class="text-xs font-medium text-muted-foreground">Friendly name (optional)</Label>
-          <Tooltip.Root>
+          <Tooltip.Root ignoreNonKeyboardFocus>
             <Tooltip.Trigger class="text-muted-foreground">
               <Info class="h-3.5 w-3.5" aria-hidden="true" />
             </Tooltip.Trigger>
@@ -176,7 +176,7 @@
             <Label for="tags" class="text-xs font-medium text-muted-foreground flex items-center gap-1">
               Tags
             </Label>
-            <Tooltip.Root>
+            <Tooltip.Root ignoreNonKeyboardFocus>
               <Tooltip.Trigger class="text-muted-foreground">
                 <Info class="h-3.5 w-3.5" aria-hidden="true" />
               </Tooltip.Trigger>
@@ -208,7 +208,7 @@
       <div class="space-y-2">
         <div class="flex items-center gap-2">
           <Label for="description" class="text-xs font-medium text-muted-foreground">Description</Label>
-          <Tooltip.Root>
+          <Tooltip.Root ignoreNonKeyboardFocus>
             <Tooltip.Trigger class="text-muted-foreground">
               <Info class="h-3.5 w-3.5" aria-hidden="true" />
             </Tooltip.Trigger>
@@ -232,7 +232,7 @@
           <div class="flex items-center gap-2">
             <Palette class="h-4 w-4 text-muted-foreground" />
             <p class="text-sm font-medium">Color</p>
-            <Tooltip.Root>
+            <Tooltip.Root ignoreNonKeyboardFocus>
               <Tooltip.Trigger class="text-muted-foreground">
                 <Info class="h-3.5 w-3.5" aria-hidden="true" />
               </Tooltip.Trigger>

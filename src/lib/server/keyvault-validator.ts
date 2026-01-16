@@ -1,6 +1,8 @@
 import { DefaultAzureCredential } from '@azure/identity';
 import { CertificateClient } from '@azure/keyvault-certificates';
+import { CryptographyClient, KnownSignatureAlgorithms } from '@azure/keyvault-keys';
 import { SecretClient } from '@azure/keyvault-secrets';
+import crypto from 'crypto';
 import type { KeyVaultConfig } from '$lib/types';
 
 export interface KeyVaultValidationResult {
@@ -71,12 +73,21 @@ async function validateCertificate(
       return { valid: false, error: 'Certificate does not have a valid thumbprint' };
     }
 
-    // Also verify we can access the private key (stored as secret)
-    const secretClient = new SecretClient(vaultUri, credential);
-    const secret = await secretClient.getSecret(certName);
-    
-    if (!secret.value) {
-      return { valid: false, error: 'Certificate private key is not accessible' };
+    // Verify we can sign with the private key (requires Crypto User role, not Secrets User)
+    if (certificate.keyId) {
+      const cryptoClient = new CryptographyClient(certificate.keyId, credential);
+      const testData = crypto.createHash('sha256').update('validation-test').digest();
+      try {
+        await cryptoClient.sign(KnownSignatureAlgorithms.RS256, testData);
+      } catch (signErr: any) {
+        // Specific error for crypto access issues
+        if (signErr.code === 'Forbidden' || signErr.statusCode === 403) {
+          return { valid: false, error: 'Cannot sign with certificate private key. Ensure you have Key Vault Crypto User role.' };
+        }
+        return { valid: false, error: formatAzureError(signErr) };
+      }
+    } else {
+      return { valid: false, error: 'Certificate does not have an associated key for signing' };
     }
 
     const thumbprint = Buffer.from(certificate.properties.x509Thumbprint).toString('hex').toUpperCase();

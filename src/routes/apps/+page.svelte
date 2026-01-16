@@ -25,7 +25,8 @@
     Pin,
     AlertTriangle,
     CheckCheck,
-    Wrench
+    Wrench,
+    ExternalLink
   } from "@lucide/svelte";
 
   let dialogOpen = $state(false);
@@ -166,7 +167,6 @@
           const result = await appRegistry.clear();
           toast.success(`Disconnected all apps${formatCascadeResult(result)}`);
         } catch (error) {
-          console.error('Failed to clear apps', error);
           toast.error('Failed to clear apps');
         }
       }
@@ -381,16 +381,17 @@
                     rel="noreferrer"
                     class="inline-flex items-center gap-1.5 rounded-md bg-blue-500/10 px-3 py-1.5 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 transition-colors"
                   >
-                    <ArrowRight class="h-3 w-3" />
-                    Registration Quickstart
+                    <ExternalLink class="h-3 w-3" />
+                    Read Official Guide
                   </a>
                   <a 
                     href="https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade" 
                     target="_blank" 
                     rel="noreferrer"
-                    class="inline-flex items-center gap-1.5 rounded-md bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted/80 transition-colors"
+                    class="inline-flex items-center gap-1.5 rounded-md bg-blue-500/10 px-3 py-1.5 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 transition-colors"
                   >
-                    Open Azure Portal
+                    <ExternalLink class="h-3 w-3" />
+                    Go to App Registrations
                   </a>
                 </div>
               </div>
@@ -471,16 +472,17 @@
                     rel="noreferrer"
                     class="inline-flex items-center gap-1.5 rounded-md bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-colors"
                   >
-                    <ArrowRight class="h-3 w-3" />
-                    RBAC Guide
+                    <ExternalLink class="h-3 w-3" />
+                    Read RBAC Guide
                   </a>
                   <a 
-                    href="https://learn.microsoft.com/azure/key-vault/general/overview" 
+                    href="https://portal.azure.com/#view/HubsExtension/BrowseResource/resourceType/Microsoft.KeyVault%2Fvaults" 
                     target="_blank" 
                     rel="noreferrer"
-                    class="inline-flex items-center gap-1.5 rounded-md bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted/80 transition-colors"
+                    class="inline-flex items-center gap-1.5 rounded-md bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-colors"
                   >
-                    Key Vault Docs
+                    <ExternalLink class="h-3 w-3" />
+                    Go to Key Vaults
                   </a>
                 </div>
               </div>
@@ -491,7 +493,7 @@
               step={3} 
               title="Sign In to Azure" 
               status="pending"
-              description="Authenticate via CLI or VS Code"
+              description="Authenticate via Azure CLI"
               collapsible={true}
               defaultOpen={false}
             >
@@ -503,21 +505,14 @@
                 <!-- Why this is needed -->
                 <div class="rounded-lg border border-violet-500/20 bg-violet-500/5 p-3">
                   <p class="text-xs text-muted-foreground">
-                    <span class="font-medium text-violet-600 dark:text-violet-400">How it works:</span> The app uses <code class="text-[10px] bg-muted px-1 rounded">DefaultAzureCredential</code> which automatically picks up your signed-in identity from CLI, VS Code, or other Azure tools.
+                    <span class="font-medium text-violet-600 dark:text-violet-400">How it works:</span> The app uses <code class="text-[10px] bg-muted px-1 rounded">DefaultAzureCredential</code> which automatically picks up your signed-in identity from Azure CLI.
                   </p>
                 </div>
                 
-                <div class="grid gap-2 sm:grid-cols-2">
-                  <div class="rounded-lg border bg-card/50 p-3 space-y-2">
-                    <p class="text-xs font-medium text-foreground">Option 1: Azure CLI</p>
-                    <code class="text-[11px] bg-muted px-2 py-1 rounded block font-mono text-muted-foreground">az login</code>
-                    <p class="text-[10px] text-muted-foreground">Best for terminal users. Opens browser to authenticate.</p>
-                  </div>
-                  <div class="rounded-lg border bg-card/50 p-3 space-y-2">
-                    <p class="text-xs font-medium text-foreground">Option 2: VS Code</p>
-                    <p class="text-[11px] text-muted-foreground">Install "Azure Account" extension, then use Command Palette → "Azure: Sign In"</p>
-                    <p class="text-[10px] text-muted-foreground">Convenient if you use VS Code.</p>
-                  </div>
+                <div class="rounded-lg border bg-card/50 p-3 space-y-2">
+                  <p class="text-xs font-medium text-foreground">Azure CLI</p>
+                  <code class="text-[11px] bg-muted px-2 py-1 rounded block font-mono text-muted-foreground">az login</code>
+                  <p class="text-[10px] text-muted-foreground">Best for terminal users. Opens browser to authenticate.</p>
                 </div>
 
                 <!-- Verification tip -->
@@ -534,16 +529,8 @@
                     rel="noreferrer"
                     class="inline-flex items-center gap-1.5 rounded-md bg-violet-500/10 px-3 py-1.5 text-xs font-medium text-violet-600 dark:text-violet-400 hover:bg-violet-500/20 transition-colors"
                   >
-                    <ArrowRight class="h-3 w-3" />
-                    CLI Auth Guide
-                  </a>
-                  <a 
-                    href="https://code.visualstudio.com/docs/azure/extensions#_azure-sign-in" 
-                    target="_blank" 
-                    rel="noreferrer"
-                    class="inline-flex items-center gap-1.5 rounded-md bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted/80 transition-colors"
-                  >
-                    VS Code Sign-In
+                    <ExternalLink class="h-3 w-3" />
+                    Read CLI Guide
                   </a>
                 </div>
               </div>

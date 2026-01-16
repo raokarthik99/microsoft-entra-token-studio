@@ -69,7 +69,7 @@ class AppRegistryState {
       this.apps = apps ?? [];
       this.activeAppId = activeId;
     } catch (error) {
-      console.error('Failed to load app registry', error);
+      // Silently ignore
     } finally {
       this.loading = false;
       this.ready = true;
@@ -77,7 +77,35 @@ class AppRegistryState {
   }
 
   /**
+   * Check if an app with the same client ID and credential already exists.
+   * Used to prevent adding duplicate app configurations.
+   * @param clientId - The client ID to check
+   * @param credentialType - The credential type ('secret' or 'certificate')
+   * @param credentialName - The secret or certificate name
+   * @param excludeId - Optional app ID to exclude from check (for editing)
+   */
+  isDuplicate(
+    clientId: string,
+    credentialType: 'secret' | 'certificate',
+    credentialName: string,
+    excludeId?: string
+  ): boolean {
+    return this.apps.some(app => {
+      if (excludeId && app.id === excludeId) return false;
+      if (app.clientId !== clientId) return false;
+      if (app.keyVault.credentialType !== credentialType) return false;
+      
+      const existingCredName = credentialType === 'secret' 
+        ? app.keyVault.secretName 
+        : app.keyVault.certName;
+      
+      return existingCredName === credentialName;
+    });
+  }
+
+  /**
    * Add a new app to the registry.
+   * The newly added app is automatically set as the active app.
    */
   async add(app: AppConfig): Promise<void> {
     // Ensure unique ID
@@ -88,10 +116,8 @@ class AppRegistryState {
     this.apps = [...this.apps, app];
     await this.persist();
     
-    // If this is the first app, set it as active
-    if (this.apps.length === 1) {
-      await this.setActive(app.id);
-    }
+    // Always set the newly added app as active
+    await this.setActive(app.id);
   }
 
   /**

@@ -30,7 +30,6 @@ export const POST: RequestHandler = async ({ request }) => {
       details: result.details 
     });
   } catch (err: any) {
-    console.error('Key Vault validation error:', err);
     return json({ 
       valid: false, 
       error: err.message || 'Validation failed' 

@@ -102,7 +102,6 @@
       await favoritesState.load();
       toast.success(pinMode ? "Pinned and added to favorites" : "Added to favorites");
     } catch (err) {
-      console.error("Failed to add favorite", err);
       toast.error("Could not add to favorites");
     } finally {
       favoriteDraft = null;

@@ -2,23 +2,42 @@
   import '../app.css';
   import favicon from '$lib/assets/token-studio-icon.png';
   import { SidebarProvider, SidebarInset } from "$lib/shadcn/components/ui/sidebar";
+  import { openUrl } from '@tauri-apps/plugin-opener';
   import { ModeWatcher } from "mode-watcher";
   import { Toaster } from "$lib/shadcn/components/ui/sonner";
   import { Button } from "$lib/shadcn/components/ui/button";
   import AppSidebar from "$lib/components/app-sidebar.svelte";
   import AppHeader from "$lib/components/app-header.svelte";
   import AppFooter from "$lib/components/app-footer.svelte";
-  import { onMount } from 'svelte';
+  import UpdateBanner from "$lib/components/UpdateBanner.svelte";
+  import { updaterState } from '$lib/stores/updater.svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { AuthService } from '$lib/services/auth';
   import { auth, authServiceStore } from '$lib/stores/auth';
   import { appRegistry } from '$lib/states/app-registry.svelte';
   import type { AppConfig } from '$lib/types';
   import TokenDock from "$lib/components/TokenDock.svelte";
-  import AppFormDialog from "$lib/components/app-form-dialog.svelte";
-  import ConfirmDialog from "$lib/components/confirm-dialog.svelte";
+import AppFormDialog from "$lib/components/app-form-dialog.svelte";
+import ConfirmDialog from "$lib/components/confirm-dialog.svelte";
+import NodeMissingError from "$lib/components/NodeMissingError.svelte";
   import { ShieldAlert } from "@lucide/svelte";
   import { clientStorage, CLIENT_STORAGE_KEYS } from '$lib/services/client-storage';
   import logo from '$lib/assets/token-studio-icon.png';
+  import { page } from '$app/stores';
+  import { isTauriMode } from '$lib/utils/runtime';
+  import {
+    tauriUser,
+    tauriUserRevision,
+    clearTauriUser,
+    restoreTauriUserForApp,
+    restoreTauriUserPhotoForApp,
+    persistTauriUserPhotoForApp,
+    isSameTauriIdentity,
+    setTauriUser,
+    updateTauriUser,
+  } from '$lib/states/tauri-user';
+  import { identityPreference } from '$lib/states/identity.svelte';
+  import { toast } from 'svelte-sonner';
 
   let { children } = $props<{ children: any }>();
   let authService: AuthService | null = $state(null);
@@ -34,18 +53,59 @@
 
   const canProceedFre = $derived(freAck1 && freAck2 && freAck3 && freAck4);
 
+  // Sidecar health state (for Node.js detection)
+  let sidecarError: string | null = $state(null);
+  let sidecarErrorCode: string | null = $state(null);
+  let sidecarRetrying = $state(false);
+
+  async function checkSidecar() {
+    if (!isTauriMode()) return true;
+    
+    try {
+      const { checkSidecarHealth } = await import('$lib/services/tauri-api');
+      const health = await checkSidecarHealth();
+      sidecarError = health.error;
+      sidecarErrorCode = health.errorCode ?? null;
+      return health.running;
+    } catch (err: any) {
+      sidecarError = err?.message ?? 'Failed to check sidecar health';
+      return false;
+    }
+  }
+
+  async function handleSidecarRetry() {
+    sidecarRetrying = true;
+    try {
+      await checkSidecar();
+    } finally {
+      sidecarRetrying = false;
+    }
+  }
+
   async function handleFreConfirm() {
     await clientStorage.set(CLIENT_STORAGE_KEYS.freAcknowledged, true);
     freOpen = false;
   }
 
-  function handleFreExit() {
-    // Redirect away to prevent access if they decline
+  async function handleFreExit() {
+    if (isTauriMode()) {
+      try {
+        const { exitApp } = await import('$lib/services/tauri-api');
+        await exitApp();
+        return;
+      } catch {
+        // Ignore and fall through to a safe web-only redirect.
+      }
+    }
+
+    // Redirect away to prevent access if they decline (web).
     window.location.href = 'about:blank';
   }
   
   /** Track the last app ID the AuthService was initialized for */
   let currentAuthAppId: string | null = $state(null);
+
+  const isAuthCallbackRoute = $derived($page.url.pathname === '/auth/callback');
 
 
 
@@ -88,37 +148,309 @@
     authServiceStore.set(null);
   }
 
-  onMount(async () => {
-    // Check availability of FRE acknowledgment first
-    const freAck = await clientStorage.get(CLIENT_STORAGE_KEYS.freAcknowledged);
-    if (!freAck) {
-      freOpen = true;
-    }
-    isFreChecked = true;
+  onMount(() => {
+    // Async initialization
+    (async () => {
+      // Check availability of FRE acknowledgment first
+      const freAck = await clientStorage.get(CLIENT_STORAGE_KEYS.freAcknowledged);
+      if (!freAck) {
+        freOpen = true;
+      }
+      isFreChecked = true;
 
-    // Ensure registry is loaded before we decide which app to initialize with.
-    if (!appRegistry.ready) {
-      await appRegistry.load();
-    }
+      // Ensure registry is loaded before we decide which app to initialize with.
+      if (!appRegistry.ready) {
+        await appRegistry.load();
+      }
 
-    // Initialize auth for the active app if available
-    if (appRegistry.activeApp) {
-      await initializeAuthForApp(appRegistry.activeApp);
-      return;
-    }
-    
-    // No apps yet - mark loading as complete, the $effect will handle
-    // initialization when an app is added
-    auth.setUser(null);
-    authServiceStore.set(null);
+      // Desktop (Tauri) mode uses the sidecar for user tokens; msal-browser isn't used.
+      if (isTauriMode()) {
+        // Check sidecar health early (detects missing Node.js)
+        await checkSidecar();
+        
+        auth.setUser(null);
+        authServiceStore.set(null);
+        authService = null;
+        currentAuthAppId = null;
+
+        const activeApp = appRegistry.activeApp;
+        const key = activeApp ? `${activeApp.id}:${activeApp.clientId}:${activeApp.tenantId}` : 'none';
+        lastTauriSyncKey = key;
+        
+        // Auto-check for updates on startup
+        updaterState.checkForUpdates();
+        
+        await syncTauriUserForApp(activeApp ?? null);
+        return;
+      }
+
+      // Initialize auth for the active app if available
+      if (appRegistry.activeApp) {
+        await initializeAuthForApp(appRegistry.activeApp);
+        return;
+      }
+      
+      // No apps yet - mark loading as complete, the $effect will handle
+      // initialization when an app is added
+      auth.setUser(null);
+      authServiceStore.set(null);
+    })();
+
+    // Global link handler for external links
+    const handleGlobalClick = async (e: MouseEvent) => {
+      // Only handle custom link opening in Tauri (desktop) mode.
+      // In the web app, let the browser handle links naturally.
+      if (!isTauriMode()) return;
+
+      const target = e.target as HTMLElement;
+      const anchor = target.closest('a');
+      
+      if (anchor && anchor.href) {
+        const url = new URL(anchor.href);
+        const isExternal = url.origin !== window.location.origin;
+        
+        // Check if it's an external link or explicitly marked to open in new tab
+        if (isExternal || anchor.target === '_blank') {
+          e.preventDefault();
+          e.stopImmediatePropagation(); // Prevent other handlers (or duplicate bubbling)
+          try {
+            await openUrl(anchor.href);
+          } catch (err) {
+            console.error('Failed to open external link:', err);
+          }
+        }
+      }
+    };
+
+    window.addEventListener('click', handleGlobalClick);
+
+    return () => {
+      window.removeEventListener('click', handleGlobalClick);
+    };
   });
   
+
+
+  let lastTauriSyncKey: string | null = $state(null);
+  let lastTauriPhotoKey: string | null = $state(null);
+  let tauriPhotoObjectUrl: string | null = $state(null);
+  let tauriSyncRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  let tauriSyncRetryKey: string | null = null;
+  let tauriSyncRetryAttempts = 0;
+
+  function setTauriPhotoUrl(url: string | null) {
+    if (tauriPhotoObjectUrl && tauriPhotoObjectUrl !== url) {
+      URL.revokeObjectURL(tauriPhotoObjectUrl);
+    }
+    tauriPhotoObjectUrl = url;
+    auth.setPhoto(url);
+  }
+
+  async function loadTauriProfile(
+    app: AppConfig,
+    accessToken?: string,
+    expectedAccount?: { homeAccountId?: string; username?: string } | null,
+  ) {
+    const requestedIdentity = expectedAccount
+      ? { homeAccountId: expectedAccount.homeAccountId, username: expectedAccount.username }
+      : $tauriUser
+        ? { homeAccountId: $tauriUser.homeAccountId, username: $tauriUser.username }
+        : null;
+    try {
+      const token =
+        accessToken ||
+        (await (async () => {
+          const { acquireUserToken } = await import('$lib/services/tauri-api');
+          const response = await acquireUserToken(
+            app.clientId,
+            app.tenantId,
+            ['User.Read'],
+            undefined,
+            $tauriUser?.homeAccountId,
+            true,
+          );
+          return response.accessToken;
+        })());
+
+      const [meResponse, photoResponse] = await Promise.all([
+        fetch('https://graph.microsoft.com/v1.0/me?$select=id,displayName', {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch('https://graph.microsoft.com/v1.0/me/photo/$value', {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
+
+      // Ensure we only apply results to the currently active identity/app.
+      const activeApp = appRegistry.activeApp;
+      const currentUser = $tauriUser;
+
+      if (!activeApp || activeApp.id !== app.id) return;
+      if (!currentUser) return;
+      if (!requestedIdentity || !isSameTauriIdentity(requestedIdentity, currentUser)) return;
+
+      if (meResponse.ok) {
+        const me = (await meResponse.json()) as { id?: string; displayName?: string };
+        if (me.id) {
+          updateTauriUser({ objectId: me.id, ...(me.displayName ? { name: me.displayName } : {}) }, app);
+        }
+      }
+
+      if (!photoResponse.ok) {
+        if (photoResponse.status === 404) {
+          setTauriPhotoUrl(null);
+          void persistTauriUserPhotoForApp(app, null);
+        }
+        return;
+      }
+
+      const blob = await photoResponse.blob();
+      setTauriPhotoUrl(URL.createObjectURL(blob));
+      void persistTauriUserPhotoForApp(app, blob);
+    } catch {
+      // Best-effort: profile photos are optional; don't block UI or prompt.
+    }
+  }
+
+  async function syncTauriUserForApp(app: AppConfig | null) {
+    if (!app) {
+      clearTauriUser();
+      setTauriPhotoUrl(null);
+      if (tauriSyncRetryTimer) {
+        clearTimeout(tauriSyncRetryTimer);
+        tauriSyncRetryTimer = null;
+      }
+      tauriSyncRetryKey = null;
+      tauriSyncRetryAttempts = 0;
+      return;
+    }
+
+    // Avoid briefly showing the previous app's identity while we resolve the new one.
+    clearTauriUser();
+    setTauriPhotoUrl(null);
+    const stored = await restoreTauriUserForApp(app);
+    const storedPhoto = await restoreTauriUserPhotoForApp(app);
+    if (storedPhoto) {
+      setTauriPhotoUrl(URL.createObjectURL(storedPhoto));
+    }
+
+    try {
+      const { getUserAccounts } = await import('$lib/services/tauri-api');
+      const accounts = await getUserAccounts(app.clientId, app.tenantId);
+      if (tauriSyncRetryTimer) {
+        clearTimeout(tauriSyncRetryTimer);
+        tauriSyncRetryTimer = null;
+      }
+      tauriSyncRetryKey = null;
+      tauriSyncRetryAttempts = 0;
+
+      if (!accounts.length) {
+        // If the sidecar returns no cached accounts, keep any stored identity as
+        // best-effort UI state. Token issuance will still require an interactive sign-in.
+        if (!stored) {
+          clearTauriUser(app.id);
+        }
+        return;
+      }
+
+      const preferred =
+        (stored?.homeAccountId
+          ? accounts.find((acc) => acc.homeAccountId === stored.homeAccountId)
+          : null) ?? accounts[0];
+
+      if (stored && !isSameTauriIdentity(stored, preferred)) {
+        setTauriPhotoUrl(null);
+      }
+
+      setTauriUser(
+        {
+          ...preferred,
+          ...(stored?.name && !preferred.name ? { name: stored.name } : {}),
+          ...(stored?.tenantId && !preferred.tenantId ? { tenantId: stored.tenantId } : {}),
+          objectId: stored?.objectId,
+        },
+        app,
+      );
+    } catch {
+      // Best-effort: keep stored identity if sidecar isn't ready yet.
+      const key = `${app.id}:${app.clientId}:${app.tenantId}`;
+
+      if (tauriSyncRetryKey !== key) {
+        tauriSyncRetryKey = key;
+        tauriSyncRetryAttempts = 0;
+      }
+
+      if (tauriSyncRetryAttempts >= 5) return;
+
+      if (tauriSyncRetryTimer) clearTimeout(tauriSyncRetryTimer);
+
+      const delay = Math.min(1000 * 2 ** tauriSyncRetryAttempts, 8000);
+      tauriSyncRetryAttempts += 1;
+
+      tauriSyncRetryTimer = setTimeout(() => {
+        if (!isTauriMode()) return;
+        if (!appRegistry.ready) return;
+        const activeApp = appRegistry.activeApp;
+        const activeKey = activeApp ? `${activeApp.id}:${activeApp.clientId}:${activeApp.tenantId}` : 'none';
+        if (activeKey !== key) return;
+        void syncTauriUserForApp(activeApp ?? null);
+      }, delay);
+    }
+  }
+
+  $effect(() => {
+    // Skip during SSR
+    if (typeof window === 'undefined') return;
+    if (!isTauriMode()) return;
+    if (!appRegistry.ready) return;
+
+    const activeApp = appRegistry.activeApp;
+    const key = activeApp ? `${activeApp.id}:${activeApp.clientId}:${activeApp.tenantId}` : 'none';
+    if (key === lastTauriSyncKey) return;
+    lastTauriSyncKey = key;
+
+    void syncTauriUserForApp(activeApp ?? null);
+  });
+
+  $effect(() => {
+    // Skip during SSR
+    if (typeof window === 'undefined') return;
+    if (!isTauriMode()) return;
+    if (!appRegistry.ready) return;
+
+    const activeApp = appRegistry.activeApp;
+    const user = $tauriUser;
+
+    if (!activeApp || !user) {
+      lastTauriPhotoKey = null;
+      setTauriPhotoUrl(null);
+      return;
+    }
+
+    const key = `${activeApp.id}:${user.homeAccountId ?? user.username}:${$tauriUserRevision}`;
+    if (key === lastTauriPhotoKey) return;
+    lastTauriPhotoKey = key;
+
+    void loadTauriProfile(activeApp);
+  });
+
+  onDestroy(() => {
+    if (tauriPhotoObjectUrl) {
+      URL.revokeObjectURL(tauriPhotoObjectUrl);
+    }
+    if (tauriSyncRetryTimer) {
+      clearTimeout(tauriSyncRetryTimer);
+      tauriSyncRetryTimer = null;
+    }
+  });
+
   // ... (effects and handlers remain unchanged)
   
   // Need to splice the handle handlers back in as this tool replaces a block
   $effect(() => {
     // Skip during SSR
     if (typeof window === 'undefined') return;
+    if (isTauriMode()) return;
     
     // Wait for registry to be ready
     if (!appRegistry.ready) return;
@@ -169,12 +501,93 @@
     }
   });
 
-  function handleLogin() {
+  async function handleLogin() {
+    if (isTauriMode()) {
+      if (!appRegistry.activeApp) {
+        toast.warning('Connect a client app to sign in');
+        return;
+      }
+
+      try {
+        const { acquireUserToken } = await import('$lib/services/tauri-api');
+        const prompt = identityPreference.shouldAskEveryTime ? 'select_account' : undefined;
+        const response = await acquireUserToken(
+          appRegistry.activeApp.clientId,
+          appRegistry.activeApp.tenantId,
+          ['openid', 'profile', 'offline_access', 'User.Read'],
+          prompt,
+          $tauriUser?.homeAccountId,
+        );
+
+        if (response.account) {
+          const currentIdentity = $tauriUser
+            ? { homeAccountId: $tauriUser.homeAccountId, username: $tauriUser.username }
+            : null;
+          const nextIdentity = {
+            homeAccountId: response.account.homeAccountId,
+            username: response.account.username,
+          };
+
+          if (currentIdentity && !isSameTauriIdentity(currentIdentity, nextIdentity)) {
+            setTauriPhotoUrl(null);
+          }
+          setTauriUser(response.account, appRegistry.activeApp);
+          void loadTauriProfile(appRegistry.activeApp, response.accessToken, response.account);
+          toast.success('Signed in');
+        }
+      } catch (err: any) {
+        const message = err?.message ?? 'Sign-in failed';
+        if (message === 'Sign-in was cancelled') {
+          toast.warning('Sign-in was cancelled');
+        } else {
+          toast.error(message);
+        }
+      }
+      return;
+    }
+
     authService?.login();
   }
 
-  function handleLogout() {
+  async function handleLogout() {
+    if (isTauriMode()) {
+      const activeApp = appRegistry.activeApp;
+      try {
+        if (activeApp) {
+          const { clearUserCache, getUserAccounts } = await import('$lib/services/tauri-api');
+          await clearUserCache(activeApp.clientId, activeApp.tenantId);
+        }
+      } catch (err: any) {
+        // If cache clear failed, double-check whether the account list is actually empty.
+        // This avoids misleading "failed" toasts when the sidecar completed the operation
+        // but the transport reported a spurious error (e.g. missing JSON-RPC result field).
+        let shouldToast = true;
+        try {
+          if (activeApp) {
+            const { getUserAccounts } = await import('$lib/services/tauri-api');
+            const accounts = await getUserAccounts(activeApp.clientId, activeApp.tenantId);
+            shouldToast = accounts.length > 0;
+          } else {
+            shouldToast = false;
+          }
+        } catch {
+          // If we can't verify, fall back to surfacing the error.
+          shouldToast = true;
+        }
+
+        if (shouldToast) {
+          const message = (typeof err === 'string' ? err : err?.message) ?? 'Failed to sign out';
+          toast.error(message);
+        }
+      } finally {
+        clearTauriUser(activeApp?.id);
+        setTauriPhotoUrl(null);
+      }
+      return;
+    }
+
     authService?.logout();
+    clearTauriUser();
   }
 
   function handleAddApp() {
@@ -200,6 +613,12 @@
       <p class="text-sm text-muted-foreground">{!isFreChecked ? 'Initializing...' : 'Loading application...'}</p>
     </div>
   </div>
+{:else if sidecarErrorCode === 'NODE_NOT_FOUND'}
+  <NodeMissingError 
+    error={sidecarError ?? 'Node.js not found'} 
+    onRetry={handleSidecarRetry} 
+    retrying={sidecarRetrying} 
+  />
 {:else if freOpen}
   <div class="flex h-screen w-full items-center justify-center bg-background">
      <!-- Empty container to block view, dialog will float above -->
@@ -260,7 +679,7 @@
               class="mt-0.5 h-4 w-4 rounded border-border text-primary focus:ring-primary focus:ring-offset-background"
             />
             <span class="text-sm text-foreground leading-tight">
-              I will use this tool <strong>responsibly</strong> and understand that all data is stored locally in my browser's storage.
+              I will use this tool <strong>responsibly</strong> and understand that all data is stored locally in my application storage.
             </span>
           </label>
 
@@ -296,19 +715,35 @@
     {/snippet}
   </ConfirmDialog>
 {:else}
-  <SidebarProvider>
-    <AppFormDialog bind:open={addAppDialogOpen} onOpenChange={(v: boolean) => addAppDialogOpen = v} />
-    <AppSidebar />
-    <SidebarInset class="min-h-screen bg-background/80">
-      <AppHeader user={$auth.user} onLogout={handleLogout} onLogin={handleLogin} onAddApp={handleAddApp} photoUrl={$auth.photoUrl} />
-
-      <div class="flex flex-1 flex-col gap-6 p-6 pt-2">
-        <div class="mx-auto w-full max-w-6xl space-y-6">
-          {@render children()}
-        </div>
+  {#if isAuthCallbackRoute}
+    <div class="flex min-h-screen flex-col bg-background/80">
+      <div class="mx-auto flex w-full max-w-6xl flex-1 items-center justify-center px-6 py-10">
+        {@render children()}
       </div>
       <AppFooter />
-    </SidebarInset>
-    <TokenDock />
-  </SidebarProvider>
+    </div>
+  {:else}
+    <SidebarProvider>
+      <AppFormDialog bind:open={addAppDialogOpen} onOpenChange={(v: boolean) => addAppDialogOpen = v} />
+      <AppSidebar />
+      <SidebarInset class="min-h-screen bg-background/80">
+        <AppHeader 
+          user={isTauriMode() && $tauriUser ? { username: $tauriUser.username, name: $tauriUser.name, tenantId: $tauriUser.tenantId, homeAccountId: $tauriUser.homeAccountId || '' } as any : $auth.user} 
+          onLogout={handleLogout} 
+          onLogin={handleLogin} 
+          onAddApp={handleAddApp} 
+          photoUrl={$auth.photoUrl} 
+        />
+        <UpdateBanner />
+
+        <div class="flex flex-1 flex-col gap-6 p-6 pt-2">
+          <div class="mx-auto w-full max-w-6xl space-y-6">
+            {@render children()}
+          </div>
+        </div>
+        <AppFooter />
+      </SidebarInset>
+      <TokenDock />
+    </SidebarProvider>
+  {/if}
 {/if}

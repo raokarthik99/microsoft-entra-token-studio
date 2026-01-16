@@ -9,9 +9,15 @@ export class TokenDockState {
   context = $state<{ type?: HistoryItem['type']; target?: string } | null>(null);
   isFullScreen = $state(false);
 
+  private previousState = $state<{ token: HistoryItem | null; context: any } | null>(null);
+
   setLoading(context?: Partial<Pick<HistoryItem, 'type' | 'target'>>) {
+    // Preserve current state so we can restore it on cancel
+    this.previousState = { token: this.token, context: this.context };
+    
     this.status = 'loading';
     this.error = null;
+    this.token = null; // Clear token during loading to avoid stale UI
     this.context = context ?? this.context;
   }
 
@@ -20,6 +26,7 @@ export class TokenDockState {
     this.context = { type: item.type, target: item.target };
     this.error = null;
     this.status = 'ready';
+    this.previousState = null; // Success, clear stash
   }
 
   setError(message: string) {
@@ -27,14 +34,29 @@ export class TokenDockState {
     this.status = 'error';
   }
 
+  cancel() {
+    if (this.status === 'loading') {
+      if (this.previousState) {
+        this.token = this.previousState.token;
+        this.context = this.previousState.context;
+        this.status = this.token ? 'ready' : 'idle';
+      } else {
+        this.status = 'idle';
+      }
+      this.previousState = null;
+    }
+  }
+
   clearLoading() {
     if (this.status === 'loading') {
       this.status = this.token ? 'ready' : 'idle';
+      this.previousState = null;
     }
   }
 
   setIdle() {
     this.status = this.token ? 'ready' : 'idle';
+    this.previousState = null;
   }
 
   openFullScreen() {

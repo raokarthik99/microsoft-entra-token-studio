@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import * as Card from "$lib/shadcn/components/ui/card";
   import { Button } from "$lib/shadcn/components/ui/button";
   import { Label } from "$lib/shadcn/components/ui/label";
@@ -19,7 +20,10 @@ import { appRegistry } from '$lib/states/app-registry.svelte';
   import type { ImportPreview } from '$lib/types';
   import { Loader2, Download, Upload, FileJson, Clock3, Star } from "@lucide/svelte";
   import ConfirmDialog from "$lib/components/confirm-dialog.svelte";
-  import { Cloud, LayoutGrid, Settings2, AlertTriangle } from "@lucide/svelte";
+  import { Cloud, LayoutGrid, Settings2, AlertTriangle, RefreshCw } from "@lucide/svelte";
+  import { tauriUser, clearTauriUser } from '$lib/states/tauri-user';
+  import { isTauriMode } from '$lib/utils/runtime';
+  import { updaterState } from '$lib/stores/updater.svelte';
 
   function getInitials(name: string) {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
@@ -69,7 +73,8 @@ import { appRegistry } from '$lib/states/app-registry.svelte';
     deletePreviewCounts.historyCount > 0 ||
     deletePreviewCounts.favoritesCount > 0 ||
     deletePreviewCounts.appsCount > 0 ||
-    deletePreviewCounts.isAuthenticated
+    deletePreviewCounts.isAuthenticated ||
+    (isTauriMode() && $tauriUser)
   );
 
   function handleExport() {
@@ -163,6 +168,18 @@ import { appRegistry } from '$lib/states/app-registry.svelte';
       service.clearCachedAccounts();
     }
     auth.reset();
+    // Also clear Tauri user state + sidecar caches
+    if (isTauriMode()) {
+      try {
+        const { clearUserCache } = await import('$lib/services/tauri-api');
+        await Promise.all(
+          appRegistry.apps.map((app) => clearUserCache(app.clientId, app.tenantId)),
+        );
+      } catch (err) {
+        // Silently ignore
+      }
+    }
+    clearTauriUser();
 
     // Clear app storage
     await clientStorage.clearAll();
@@ -180,8 +197,13 @@ import { appRegistry } from '$lib/states/app-registry.svelte';
       const service = $authServiceStore;
       if (service) {
         service.clearCachedAccounts();
-        toast.success('Cached identity cleared');
       }
+      if (isTauriMode() && appRegistry.activeApp) {
+        const { clearUserCache } = await import('$lib/services/tauri-api');
+        await clearUserCache(appRegistry.activeApp.clientId, appRegistry.activeApp.tenantId);
+        clearTauriUser(appRegistry.activeApp.id);
+      }
+      toast.success('Cached identity cleared');
     };
     confirmOpen = true;
   }
@@ -197,8 +219,27 @@ import { appRegistry } from '$lib/states/app-registry.svelte';
 
   // Get the app used for sign-in
   const signedInApp = $derived(
-    $auth.signedInAppId ? appRegistry.getById($auth.signedInAppId) : null
+    $auth.signedInAppId
+      ? appRegistry.getById($auth.signedInAppId)
+      : (isTauriMode() && $tauriUser ? appRegistry.activeApp : null)
   );
+
+  const objectId = $derived(
+    (($auth.user as any)?.localAccountId as string | undefined) || $tauriUser?.objectId
+  );
+
+  let authStorageStatus = $state<{ encrypted: boolean; cacheDir: string; keySource: 'keyring' | 'file' | 'none' | 'unknown' } | null>(null);
+
+  onMount(async () => {
+    if (!isTauriMode()) return;
+    try {
+      const { getAuthStorageStatus } = await import('$lib/services/tauri-api');
+      authStorageStatus = await getAuthStorageStatus();
+    } catch (err) {
+      console.error('Failed to get auth storage status:', err);
+      authStorageStatus = null;
+    }
+  });
 </script>
 
 <svelte:head>
@@ -214,20 +255,23 @@ import { appRegistry } from '$lib/states/app-registry.svelte';
         <Card.Description>Your authenticated session details.</Card.Description>
       </Card.Header>
       <Card.Content class="space-y-5">
-        {#if $auth.isAuthenticated}
+        {#if $auth.isAuthenticated || (isTauriMode() && $tauriUser)}
+          {@const user = $auth.user || $tauriUser}
           <div class="flex items-center gap-4 rounded-xl border bg-muted/30 p-4">
             <Avatar class="h-16 w-16 border border-border/50">
-              <AvatarImage src={$auth.photoUrl || ""} alt={$auth.user?.name} />
+              <AvatarImage src={$auth.photoUrl || ""} alt={user?.name} />
               <AvatarFallback class="bg-primary/10 text-xl text-primary font-medium">
-                {getInitials($auth.user?.name || 'User')}
+                {getInitials(user?.name || 'User')}
               </AvatarFallback>
             </Avatar>
             <div class="space-y-1.5">
-              <h3 class="text-lg font-semibold">{$auth.user?.name}</h3>
-              <p class="text-sm text-muted-foreground">{$auth.user?.username}</p>
+              <h3 class="text-lg font-semibold">{user?.name}</h3>
+              <p class="text-sm text-muted-foreground">{user?.username}</p>
               <div class="flex flex-col gap-1 text-xs text-muted-foreground">
-                <span class="font-mono">Tenant ID: {$auth.user?.tenantId}</span>
-                <span class="font-mono">Object ID: {$auth.user?.localAccountId}</span>
+                <span class="font-mono">Tenant ID: {user?.tenantId}</span>
+                {#if objectId}
+                  <span class="font-mono">Object ID: {objectId}</span>
+                {/if}
                 {#if signedInApp}
                   <div class="flex items-center gap-1.5 pt-0.5">
                     <span class="h-2 w-2 rounded-full" style="background-color: {signedInApp.color}"></span>
@@ -261,6 +305,32 @@ import { appRegistry } from '$lib/states/app-registry.svelte';
         <Card.Description>Control how the app handles sign-in for user tokens.</Card.Description>
       </Card.Header>
       <Card.Content class="space-y-5">
+        {#if isTauriMode()}
+          <div class="flex items-center justify-between gap-4 rounded-xl border bg-muted/30 p-4">
+            <div class="space-y-1">
+              <Label>Token storage encryption</Label>
+              <p class="text-sm text-muted-foreground">Shows how your sign-in tokens are securely protected on this device.</p>
+            </div>
+            {#if authStorageStatus}
+              <Badge variant={authStorageStatus.encrypted ? "default" : "secondary"}>
+                {#if authStorageStatus.encrypted}
+                  {#if authStorageStatus.keySource === 'keyring'}
+                    Encrypted (OS keychain)
+                  {:else if authStorageStatus.keySource === 'file'}
+                    Encrypted (local key file)
+                  {:else}
+                    Encrypted
+                  {/if}
+                {:else}
+                  Not encrypted
+                {/if}
+              </Badge>
+            {:else}
+              <Badge variant="secondary">Unknown</Badge>
+            {/if}
+          </div>
+        {/if}
+
         <div class="flex items-center justify-between gap-4 rounded-xl border bg-muted/30 p-4">
           <div class="space-y-1">
             <Label>Identity behavior</Label>
@@ -277,11 +347,11 @@ import { appRegistry } from '$lib/states/app-registry.svelte';
           </Select.Root>
         </div>
 
-        {#if $auth.isAuthenticated}
+        {#if $auth.isAuthenticated || (isTauriMode() && $tauriUser)}
           <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-muted/30 p-4">
             <div class="space-y-1">
               <Label>Clear cached identity</Label>
-              <p class="text-sm text-muted-foreground">Sign out and remove cached account from this browser.</p>
+              <p class="text-sm text-muted-foreground">Sign out and remove cached account from this application.</p>
             </div>
             <Button variant="outline" onclick={clearCachedIdentity} class="gap-2">
               <LogOut class="h-4 w-4" />
@@ -318,6 +388,67 @@ import { appRegistry } from '$lib/states/app-registry.svelte';
     </Card.Root>
 
 
+
+    {#if isTauriMode()}
+      <Card.Root class="border bg-card/70 lg:col-span-2">
+        <Card.Header class="pb-2">
+          <Card.Title>Application Updates</Card.Title>
+          <Card.Description>Check for updates and manage your application version.</Card.Description>
+        </Card.Header>
+        <Card.Content class="space-y-5">
+          <div class="flex items-center justify-between gap-4 rounded-xl border bg-muted/30 p-4">
+            <div class="space-y-1">
+              <Label>Current Version</Label>
+              <p class="text-sm text-muted-foreground">
+                v{updaterState.version || 'Unknown'}
+              </p>
+            </div>
+            <div class="flex items-center gap-2">
+              {#if updaterState.error}
+                 <Badge variant="destructive">Update check failed</Badge>
+              {:else if updaterState.updateAvailable}
+                 <Badge variant="default" class="bg-green-600 text-white hover:bg-green-700">Update Available: v{updaterState.newVersion}</Badge>
+              {:else}
+                 <Badge variant="secondary">Latest</Badge>
+              {/if}
+              
+              <Button 
+                variant="outline" 
+                size="sm" 
+                class="gap-2"
+                onclick={() => updaterState.checkForUpdates(true)}
+                disabled={updaterState.checking || updaterState.downloading}
+              >
+                {#if updaterState.checking}
+                  <Loader2 class="h-3.5 w-3.5 animate-spin" />
+                  Checking...
+                {:else if updaterState.downloading}
+                  <Loader2 class="h-3.5 w-3.5 animate-spin" />
+                  Downloading...
+                {:else}
+                  <RefreshCw class="h-3.5 w-3.5" />
+                  Check for updates
+                {/if}
+              </Button>
+
+              {#if updaterState.updateAvailable && !updaterState.downloading}
+                 <Button 
+                   size="sm" 
+                   onclick={() => updaterState.installUpdate()}
+                 >
+                   Update Now
+                 </Button>
+              {/if}
+            </div>
+          </div>
+          {#if updaterState.error}
+            <p class="text-xs text-destructive">
+              Update error: {updaterState.error}
+            </p>
+          {/if}
+        </Card.Content>
+      </Card.Root>
+    {/if}
 
     <Card.Root class="border bg-card/70 lg:col-span-2">
       <Card.Header class="pb-2">
@@ -420,7 +551,7 @@ import { appRegistry } from '$lib/states/app-registry.svelte';
         <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-muted/30 p-4">
           <div class="space-y-1">
             <Label>Delete data</Label>
-            <p class="text-sm text-muted-foreground">Remove history, saved preferences, and sign out from this browser.</p>
+            <p class="text-sm text-muted-foreground">Remove history, saved preferences, and sign out from this application.</p>
           </div>
           <Button variant="destructive" onclick={clearAllData} class="gap-2">
             <Trash2 class="h-4 w-4" />
@@ -447,7 +578,7 @@ import { appRegistry } from '$lib/states/app-registry.svelte';
   >
     {#snippet descriptionContent()}
       <div class="space-y-4">
-        <p>This will permanently delete all local data and sign you out of this browser.</p>
+        <p>This will permanently delete all local data and sign you out of this application.</p>
         
         {#if hasAnyData}
           <div class="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 space-y-3">
@@ -555,7 +686,7 @@ import { appRegistry } from '$lib/states/app-registry.svelte';
               class="mt-0.5 h-4 w-4 rounded border-border text-primary focus:ring-primary focus:ring-offset-background"
             />
             <span class="text-sm text-foreground leading-tight">
-              I will <strong>delete the exported file immediately</strong> after importing it into a new device or browser.
+              I will <strong>delete the exported file immediately</strong> after importing it into a new device or application.
             </span>
           </label>
 

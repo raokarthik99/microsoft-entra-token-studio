@@ -3,13 +3,7 @@
   import type { Component } from 'svelte';
   import { cn } from '$lib/utils';
 
-  type $$Slots = {
-    default?: import('svelte').Snippet;
-    headerExtra?: import('svelte').Snippet;
-    footer?: import('svelte').Snippet;
-  };
-
-  interface Props {
+  export type Props = {
     open?: boolean;
     onOpenChange?: (open: boolean) => void;
     title: string;
@@ -25,34 +19,34 @@
     children?: import('svelte').Snippet;
     headerExtra?: import('svelte').Snippet;
     footer?: import('svelte').Snippet;
-  }
-
-  let {
-    open = $bindable(false),
-    onOpenChange,
-    title,
-    description = '',
-    icon = null,
-    eyebrow = '',
-    side = 'right' as Props['side'],
-    maxWidth = 'lg' as Props['maxWidth'],
-    bodyClass = '',
-    footerClass = '',
-    headerClass = '',
-    contentClass = '',
-    children,
-    headerExtra,
-    footer,
-  }: Props = $props();
-
-  const widthMap = {
-    sm: 'sm:max-w-md',
-    md: 'sm:max-w-xl',
-    lg: 'sm:max-w-2xl',
-    xl: 'sm:max-w-3xl',
   };
-  const widthClass = widthMap[maxWidth ?? 'md'] || 'sm:max-w-xl';
-</script>
+
+	  let {
+	    open = $bindable(false),
+	    onOpenChange,
+	    title,
+	    description = '',
+	    icon = null,
+	    eyebrow = '',
+	    side = 'right' as Props['side'],
+	    maxWidth = 'lg' as NonNullable<Props['maxWidth']>,
+	    bodyClass = '',
+	    footerClass = '',
+	    headerClass = '',
+	    contentClass = '',
+	    children,
+	    headerExtra,
+	    footer,
+	  }: Props = $props();
+
+	  const widthMap = {
+	    sm: 'sm:max-w-md',
+	    md: 'sm:max-w-xl',
+	    lg: 'sm:max-w-2xl',
+	    xl: 'sm:max-w-3xl',
+	  } as const;
+	  const widthClass = widthMap[maxWidth];
+	</script>
 
 <Sheet.Root bind:open onOpenChange={onOpenChange}>
   <Sheet.Content

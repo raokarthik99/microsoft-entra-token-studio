@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { CheckCircle2, AlertCircle, Circle, ChevronDown } from '@lucide/svelte';
+  import { ChevronDown } from '@lucide/svelte';
   import { slide } from 'svelte/transition';
 
   interface Props {
@@ -26,19 +26,16 @@
 
   const statusConfig = {
     pending: {
-      icon: Circle,
       iconClass: 'text-muted-foreground',
       stepClass: 'bg-muted text-muted-foreground',
       borderClass: 'border-border'
     },
     complete: {
-      icon: CheckCircle2,
       iconClass: 'text-emerald-500',
       stepClass: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
       borderClass: 'border-emerald-500/20'
     },
     error: {
-      icon: AlertCircle,
       iconClass: 'text-red-500',
       stepClass: 'bg-red-500/10 text-red-500 border-red-500/20',
       borderClass: 'border-red-500/20'
@@ -70,9 +67,6 @@
         <p class="text-xs text-muted-foreground truncate">{description}</p>
       {/if}
     </div>
-
-    <!-- Status Icon -->
-    <config.icon class="h-4 w-4 shrink-0 {config.iconClass}" />
 
     <!-- Collapse Toggle -->
     {#if collapsible}

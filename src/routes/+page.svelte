@@ -15,6 +15,9 @@
   import { time } from '$lib/stores/time';
   import { toast } from "svelte-sonner";
   import SuggestionsInput from "$lib/components/SuggestionsInput.svelte";
+  import KeyVaultErrorDisplay from "$lib/components/KeyVaultErrorDisplay.svelte";
+  import TruncatedText from "$lib/components/TruncatedText.svelte";
+  import FilterableAppSelect from "$lib/components/FilterableAppSelect.svelte";
 
   import { Button } from "$lib/shadcn/components/ui/button";
   import { Input } from "$lib/shadcn/components/ui/input";
@@ -63,8 +66,15 @@
     Zap,
     ExternalLink,
     ShieldAlert,
+    X,
+    KeyRound,
+    Shield,
+    Search,
   } from "@lucide/svelte";
   import { auth, authServiceStore } from '$lib/stores/auth';
+  import { tauriUser, setTauriUser } from '$lib/states/tauri-user';
+  import { isTauriMode } from '$lib/utils/runtime';
+  import { identityPreference } from '$lib/states/identity.svelte';
 
   type FlowTab = 'app-token' | 'user-token';
 
@@ -91,8 +101,8 @@
   let appHelpOpen = $state(false);
   let lastErrorSource: 'user-token' | 'app-token' | 'external' | null = $state(null);
 
-  // Derived state for active account
-  const activeAccount = $derived($auth.user);
+  // Derived state for active account (checks both msal-browser and Tauri sidecar auth)
+  const activeAccount = $derived($auth.user || (isTauriMode() ? $tauriUser : null));
 
 
   const decodedClaims = $derived(result ? parseJwt(result.accessToken) : null);
@@ -285,7 +295,7 @@
           await loadHistoryItem(pendingLoad);
           await clientStorage.remove(CLIENT_STORAGE_KEYS.pendingTokenLoad);
         } catch (e) {
-          console.error('Failed to load pending token', e);
+          // Silently ignore
         }
       }
 
@@ -340,7 +350,6 @@
         
         window.history.replaceState({}, document.title, window.location.pathname);
       } catch (e) {
-        console.error('Failed to parse token', e);
         error = 'Failed to parse token from URL';
         lastErrorSource = 'external';
         tokenDockState.setError('Failed to parse token from URL');
@@ -369,55 +378,48 @@
     tokenDockState.setLoading({ type: 'App Token', target: resourceInput });
 
     try {
-      const res = await fetch('/api/token/app', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          appConfig: {
-            clientId: appRegistry.activeApp.clientId,
-            tenantId: appRegistry.activeApp.tenantId,
-            keyVault: appRegistry.activeApp.keyVault,
-          },
-          resource: resourceInput,
-        }),
-      });
-      const data = await res.json();
-      
-      if (res.ok) {
-        result = data;
-        const issuedAt = Date.now();
-        const historyItem: HistoryItem = {
-          type: 'App Token',
-          target: resourceInput,
-          timestamp: issuedAt,
-          tokenData: JSON.parse(JSON.stringify(data)),
-          // App context for multi-app support
-          appId: appRegistry.activeApp?.id,
-          appName: appRegistry.activeApp?.name,
-          appColor: appRegistry.activeApp?.color,
-        };
-        if (appRegistry.activeApp) {
-          void appRegistry.markUsed(appRegistry.activeApp.id);
-        }
-        await addToHistory(historyItem);
-        tokenDockState.setToken(historyItem);
-        // Sync favorite's token data if this target is already favorited
-        await favoritesState.updateTokenData(historyItem.type, historyItem.target, historyItem.tokenData);
-        toast.success("App token acquired successfully");
-      } else {
-        const errorMsg = data.details ? `${data.error}: ${data.details}` : data.error || 'Failed to fetch token';
-        error = errorMsg;
-        lastErrorSource = 'app-token';
-        tokenDockState.setError(errorMsg);
-        toast.error(errorMsg);
-        if (data.setupRequired) {
-          await goto('/apps?from=playground');
-        }
+      const { acquireAppToken } = await import('$lib/services/tauri-api');
+      const data = await acquireAppToken(
+        {
+          clientId: appRegistry.activeApp.clientId,
+          tenantId: appRegistry.activeApp.tenantId,
+          keyVault: appRegistry.activeApp.keyVault,
+        },
+        resourceInput,
+      );
+
+      // Check if cancelled during wait
+      if (tokenDockState.status !== 'loading') return;
+
+      result = data;
+      const issuedAt = Date.now();
+      const historyItem: HistoryItem = {
+        type: 'App Token',
+        target: resourceInput,
+        timestamp: issuedAt,
+        tokenData: JSON.parse(JSON.stringify(data)),
+        // App context for multi-app support
+        appId: appRegistry.activeApp?.id,
+        appName: appRegistry.activeApp?.name,
+        appColor: appRegistry.activeApp?.color,
+      };
+      if (appRegistry.activeApp) {
+        void appRegistry.markUsed(appRegistry.activeApp.id);
       }
+      await addToHistory(historyItem);
+      tokenDockState.setToken(historyItem);
+      // Sync favorite's token data if this target is already favorited
+      await favoritesState.updateTokenData(historyItem.type, historyItem.target, historyItem.tokenData);
+      toast.success("App token acquired successfully");
     } catch (err: any) {
-      error = err.message;
+      const message = err?.message ?? 'Failed to acquire token';
+      error = message;
       lastErrorSource = 'app-token';
-      tokenDockState.setError(err.message);
+      tokenDockState.setError(message);
+      toast.error(message);
+      if (err?.setupRequired) {
+        await goto('/apps?from=playground');
+      }
     } finally {
       loading = false;
     }
@@ -426,6 +428,10 @@
   async function handleUserSubmit(forceSwitch: boolean = false) {
     if (!ensureSetupReady()) return;
     if (!scopesInput) return;
+    if (!appRegistry.activeApp) {
+      toast.error('No active app configured');
+      return;
+    }
     await clientStorage.set(CLIENT_STORAGE_KEYS.activeTab, 'user-token');
     loading = true;
     error = null;
@@ -434,21 +440,64 @@
     tokenDockState.setLoading({ type: 'User Token', target: scopesInput });
 
     try {
-      const service = $authServiceStore;
-      if (!service) throw new Error('Auth service not initialized');
-      
       const scopeArray = scopesInput.split(/[ ,]+/).filter(Boolean);
-      // getToken handles unauthenticated users automatically (prompts sign-in)
-      // If forceSwitch is true, we force an interactive prompt to allow switching accounts
-      const options = forceSwitch 
-        ? { forceInteraction: true, prompt: 'select_account' as const }
-        : {}; // Don't pass forceInteraction: false, let getToken decide
-      const tokenResponse = await service.getToken(scopeArray, options);
+      let tokenResponse: { accessToken: string; tokenType: string; expiresOn?: Date | string; scopes?: string[] };
+
+      if (isTauriMode()) {
+        // Tauri mode: Use sidecar with msal-node (opens system browser)
+        const { acquireUserToken } = await import('$lib/services/tauri-api');
+        const prompt =
+          forceSwitch || identityPreference.shouldAskEveryTime
+            ? 'select_account'
+            : undefined;
+        const response = await acquireUserToken(
+          appRegistry.activeApp.clientId,
+          appRegistry.activeApp.tenantId,
+          scopeArray,
+          prompt,
+          $tauriUser?.homeAccountId,
+        );
+        tokenResponse = {
+          accessToken: response.accessToken,
+          tokenType: response.tokenType || 'Bearer',
+          expiresOn: response.expiresOn,
+          scopes: response.scopes,
+        };
+
+        // Check if cancelled during wait
+        if (tokenDockState.status !== 'loading') return;
+
+        // Update desktop session metadata for UI display (no tokens persisted)
+        if (response.account) {
+          setTauriUser(response.account, appRegistry.activeApp);
+        }
+      } else {
+        // Web mode: Use msal-browser with popup
+        const service = $authServiceStore;
+        if (!service) throw new Error('Auth service not initialized');
+        
+        const options =
+          forceSwitch || identityPreference.shouldAskEveryTime
+            ? { forceInteraction: true, prompt: 'select_account' as const }
+            : {};
+        const msalResponse = await service.getToken(scopeArray, options);
+        tokenResponse = {
+          accessToken: msalResponse.accessToken,
+          tokenType: msalResponse.tokenType,
+          expiresOn: msalResponse.expiresOn,
+          scopes: msalResponse.scopes,
+        };
+      }
       
+      // Check if cancelled during wait
+      if (tokenDockState.status !== 'loading') return;
+
       result = {
         accessToken: tokenResponse.accessToken,
         tokenType: tokenResponse.tokenType,
-        expiresOn: tokenResponse.expiresOn?.toISOString(),
+        expiresOn: tokenResponse.expiresOn instanceof Date 
+          ? tokenResponse.expiresOn.toISOString() 
+          : tokenResponse.expiresOn,
         scopes: tokenResponse.scopes,
       };
       
@@ -458,7 +507,6 @@
         target: scopesInput,
         timestamp: issuedAt,
         tokenData: JSON.parse(JSON.stringify(result!)),
-        // App context for multi-app support
         appId: appRegistry.activeApp?.id,
         appName: appRegistry.activeApp?.name,
         appColor: appRegistry.activeApp?.color,
@@ -469,13 +517,10 @@
       }
       await addToHistory(historyItem);
       tokenDockState.setToken(historyItem);
-      // Sync favorite's token data if this target is already favorited
       await favoritesState.updateTokenData(historyItem.type, historyItem.target, historyItem.tokenData);
       toast.success("User token acquired successfully");
     } catch (err: any) {
-      console.error('Token acquisition failed', err);
       const message = err?.message ?? 'Failed to acquire token';
-      // Don't show error toast for cancelled sign-in
       if (message !== 'Sign-in was cancelled') {
         error = message;
         lastErrorSource = 'user-token';
@@ -516,7 +561,6 @@
       toast.success("Copied to clipboard");
       setTimeout(() => copied = false, 2000);
     } catch (err) {
-      console.error('Failed to copy', err);
       toast.error("Failed to copy to clipboard");
     }
   }
@@ -598,7 +642,6 @@
       await favoritesState.load();
       toast.success(favoritePinMode ? 'Pinned and added to favorites' : 'Added to favorites');
     } catch (err) {
-      console.error('Failed to add favorite', err);
       toast.error('Could not add to favorites');
     } finally {
       favoriteDraft = null;
@@ -788,61 +831,15 @@
           <Label class="text-sm font-medium text-foreground">Active Client App</Label>
           <p class="text-xs text-muted-foreground">Select the client app to use for generating tokens to access other apps and resources.</p>
         </div>
-        <!-- Interactive App Selector Dropdown -->
-        <DropdownMenu.Root>
-          <DropdownMenu.Trigger>
-            <button 
-              type="button"
-              class="inline-flex items-center gap-3 rounded-lg border bg-gradient-to-r from-primary/5 to-transparent px-3 py-2 hover:bg-muted/50 transition-colors cursor-pointer"
-            >
-              <div 
-                class="w-2.5 h-2.5 rounded-full shrink-0"
-                style="background-color: {appRegistry.activeApp.color || APP_COLORS[0]}"
-              ></div>
-              <div class="flex items-center gap-2">
-                <span class="font-medium text-foreground">{appRegistry.activeApp.name}</span>
-                <span class="text-muted-foreground">·</span>
-                <code class="font-mono text-[10px] text-muted-foreground">{appRegistry.activeApp.clientId.slice(0, 8)}...</code>
-              </div>
-              <div class="flex items-center gap-1.5 text-muted-foreground">
-                <Cloud class="h-3 w-3" />
-                <span class="text-[10px]">{appRegistry.activeApp.keyVault.uri.replace('https://', '').replace('.vault.azure.net', '')}</span>
-              </div>
-              <ChevronDown class="h-3.5 w-3.5 shrink-0 opacity-50" />
-            </button>
-          </DropdownMenu.Trigger>
-          <DropdownMenu.Content align="start" class="w-[220px]">
-            <DropdownMenu.Group>
-              <DropdownMenu.Label class="text-xs text-muted-foreground">Switch app</DropdownMenu.Label>
-              {#each appRegistry.apps as app (app.id)}
-                <DropdownMenu.Item 
-                  class="flex items-center justify-between gap-2 cursor-pointer"
-                  onclick={() => handleSelectApp(app.id)}
-                >
-                  <div class="flex items-center gap-2 min-w-0">
-                    <div 
-                      class="w-2.5 h-2.5 rounded-full shrink-0" 
-                      style="background-color: {app.color || APP_COLORS[0]}"
-                    ></div>
-                    <span class="truncate">{app.name}</span>
-                  </div>
-                  {#if app.id === appRegistry.activeAppId}
-                    <Check class="h-4 w-4 shrink-0 text-primary" />
-                  {/if}
-                </DropdownMenu.Item>
-              {/each}
-            </DropdownMenu.Group>
-            <DropdownMenu.Separator />
-            <DropdownMenu.Item class="cursor-pointer gap-2" onclick={openAppDialog}>
-              <Plus class="h-4 w-4" />
-              Connect client app...
-            </DropdownMenu.Item>
-            <DropdownMenu.Item class="cursor-pointer gap-2" onclick={navigateToApps}>
-              <Settings class="h-4 w-4" />
-              Manage apps
-            </DropdownMenu.Item>
-          </DropdownMenu.Content>
-        </DropdownMenu.Root>
+        <!-- Filterable App Selector -->
+        <FilterableAppSelect
+          width="600px"
+          align="start"
+          variant="default"
+          onSelectApp={handleSelectApp}
+          onAddApp={openAppDialog}
+          onManageApps={navigateToApps}
+        />
       {:else if !appRegistry.hasApps}
         <!-- Compact Empty State -->
         <div class="w-full rounded-lg border border-dashed border-muted-foreground/30 bg-muted/30 px-4 py-3">
@@ -1115,15 +1112,28 @@
                     {/if}
                   </div>
 
-                  <Button type="submit" class="w-full gap-2" disabled={loading}>
+                  <div class="flex gap-2">
+                    <Button type="submit" class="flex-1 gap-2" disabled={loading}>
+                      {#if loading}
+                        <Loader2 class="h-4 w-4 animate-spin" />
+                        {switchingAccount ? 'Switching account...' : 'Acquiring token...'}
+                      {:else}
+                        <Play class="h-4 w-4" />
+                        <span>Issue token</span>
+                      {/if}
+                    </Button>
                     {#if loading}
-                      <Loader2 class="h-4 w-4 animate-spin" />
-                      {switchingAccount ? 'Switching account...' : 'Acquiring token...'}
-                    {:else}
-                      <Play class="h-4 w-4" />
-                      <span>Issue token</span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        class="gap-2"
+                        onclick={() => { tokenDockState.cancel(); loading = false; switchingAccount = false; }}
+                      >
+                        <X class="h-4 w-4" />
+                        Cancel
+                      </Button>
                     {/if}
-                  </Button>
+                  </div>
                 </form>
               </Card.Content>
             </Card.Root>
@@ -1357,17 +1367,30 @@
                   </Collapsible.Root>
 
                   <div class="rounded-lg border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-                    Tokens are issued via your confidential client credentials and stay in the browser unless you copy them.
+                    Tokens are issued via your confidential client credentials and stay locally unless you copy them.
                   </div>
-                  <Button type="submit" class="w-full gap-2" disabled={loading}>
+                  <div class="flex gap-2">
+                    <Button type="submit" class="flex-1 gap-2" disabled={loading}>
+                      {#if loading}
+                        <Loader2 class="h-4 w-4 animate-spin" />
+                        Processing...
+                      {:else}
+                        <Play class="h-4 w-4" />
+                        <span>Issue token</span>
+                      {/if}
+                    </Button>
                     {#if loading}
-                      <Loader2 class="h-4 w-4 animate-spin" />
-                      Processing...
-                    {:else}
-                      <Play class="h-4 w-4" />
-                      <span>Issue token</span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        class="gap-2"
+                        onclick={() => { tokenDockState.cancel(); loading = false; }}
+                      >
+                        <X class="h-4 w-4" />
+                        Cancel
+                      </Button>
                     {/if}
-                  </Button>
+                  </div>
                 </form>
               </Card.Content>
             </Card.Root>
@@ -1472,31 +1495,43 @@
 
           <Card.Content class="space-y-5 pt-2">
             {#if error}
-              <div class="space-y-3 rounded-xl border border-destructive/40 bg-destructive/10 p-5 text-destructive">
-                <div class="flex flex-wrap items-center justify-between gap-3">
-                  <div class="flex items-center gap-2 font-semibold">
-                    <AlertTriangle class="h-4 w-4" />
-                    Token request failed
-                  </div>
-                  <div class="flex items-center gap-2">
-                    <Button size="sm" variant="ghost" class="h-9 px-3 hover:bg-destructive/20" onclick={() => copyToClipboard(error || '')} title="Copy error message">
-                      <Copy class="h-4 w-4" />
-                      Copy error
-                    </Button>
-                    <Button size="sm" variant="secondary" onclick={requestResetAll} title="Clear inputs and try again">Clear inputs</Button>
-                  </div>
+              <KeyVaultErrorDisplay 
+                error={error} 
+                onCopy={() => toast.success('Error copied to clipboard')}
+                onClear={requestResetAll}
+              />
+            {:else if tokenDockState.status === 'loading'}
+              <div class="flex flex-col items-center justify-center gap-4 rounded-xl border border-primary/30 bg-primary/5 py-16 text-center">
+                <div class="mb-2 rounded-full bg-primary/10 p-4">
+                  <Loader2 class="h-8 w-8 text-primary animate-spin" />
                 </div>
-                <p class="text-sm leading-relaxed break-all">{error}</p>
-                <div class="grid gap-2 text-xs text-destructive/80">
-                  <div class="flex items-center gap-2">
-                    <Info class="h-3.5 w-3.5" />
-                    Verify redirect URI matches your Entra app exactly (scheme/host/port/path).
-                  </div>
-                  <div class="flex items-center gap-2">
-                    <Info class="h-3.5 w-3.5" />
-                    Confirm scopes/resources are consented for this tenant and flow type.
-                  </div>
+                <div class="space-y-2">
+                  <h3 class="text-lg font-semibold text-foreground">Acquiring token...</h3>
+                  {#if tokenDockState.context?.type || tokenDockState.context?.target}
+                    <p class="text-sm text-muted-foreground max-w-sm">
+                      {#if tokenDockState.context?.type}
+                        <span class="font-medium">{tokenDockState.context.type}</span>
+                      {/if}
+                      {#if tokenDockState.context?.target}
+                        <span class="block mt-1 font-mono text-xs text-muted-foreground/80 truncate max-w-[280px]">
+                          {tokenDockState.context.target}
+                        </span>
+                      {/if}
+                    </p>
+                  {:else}
+                    <p class="text-sm text-muted-foreground">
+                      Please wait while we acquire your token...
+                    </p>
+                  {/if}
                 </div>
+                <Button
+                  variant="outline"
+                  class="gap-2 mt-2 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/50"
+                  onclick={() => { tokenDockState.cancel(); loading = false; }}
+                >
+                  <X class="h-4 w-4" />
+                  Cancel
+                </Button>
               </div>
             {:else if hasResult && result}
               <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">

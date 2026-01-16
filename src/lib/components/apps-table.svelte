@@ -5,7 +5,8 @@
   import * as Select from "$lib/shadcn/components/ui/select";
   import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "$lib/shadcn/components/ui/table";
   import * as Tooltip from "$lib/shadcn/components/ui/tooltip";
-  import { ArrowUpDown, ArrowUp, ArrowDown, Search, Filter, Cloud, Plus, KeyRound, Shield, Tags, Trash2 } from "@lucide/svelte";
+  import TruncatedText from "./TruncatedText.svelte";
+  import { ArrowUpDown, ArrowUp, ArrowDown, Search, Filter, Cloud, Plus, KeyRound, Shield, Tags, Trash2, CheckCircle2 } from "@lucide/svelte";
   import AppsTableActions from "./apps-table-actions.svelte";
 
   import { cn, getReadableExpiry } from "$lib/utils";
@@ -97,6 +98,8 @@
         row.app.clientId.toLowerCase().includes(query) ||
         row.app.tenantId.toLowerCase().includes(query) ||
         row.vaultName.toLowerCase().includes(query) ||
+        (row.app.keyVault.secretName?.toLowerCase().includes(query) ?? false) ||
+        (row.app.keyVault.certName?.toLowerCase().includes(query) ?? false) ||
         (row.app.description?.toLowerCase().includes(query) ?? false) ||
         (row.app.tags ?? []).some((tag) => tag.toLowerCase().includes(query));
 
@@ -210,24 +213,24 @@
 
 <div class="flex h-full flex-col space-y-3">
   {#if enableToolbar}
-    <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/40 p-3">
-      <div class="flex flex-1 flex-wrap items-center gap-2">
-        <div class="relative w-full min-w-[220px] max-w-sm">
+    <div class="flex flex-col gap-3 rounded-lg border bg-muted/40 p-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+      <div class="flex flex-1 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+        <div class="relative w-full sm:min-w-[200px] sm:max-w-sm">
           <Search class="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Search by name, client ID, or vault"
+            placeholder="Search by name, client ID, vault, or credential"
             bind:value={searchQuery}
             class="pl-9"
           />
         </div>
 
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
           <Select.Root
             type="single"
             value={credentialFilter}
             onValueChange={(value) => (credentialFilter = value as CredentialFilter)}
           >
-            <Select.Trigger class="w-[150px]">
+            <Select.Trigger class="w-full sm:w-[140px]">
               {credentialFilter === "all" ? "All credentials" : credentialFilter === "secret" ? "Secrets" : "Certificates"}
             </Select.Trigger>
             <Select.Content>
@@ -243,8 +246,8 @@
               value={tagFilter}
               onValueChange={(value) => (tagFilter = value as typeof tagFilter)}
             >
-              <Select.Trigger class="w-[170px]">
-                <div class="flex items-center gap-2">
+              <Select.Trigger class="w-full sm:w-[150px]">
+                <div class="flex items-center gap-2 min-w-0">
                   <Tags class="h-4 w-4" />
                   {tagFilter === "all" ? "All tags" : `Tag: ${tagFilter}`}
                 </div>
@@ -260,7 +263,7 @@
         </div>
       </div>
 
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         {#if enableSelection && onDeleteMany && selectedCount > 0}
           <Button
             variant="destructive"
@@ -269,22 +272,23 @@
             onclick={handleBulkDelete}
           >
             <Trash2 class="h-4 w-4" />
-            {`Disconnect ${selectedCount} selected`}
+            <span class="hidden sm:inline">Disconnect {selectedCount} selected</span>
+            <span class="sm:hidden">{selectedCount}</span>
           </Button>
         {/if}
         {#if isFiltered}
           <Button variant="ghost" size="sm" class="gap-2" onclick={resetFilters} title="Reset filters">
             <Filter class="h-4 w-4" />
-            Reset
+            <span class="hidden sm:inline">Reset</span>
           </Button>
         {/if}
-        <Badge variant="outline" class="text-xs font-normal">
+        <Badge variant="outline" class="text-xs font-normal whitespace-nowrap">
           {filteredRows.length} / {baseRows.length} apps
         </Badge>
         {#if onAdd}
           <Button size="sm" class="gap-2" onclick={onAdd}>
             <Plus class="h-4 w-4" />
-            Connect Client App
+            <span class="hidden sm:inline">Connect Client App</span>
           </Button>
         {/if}
       </div>
@@ -312,7 +316,7 @@
               </TableHead>
             {/if}
 
-            <TableHead>
+            <TableHead class="min-w-[160px] max-w-[280px]">
               <button
                 type="button"
                 class="flex items-center gap-1 text-xs font-semibold text-muted-foreground"
@@ -333,7 +337,7 @@
                 {/if}
               </button>
             </TableHead>
-            <TableHead class="w-[180px]">
+            <TableHead class="w-[180px] hidden lg:table-cell">
               <button
                 type="button"
                 class="flex items-center gap-1 text-xs font-semibold text-muted-foreground"
@@ -354,7 +358,7 @@
                 {/if}
               </button>
             </TableHead>
-            <TableHead class="w-[110px]">
+            <TableHead class="w-[110px] hidden xl:table-cell">
               <button
                 type="button"
                 class="flex items-center gap-1 text-xs font-semibold text-muted-foreground"
@@ -375,8 +379,8 @@
                 {/if}
               </button>
             </TableHead>
-            <TableHead class="w-[160px]">Key Vault</TableHead>
-            <TableHead class="w-[140px]">
+            <TableHead class="w-[160px] hidden 2xl:table-cell">Key Vault</TableHead>
+            <TableHead class="w-[140px] hidden md:table-cell">
               <button
                 type="button"
                 class="flex items-center gap-1 text-xs font-semibold text-muted-foreground"
@@ -440,9 +444,9 @@
               {@const isActive = row.app.id === activeAppId}
               <TableRow
                 class={cn(
-                  isActive ? "bg-primary/5 border-l-2 border-l-primary" : "border-l-2 border-l-transparent",
+                  isActive ? "bg-emerald-500/10 border-l-[3px] border-l-emerald-500 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.15)]" : "border-l-[3px] border-l-transparent",
                   selectedIds.has(row.app.id) ? "bg-muted/60" : "",
-                  "hover:bg-muted/50"
+                  "hover:bg-muted/50 transition-colors"
                 )}
               >
                 {#if enableSelection}
@@ -459,21 +463,49 @@
                   </TableCell>
                 {/if}
 
-                <TableCell class="align-middle">
-                  <div class="flex items-center gap-2 min-w-0">
+                <TableCell class="align-middle max-w-[320px]">
+                  <div class="flex items-start gap-2 min-w-0">
                     <span
-                      class="inline-block h-2.5 w-2.5 rounded-full border border-border/60 shrink-0"
+                      class="inline-block h-2.5 w-2.5 rounded-full border border-border/60 shrink-0 mt-1.5"
                       style={`background-color: ${row.app.color || '#10b981'}`}
                       aria-hidden="true"
-                      title={row.app.color || "App color"}
                     ></span>
-                    <span class="font-medium leading-tight truncate" title={row.app.name}>{row.app.name}</span>
+                    <div class="flex flex-col min-w-0 flex-1">
+                      <div class="flex items-center gap-2">
+                        <TruncatedText 
+                          text={row.app.name} 
+                          class="font-medium leading-tight max-w-[180px]"
+                        />
+                        {#if isActive}
+                          <Badge variant="outline" class="gap-1 text-[10px] font-semibold bg-emerald-500/15 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 shrink-0">
+                            <CheckCircle2 class="h-3 w-3" />
+                            ACTIVE
+                          </Badge>
+                        {/if}
+                      </div>
+                      <!-- Credential Identifier - helps distinguish multiple instances of same app -->
+                      <div class="flex items-center gap-1.5 mt-0.5 text-[11px] text-muted-foreground">
+                        {#if row.app.keyVault.credentialType === "certificate"}
+                          <Shield class="h-3 w-3 shrink-0" />
+                        {:else}
+                          <KeyRound class="h-3 w-3 shrink-0" />
+                        {/if}
+                        <span class="truncate max-w-[150px]" title={row.app.keyVault.secretName || row.app.keyVault.certName}>
+                          {row.app.keyVault.secretName || row.app.keyVault.certName}
+                        </span>
+                        <span class="text-muted-foreground/50">·</span>
+                        <span class="truncate max-w-[100px]" title={row.vaultName}>{row.vaultName}</span>
+                      </div>
+                      {#if row.app.description}
+                        <TruncatedText 
+                          text={row.app.description} 
+                          class="text-xs text-muted-foreground max-w-[220px] mt-0.5"
+                        />
+                      {/if}
+                    </div>
                   </div>
-                  {#if row.app.description}
-                    <p class="text-xs text-muted-foreground truncate max-w-[260px]">{row.app.description}</p>
-                  {/if}
                   {#if row.app.tags?.length}
-                    <div class="mt-1 flex items-center gap-1">
+                    <div class="mt-1 flex items-center gap-1 ml-4">
                       {#each row.app.tags.slice(0, 2) as tag}
                         <Badge variant="outline" class="text-[10px] font-medium max-w-[100px] truncate bg-primary/5 border-primary/20 text-primary" title={tag}>{tag}</Badge>
                       {/each}
@@ -495,10 +527,13 @@
                     </div>
                   {/if}
                 </TableCell>
-                <TableCell class="align-middle">
-                  <code class="font-mono text-xs text-muted-foreground truncate block" title={row.app.clientId}>{row.app.clientId}</code>
+                <TableCell class="align-middle hidden lg:table-cell">
+                  <TruncatedText 
+                    text={row.app.clientId} 
+                    class="font-mono text-xs text-muted-foreground max-w-[160px]"
+                  />
                 </TableCell>
-                <TableCell class="align-middle">
+                <TableCell class="align-middle hidden xl:table-cell">
                   <div class="flex flex-col gap-1 items-start">
                     <Badge variant="outline" class="gap-1.5 text-xs">
                       {#if row.app.keyVault.credentialType === "certificate"}
@@ -509,23 +544,31 @@
                         Secret
                       {/if}
                     </Badge>
-                    <span class="text-xs text-muted-foreground truncate max-w-[140px]" title={row.app.keyVault.secretName || row.app.keyVault.certName}>
-                      {row.app.keyVault.secretName || row.app.keyVault.certName}
-                    </span>
+                    <TruncatedText 
+                      text={row.app.keyVault.secretName || row.app.keyVault.certName || ''} 
+                      class="text-xs text-muted-foreground max-w-[140px]"
+                    />
                   </div>
                 </TableCell>
-                <TableCell class="align-middle">
-                  <div class="flex items-center gap-1.5 text-sm text-muted-foreground">
-                    <Cloud class="h-3.5 w-3.5" />
-                    <span class="truncate max-w-[160px]" title={row.app.keyVault.uri}>{row.vaultName}</span>
+                <TableCell class="align-middle hidden 2xl:table-cell">
+                  <div class="flex items-center gap-1.5 text-sm text-muted-foreground min-w-0">
+                    <Cloud class="h-3.5 w-3.5 shrink-0" />
+                    <TruncatedText 
+                      text={row.vaultName} 
+                      class="max-w-[120px]"
+                    >
+                      {#snippet tooltipContent()}
+                        <p class="break-all">{row.app.keyVault.uri}</p>
+                      {/snippet}
+                    </TruncatedText>
                   </div>
                 </TableCell>
-                <TableCell class="align-middle">
+                <TableCell class="align-middle hidden md:table-cell">
                   {#if row.lastUsedOn}
-                    <div class="text-sm font-medium leading-tight">{row.lastUsedOn.toLocaleString()}</div>
-                    <div class="text-xs text-muted-foreground">Used {row.lastUsedLabel}</div>
+                    <div class="text-xs font-medium leading-tight whitespace-nowrap">{row.lastUsedOn.toLocaleDateString()} {row.lastUsedOn.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                    <div class="text-[11px] text-muted-foreground">Used {row.lastUsedLabel}</div>
                   {:else}
-                    <span class="text-sm text-muted-foreground">Never</span>
+                    <span class="text-xs text-muted-foreground">Never</span>
                   {/if}
                 </TableCell>
                 <TableCell class="align-middle text-right pr-4">

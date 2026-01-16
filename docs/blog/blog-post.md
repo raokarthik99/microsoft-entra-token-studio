@@ -61,7 +61,7 @@ That distinction matters: **agents as build capital** (use them to create, then 
 
 ## What is Entra Token Studio?
 
-Entra Token Studio is a **local-first developer workbench** for Microsoft Entra tokens. It runs on your machine, speaks native Entra protocols, and makes the token lifecycle predictable: configure once, issue on demand, inspect thoroughly, save what works.
+Entra Token Studio is a **local-first developer workbench** for Microsoft Entra tokens. It runs on your machine—either as a web app via SvelteKit or as a native desktop app via Tauri—speaks native Entra protocols, and makes the token lifecycle predictable: configure once, issue on demand, inspect thoroughly, save what works.
 
 ![Entra Token Studio Overview](assets/about-page.png)
 
@@ -128,10 +128,19 @@ This split feels intuitive once you think about it: app tokens require credentia
 This design has constraints:
 
 - **Key Vault is required**—if your credentials live elsewhere, this tool won't help
-- **You need Azure CLI or VS Code Azure Account extension**—to connect to the aforementioned Key Vault
+- **You need Azure CLI**—to connect to the aforementioned Key Vault
 - **It's local-only by design**—no hosted deployment, no multi-tenancy
 
 These aren't accidental limitations. A hosted token-issuance service would require credential storage and access controls that introduce more problems than they solve. Keeping everything local sidesteps that complexity entirely.
+
+### Desktop App
+
+The tool also ships as an experimental **Tauri desktop app** with a Node.js sidecar. This provides:
+
+- **One-click launch** — No terminal commands, no waiting for Vite
+- **Native window** — Proper app icon, taskbar presence, Cmd+Tab/Alt+Tab friendly
+- **Auto-updates** — Checks for updates on startup and displays an in-app banner with one-click install
+- **Azure CLI integration** — Lists subscriptions, app registrations, Key Vaults, secrets, and certificates directly without manual ID copying
 
 ---
 
@@ -158,6 +167,8 @@ Before saving, the app runs a **Key Vault reachability check**. If your RBAC is 
 You can connect **multiple app registrations** and switch between them seamlessly. This is particularly useful when you work across different projects, environments (dev/staging/prod), or when testing different permission configurations. Just select the connected app you want before generating tokens—no need to reconfigure anything.
 
 When you disconnect an app, Entra Token Studio **automatically cleans up** all linked data—history entries, favorites, and pinned tokens associated with that app are removed. This prevents stale references and keeps your workspace tidy.
+
+**Azure CLI Integration (Desktop):** When running the desktop app, you can browse your Azure subscriptions, app registrations, and Key Vaults directly from the UI. Select resources from dropdowns instead of copying IDs from the portal.
 
 Common resource presets are available for frequently-used endpoints:
 
@@ -207,6 +218,8 @@ No client secrets required. No server involvement. This is the same public-clien
 
 **Multi-User Support:** The sign-in flow supports switching between user identities. If you're testing different user contexts (e.g., verifying role-based behavior), you can switch your signed-in identity before generating tokens. The sign-in always happens through the currently selected connected app—and if you switch to a different connected app, the previous app's user session is automatically signed out, ensuring tokens are always issued in the correct context.
 
+**Loading States & Cancel Flows:** Both web and desktop show clear loading indicators during token acquisition. If something takes too long or you change your mind, cancel the operation without waiting for a timeout.
+
 #### Quick Reference: Which Flow Do I Need?
 
 | Scenario | Token Type | Why |
@@ -234,6 +247,14 @@ Key features:
 - **One-click copy** — grab individual claim values for logs, API calls, or documentation
 
 A floating **status dock** tracks token expiry in real time. You'll know at a glance whether that token you copied 45 minutes ago is still valid.
+
+### Key Vault Error Handling
+
+When something goes wrong with Key Vault—access denied, expired credentials, network issues—you get **structured error messages** with:
+
+- **Actionable guidance** — Exactly what role to assign or what command to run
+- **Azure Portal deep links** — One-click navigation to the relevant IAM or certificate blade
+- **Credential expiry warnings** — Alerts when secrets or certificates are expiring soon
 
 ---
 
@@ -373,7 +394,7 @@ Tokens are sensitive. Even with solid tooling:
 | -------------------------------------------- | ------------------------------------------- |
 | **Node.js 20+**                              | Runtime (required by Vite 7)                |
 | **pnpm**                                     | Package manager (`npm install -g pnpm`)     |
-| **Azure CLI** or **VS Code Azure extension** | For `DefaultAzureCredential` authentication |
+| **Azure CLI**                                | For `DefaultAzureCredential` authentication |
 
 > **Need to manage Node.js versions?** Use [nvm](https://github.com/nvm-sh/nvm) (macOS/Linux) or [nvm-windows](https://github.com/coreybutler/nvm-windows). Then run `nvm use` in the project directory to switch to the required version.
 
@@ -401,15 +422,13 @@ Open `http://localhost:5173` and you're running.
 
 ### Authenticating to Azure
 
-You need a way to authenticate to Azure for Key Vault access. Choose one of these methods:
+### Authenticating to Azure
 
-**Option 1: Azure CLI** _(terminal-focused workflow)_
+You need a way to authenticate to Azure for Key Vault access:
+
+**Azure CLI**
 1. [Install Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli)
 2. Run `az login`
-
-**Option 2: VS Code Azure Extension** _(VS Code users)_
-1. Install the [Azure Account extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode.azure-account)
-2. Open Command Palette (`Cmd/Ctrl + Shift + P`) → **Azure: Sign In**
 
 The server uses [`DefaultAzureCredential`](https://learn.microsoft.com/en-us/javascript/api/@azure/identity/defaultazurecredential), which automatically discovers your credentials from these sources. For most local development, `az login` is all you need.
 
@@ -424,7 +443,7 @@ Your identity needs appropriate access to your Key Vault. Choose the role based 
 **Option 1: Via Azure Portal**
 1. Go to your Key Vault → **Access control (IAM)** → **+ Add role assignment**
 2. Select the appropriate role from the list above
-3. Assign it to your identity (the account you use with `az login` or VS Code)
+3. Assign it to your identity (the account you use with `az login`)
 
 **Option 2: Via Azure CLI**
 
@@ -512,10 +531,10 @@ For those interested in extending the tool or understanding the implementation:
 ```text
 src/
 ├── lib/
-│   ├── components/       # Svelte components (forms, claims viewer, favorites, history)
+│   ├── components/       # Svelte components (forms, claims viewer, favorites, history, error displays)
 │   ├── services/         # Azure SDK wrappers (auth, key vault, data export)
 │   ├── states/           # Svelte 5 runes-based state (apps, history, favorites)
-│   ├── stores/           # Misc stores (time, auth state)
+│   ├── stores/           # Misc stores (time, auth state, updater)
 │   └── shadcn/           # UI component library primitives
 ├── routes/
 │   ├── +page.svelte      # Playground dashboard
@@ -524,18 +543,28 @@ src/
 │   ├── favorites/        # Saved configurations
 │   ├── settings/         # Theme, data, import/export
 │   └── auth/             # Auth callback handler
-└── lib/server/           # Key Vault, cert parsing, MSAL confidential client
+└── lib/server/           # Key Vault, cert parsing, MSAL confidential client, structured errors
+
+src-tauri/                    # Tauri desktop app (Rust)
+├── src/                      # Rust source (commands, sidecar management, deep links)
+└── tauri.conf.json           # Tauri configuration (updater, bundling, permissions)
+
+sidecar/                      # Node.js sidecar for desktop app
+├── src/handlers/             # Azure SDK operation handlers (app tokens, user tokens, CLI wrappers)
+└── dist/                     # Compiled JavaScript (gitignored)
 ```
 
 ### Technology Choices
 
-| Layer              | Choice                                 | Rationale                                            |
-| ------------------ | -------------------------------------- | ---------------------------------------------------- |
-| **Framework**      | SvelteKit 2 + Svelte 5                 | Server actions, clean routing, minimal client bundle |
-| **UI**             | shadcn-svelte                          | Accessible, composable, styling flexibility          |
-| **Entra (server)** | `@azure/msal-node`                     | Robust confidential client support                   |
-| **Key Vault**      | `@azure/identity`, `@azure/keyvault-*` | Full secret/cert access via DefaultAzureCredential   |
-| **Client storage** | `idb-keyval` (IndexedDB)               | More capacity than localStorage, structured data     |
+| Layer              | Choice                                      | Rationale                                            |
+| ------------------ | ------------------------------------------- | ---------------------------------------------------- |
+| **Framework**      | SvelteKit 2 + Svelte 5                      | Server actions, clean routing, minimal client bundle |
+| **UI**             | shadcn-svelte                               | Accessible, composable, styling flexibility          |
+| **Entra (web)**    | `@azure/msal-browser` + `@azure/msal-node`  | Browser PKCE + confidential client support           |
+| **Entra (desktop)**| `@azure/msal-node` in sidecar               | System browser auth with loopback redirect           |
+| **Key Vault**      | `@azure/identity`, `@azure/keyvault-*`      | Full secret/cert access via DefaultAzureCredential   |
+| **Client storage** | `idb-keyval` (IndexedDB)                    | More capacity than localStorage, structured data     |
+| **Desktop**        | Tauri 2 (Rust) + Node.js sidecar            | Native window, auto-updates, Azure CLI integration   |
 
 SvelteKit's separation of server routes and client components keeps the security model honest: anything touching credentials lives server-side. The browser is a thin, reactive shell for input, display, and local persistence.
 
@@ -547,10 +576,11 @@ Entra Token Studio addresses a specific gap: the friction between configuring id
 
 **Key ideas:**
 
-- **Local-first design** — runs on your machine, stores data in your browser, communicates only with Azure resources you configure
-- **Credentials stay server-side** — the BFF pattern ensures secrets and certificates never reach the browser
+- **Local-first design** — runs on your machine (web or desktop), stores data in your browser, communicates only with Azure resources you configure
+- **Credentials stay server-side** — the BFF pattern (web) and sidecar (desktop) ensure secrets and certificates never reach the browser
 - **Two token flows** — app tokens (client credentials via Key Vault) and user tokens (PKCE via browser)
 - **Workflow optimized** — history, favorites, and pinned shortcuts reduce repetitive configuration
+- **Desktop experience** — native app with auto-updates, Azure CLI integration, and system browser auth
 
 **To try it:**
 
@@ -569,4 +599,4 @@ Entra Token Studio addresses a specific gap: the friction between configuring id
 
 ---
 
-_Built with SvelteKit, shadcn-svelte, and enough late-night debugging sessions to motivate building something better._
+_Built with SvelteKit, Tauri, shadcn-svelte, and enough late-night debugging sessions to motivate building something better._

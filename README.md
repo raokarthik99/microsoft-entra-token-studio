@@ -24,6 +24,23 @@ Built with SvelteKit 2, Svelte 5, TypeScript, shadcn components, MSAL, and Azure
 
 ---
 
+## Table of Contents
+
+- [Why This Project Exists](#why-this-project-exists)
+- [Features](#features)
+- [Prerequisites](#prerequisites)
+- [Quickstart](#quickstart)
+- [Desktop App (Experimental)](#desktop-app-experimental)
+- [How Token Flows Work](#how-token-flows-work)
+- [Everyday Use](#everyday-use)
+- [Data Boundaries & Security](#data-boundaries--security)
+- [Development](#development)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [License](#license)
+
+---
+
 ## Why This Project Exists
 
 ### The Problem
@@ -70,17 +87,21 @@ If you've worked in an enterprise environment with Microsoft Entra ID (formerly 
 
 ## Features
 
-| Feature                 | Description                                                                                                                        |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| **Multi-App Workspace** | Connect multiple app registrations and switch between them seamlessly before generating tokens. Per-app colors, tags, and notes. When you disconnect an app, all linked history, favorites, and pinned tokens are automatically cleaned up. |
-| **Multi-User Support**  | Easy sign-in flow for user tokens with identity switching. If you change the connected app, the previous app's user is automatically signed out—tokens always issue in the correct context. |
-| **App Tokens**          | Server-side client credentials flow supporting Azure Key Vault certificates and secrets                                            |
-| **User Tokens**         | Browser-side Authorization Code + PKCE via MSAL.js with silent acquisition and popup fallback                                      |
-| **Token Inspection**  | Live expiry badges, floating token dock, full-screen inspector, decoded claims search/filter, and per-claim copy                   |
-| **Favorites & History** | All entries linked to their connected app for clarity. Save configurations with tags/colors/descriptions; pin up to 5 favorites for one-click reissue. Reissue flow automatically uses the correct app. |
-| **Smart Suggestions**   | Quick-pick inputs for scopes/resources sourced from favorites, history, and built-in Graph/Azure presets with admin-consent badges |
-| **Data Portability**    | Export/import all local data (history, favorites, app configs) with security acknowledgments and validation                        |
-| **Theme Support**       | Light, dark, and system theme options                                                                                              |
+| Feature                    | Description                                                                                                                        |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| **Multi-App Workspace**    | Connect multiple app registrations and switch between them seamlessly before generating tokens. Per-app colors, tags, and notes. When you disconnect an app, all linked history, favorites, and pinned tokens are automatically cleaned up. |
+| **Multi-User Support**     | Easy sign-in flow for user tokens with identity switching. If you change the connected app, the previous app's user is automatically signed out—tokens always issue in the correct context. |
+| **App Tokens**             | Local client credentials flow (web server route or desktop sidecar) using Azure Key Vault secrets/certificates (Key Vault signing for certs) |
+| **User Tokens**            | Web: MSAL.js (PKCE) with silent + popup. Desktop: system-browser auth via msal-node + loopback redirect. Includes loading states and cancel flows. |
+| **Token Inspection**       | Live expiry badges, floating token dock, full-screen inspector, decoded claims search/filter, and per-claim copy                   |
+| **Favorites & History**    | All entries linked to their connected app for clarity. Save configurations with tags/colors/descriptions; pin up to 5 favorites for one-click reissue. Reissue flow automatically uses the correct app. |
+| **Smart Suggestions**      | Quick-pick inputs for scopes/resources sourced from favorites, history, and built-in Graph/Azure presets with admin-consent badges |
+| **Key Vault Integration**  | Structured error handling with actionable guidance, Azure Portal deep links, credential expiry detection, and severity levels. Automatic credential caching with TTL-based invalidation. |
+| **Azure CLI Integration**  | Desktop app lists subscriptions, app registrations, Key Vaults, secrets, and certificates directly via Azure CLI—no manual copying of IDs required. |
+| **Auto-Updates**           | Desktop app checks for updates on startup and displays an in-app banner with one-click install. Updates are cryptographically signed. |
+| **Responsive Design**      | Fully responsive layout with auto-collapsing sidebar, mobile-friendly tables and toolbars, and proper truncation with tooltips. |
+| **Data Portability**       | Export/import all local data (history, favorites, app configs) with security acknowledgments and validation                        |
+| **Theme Support**          | Light, dark, and system theme options                                                                                              |
 
 ---
 
@@ -94,8 +115,11 @@ Before using Entra Token Studio, you need:
 | ----------- | ------- | -------------------------------------------------------------------------------------------------------------- |
 | **Node.js** | 20+     | [nodejs.org/en/download](https://nodejs.org/en/download/)                                                      |
 | **pnpm**    | Latest  | `npm install -g pnpm` (run this after installing Node.js)                                                      |
+| **Rust**    | Latest  | [rust-lang.org/tools/install](https://www.rust-lang.org/tools/install) *(optional — only for desktop app)*    |
 
 > **Why Node.js 20+?** This project uses Vite 7, which requires Node.js 20 or higher. The `.nvmrc` file specifies the required version for easy switching.
+
+> **Why Rust?** The [Tauri desktop app](#desktop-app-experimental) is built with Rust. You only need Rust if you want to develop or build the desktop app from source. For the web version, Node.js and pnpm are sufficient.
 
 > **Managing Node.js versions?** We recommend using a version manager:
 > - **macOS/Linux**: [nvm](https://github.com/nvm-sh/nvm) — then run `nvm use` in the project directory
@@ -108,7 +132,6 @@ You need a way to authenticate to Azure for Key Vault access. Choose one:
 | Method                      | Best For                  | Setup                                                                                                                                        |
 | --------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Azure CLI**               | Terminal-focused workflow | [Install Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli) → Run `az login`                                          |
-| **VS Code Azure Extension** | VS Code users             | Install [Azure Account extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode.azure-account) → Sign in via Command Palette |
 | **Managed Identity**        | Azure-hosted environments | Automatically available if running on Azure VMs, App Service, etc.                                                                           |
 
 The studio uses [`DefaultAzureCredential`](https://learn.microsoft.com/en-us/javascript/api/@azure/identity/defaultazurecredential) which automatically discovers your credentials in this order.
@@ -123,9 +146,11 @@ The studio uses [`DefaultAzureCredential`](https://learn.microsoft.com/en-us/jav
 
    - **Name**: A descriptive name for your app
    - **Supported account types**: Select based on your needs (usually "Single tenant")
-   - **Redirect URI**: Add `http://localhost:5173/auth/callback` as a **Single-page application (SPA)** redirect
+   - **Redirect URIs** (only needed for user tokens):
+     - **Web (SPA)**: Add `http://localhost/auth/callback` as a **Single-page application (SPA)** redirect
+     - **Desktop (system browser)**: Add `http://localhost` as a **Mobile and desktop applications** redirect
 
-   > **Important:** The redirect URI must be registered as a SPA type, not Web. This enables the PKCE flow for user tokens.
+   > **Important:** Using `localhost` without a port allows any localhost port. Add both entries if you plan to use both the web app and the desktop app for user tokens.
 
    > **Permissions Note:** To add a redirect URI, you must be listed as an **owner** of the app registration, or have an administrative role such as **Global Administrator** or **Cloud App Administrator**. If you cannot modify the app registration, contact your tenant administrator or an existing app owner.
 
@@ -158,7 +183,7 @@ The studio uses [`DefaultAzureCredential`](https://learn.microsoft.com/en-us/jav
 For Entra Token Studio to access your credentials:
 
 1. Go to your Key Vault → **Access control (IAM)** → **+ Add role assignment**
-2. Assign one of these roles to your identity (the account you'll use with `az login` or VS Code):
+2. Assign one of these roles to your identity (the account you'll use with `az login`):
    - **Key Vault Secrets User** — for client secrets
    - **Key Vault Crypto User** + **Key Vault Certificates User** — for certificates (signing requires crypto access)
    - **Key Vault Administrator** — for both (broader access)
@@ -205,45 +230,12 @@ git clone https://github.com/raokarthik99/microsoft-entra-token-studio.git
 cd microsoft-entra-token-studio
 pnpm install
 
-# 2. Set up environment
-cp .env.example .env
-# Edit .env if you need to change the port (default: 5173)
-
-# 3. Sign in to Azure (for Key Vault access)
+# 2. Sign in to Azure (for Key Vault access)
 az login
 
-# 4. Build and start the app
-pnpm start
+# 3. Start the dev server
+pnpm dev
 ```
-
-Open [http://localhost:5173](http://localhost:5173) in your browser.
-
-### VS Code Workflow
-
-1. **Clone the repository**
-
-   ```bash
-   git clone https://github.com/raokarthik99/microsoft-entra-token-studio.git
-   cd microsoft-entra-token-studio
-   code .
-   ```
-
-3. **Install dependencies**
-
-   ```bash
-   pnpm install
-   ```
-
-4. **Set up environment**  
-   Copy `.env.example` to `.env`
-
-5. **Sign in to Azure**  
-   Open Command Palette (`Cmd/Ctrl + Shift + P`) → **Azure: Sign In**
-
-6. **Build and start the app**
-   ```bash
-   pnpm start
-   ```
 
 Open [http://localhost:5173](http://localhost:5173) in your browser.
 
@@ -263,6 +255,172 @@ On first visit, you'll be redirected to the **Apps** page with a guided onboardi
 
 ---
 
+## Desktop App (Experimental)
+
+Entra Token Studio can also run as a native desktop app using [Tauri](https://tauri.app/). This provides a double-click-to-run experience without needing to start a dev server.
+
+### Prerequisites
+
+- **Rust** — [Install Rust](https://www.rust-lang.org/tools/install)
+- **Node.js 20+** — Still required at runtime (the desktop app spawns a Node.js sidecar for Azure SDK operations)
+
+### Running the Desktop App
+
+```bash
+# Install dependencies (includes the sidecar package)
+pnpm install
+
+# Build the sidecar (required)
+pnpm sidecar:build
+
+# Development mode (with hot reload)
+pnpm tauri:dev
+
+# Production build
+pnpm tauri:build
+```
+
+The production build outputs installers to `src-tauri/target/release/bundle/`.
+
+### Why Desktop?
+
+| Benefit | Description |
+|---------|-------------|
+| **One-click launch** | No terminal commands, no waiting for Vite |
+| **Native window** | Proper app icon, taskbar presence, Cmd+Tab friendly |
+| **Auto-updates** | Built-in update mechanism (when configured) |
+| **Easy sharing** | "Download this .dmg" instead of "clone this repo" |
+
+> **Note:** The desktop app is experimental. The web version (`pnpm dev`) remains the primary distribution method.
+
+### Installation from Releases
+
+You can download pre-built installers from the [GitHub Releases](https://github.com/raokarthik99/microsoft-entra-token-studio/releases) page.
+
+#### ⚠️ macOS Users — "App is Damaged" Error
+
+When you first open the app, macOS will show an error: **"Entra Token Studio is damaged and can't be opened. You should move it to the Trash."**
+
+**This is NOT a bug — the app is not actually damaged.** This happens because:
+
+1. **The app is not signed with an Apple Developer ID certificate** (which requires a $99/year Apple Developer Program membership)
+2. **The app is not notarized by Apple**
+3. **macOS quarantines all apps downloaded from the internet** and blocks unsigned apps via Gatekeeper
+
+**To fix this:**
+
+1. **Move the app to Applications** (drag from the DMG to Applications folder)
+2. **Open Terminal** (Cmd+Space, type "Terminal", press Enter)
+3. **Run this command:**
+   ```bash
+   xattr -cr /Applications/Entra\ Token\ Studio.app
+   ```
+4. **Open the app again** — it will now launch normally
+
+> 💡 **What does this command do?** The `xattr -cr` command removes the quarantine extended attribute (`com.apple.quarantine`) that macOS adds to downloaded files. This tells Gatekeeper that you trust this app.
+
+> 🔐 **Is this safe?** Yes. You're only removing the quarantine flag for this specific app. The app's code is open source and you can audit it yourself. If you're still concerned, you can [build from source](#running-the-desktop-app) instead.
+
+#### Windows Users — SmartScreen Warning
+
+You may see **"Windows protected your PC"** because the app is not signed with an EV (Extended Validation) code signing certificate, which costs hundreds of dollars per year.
+
+1. Click **More info**
+2. Click **Run anyway**
+
+> 💡 Windows SmartScreen is reputation-based. Since this is a new app without widespread usage, it triggers a warning regardless of whether the code is safe.
+
+### Release Process (Maintainers)
+
+#### Creating a Release
+
+To publish a new version of the desktop app:
+
+```bash
+# Option A: Create a new release
+# Interactive script. Bumps version, syncs files, commits, tags, and pushes.
+pnpm release:patch         # or :minor, :major
+pnpm release 1.0.0-beta.1  # specific version
+pnpm release prerelease    # smart prerelease increment
+
+# Option B: Recreate current tag (re-trigger CI/CD)
+# Deletes local/remote tag for current version and recreates it on HEAD.
+pnpm release:recreate
+```
+
+Alternatively, trigger a release manually from **GitHub Actions → Release → Run workflow**.
+
+#### What the Workflow Does
+
+The [release.yml](.github/workflows/release.yml) workflow:
+
+1. **Creates a draft release** on GitHub
+2. **Builds in parallel** for three platforms:
+   - **macOS** — Universal binary (Intel + Apple Silicon)
+   - **Windows** — x64 installer
+   - **Linux** — x64 AppImage and .deb
+3. **Signs all artifacts** using your `TAURI_SIGNING_PRIVATE_KEY`
+4. **Uploads installers** to the GitHub release:
+   - `.dmg` (macOS)
+   - `.exe` and `.msi` (Windows)
+   - `.AppImage` and `.deb` (Linux)
+5. **Generates `latest.json`** for auto-updates
+6. **Publishes the release** (removes draft status)
+
+#### Auto-Update Mechanism
+
+When users run the desktop app, it checks for updates on startup:
+
+```
+https://github.com/raokarthik99/microsoft-entra-token-studio/releases/latest/download/latest.json
+```
+
+If a newer version exists, the app downloads and installs the update automatically. Updates are verified using the public key in [tauri.conf.json](src-tauri/tauri.conf.json).
+
+#### First-Time Setup (One-Time)
+
+1. **Generate a signing keypair:**
+   ```bash
+   pnpm tauri:signer
+   ```
+   This creates `~/.tauri/entra-token-studio.key` (private) and `.key.pub` (public).
+
+2. **Add the public key** to `src-tauri/tauri.conf.json`:
+   ```bash
+   cat ~/.tauri/entra-token-studio.key.pub
+   # Copy output to plugins.updater.pubkey
+   ```
+
+3. **Add GitHub secrets** (`Settings → Secrets and variables → Actions`):
+   | Secret | Value |
+   |--------|-------|
+   | `TAURI_SIGNING_PRIVATE_KEY` | Contents of `~/.tauri/entra-token-studio.key` |
+   | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Password you entered during generation |
+
+4. **Commit the public key:**
+   ```bash
+   git add src-tauri/tauri.conf.json
+   git commit -m "chore: add updater public key"
+   git push
+   ```
+
+#### Optional: macOS Notarization
+
+Without notarization, macOS users see a Gatekeeper warning. To enable notarization, add these optional secrets:
+
+| Secret | Description |
+|--------|-------------|
+| `APPLE_CERTIFICATE` | Base64-encoded .p12 certificate |
+| `APPLE_CERTIFICATE_PASSWORD` | Certificate password |
+| `APPLE_SIGNING_IDENTITY` | e.g., `Developer ID Application: Your Name (TEAMID)` |
+| `APPLE_ID` | Your Apple ID email |
+| `APPLE_PASSWORD` | App-specific password |
+| `APPLE_TEAM_ID` | Your 10-character team ID |
+
+📚 [Tauri macOS code signing guide](https://v2.tauri.app/distribute/sign/macos/)
+
+---
+
 ## How Token Flows Work
 
 ### App Tokens (Client Credentials)
@@ -278,9 +436,11 @@ For server-to-server / app-to-app authentication:
         │◀──────────────────── Access Token ───────────────────│
 ```
 
-- Server-side client credentials flow using `@azure/msal-node`
+- Client credentials flow using `@azure/msal-node` in a local backend:
+  - Web: SvelteKit endpoint `POST /api/token/app`
+  - Desktop: Tauri invokes a Node sidecar (JSON-RPC over stdin/stdout)
 - Secrets are fetched from Key Vault at runtime; certificates use Key Vault signing (private key never leaves Key Vault)
-- Authentication method is auto-selected: Key Vault certificate → Key Vault secret → local secret
+- Auth method is selected per app config (`secret` or `certificate`) — no local secrets are used for app tokens
 - The `/.default` scope is automatically appended to resources
 
 ### User Tokens (Delegated Permissions)
@@ -296,9 +456,8 @@ For user-context authentication:
         │◀──────────────────── Access Token ───────────────────│
 ```
 
-- Client-side Authorization Code + PKCE flow using `@azure/msal-browser`
-- Silent acquisition is attempted first
-- Falls back to popup if consent or account selection is needed
+- Web mode: Authorization Code + PKCE flow using `@azure/msal-browser` (silent first, popup fallback)
+- Desktop mode: Authorization Code + PKCE using `@azure/msal-node` in the sidecar (silent first, system browser fallback)
 - Tokens are decoded client-side and never logged
 
 ---
@@ -348,7 +507,8 @@ For user-context authentication:
 | **Favorites & Preferences** | Browser IndexedDB | Local only                                                    |
 | **App Configurations**      | Browser IndexedDB | Stores IDs and metadata only                                  |
 | **Credentials**             | Azure Key Vault   | Secrets fetched at runtime; certs use Key Vault signing (private key never leaves) |
-| **MSAL Cache**              | localStorage      | Cleared on logout                                             |
+| **MSAL Cache (Web)**        | localStorage      | `@azure/msal-browser` cache; cleared on logout                |
+| **MSAL Cache (Desktop)**    | On-disk cache     | `@azure/msal-node` cache in the sidecar; encrypted when possible |
 
 **Security principles:**
 
@@ -373,6 +533,10 @@ For user-context authentication:
 | `pnpm check:watch` | Run type checking in watch mode                               |
 | `pnpm build`       | Production build to verify SSR stability                      |
 | `pnpm preview`     | Serve the built app locally                                   |
+| `pnpm tauri:dev`   | Run desktop app in development mode                           |
+| `pnpm tauri:build` | Build desktop app installers                                  |
+| `pnpm sidecar:build` | Build the desktop sidecar                                   |
+| `pnpm sidecar:install` | Install sidecar dependencies (usually covered by `pnpm install`) |
 
 ### Project Structure
 
@@ -400,15 +564,24 @@ src/
 │   ├── stores/                   # Reactive stores (auth, time)
 │   └── data/                     # Scope metadata and presets
 └── app.html, app.css             # Global shell and styles
+
+src-tauri/                        # Tauri desktop app (Rust)
+├── src/                          # Rust source code
+└── tauri.conf.json               # Tauri configuration
+
+sidecar/                          # Node.js sidecar for desktop app
+├── src/handlers/                 # Azure SDK operation handlers
+└── dist/                         # Compiled JavaScript (gitignored)
 ```
 
 ### Tech Stack
 
 - **Framework:** SvelteKit 2 with Svelte 5 runes
 - **UI:** shadcn-svelte components + Tailwind CSS
-- **Auth:** `@azure/msal-node` (server) + `@azure/msal-browser` (client)
+- **Auth:** `@azure/msal-browser` (web user tokens) + `@azure/msal-node` (app tokens + desktop user tokens)
 - **Azure SDK:** `@azure/identity`, `@azure/keyvault-certificates`, `@azure/keyvault-secrets`, `@azure/keyvault-keys`
 - **Persistence:** `idb-keyval` for IndexedDB
+- **Desktop:** Tauri 2 with Node.js sidecar (experimental)
 - **Security:** Certificate private keys never leave Key Vault — signing happens via `CryptographyClient`
 
 ---
@@ -417,11 +590,12 @@ src/
 
 | Issue                         | Solution                                                                                             |
 | ----------------------------- | ---------------------------------------------------------------------------------------------------- |
-| **Redirect loop or mismatch** | Ensure `http://localhost:5173/auth/callback` is registered as a SPA redirect in your Entra app       |
+| **Redirect loop or mismatch** | Ensure `http://localhost/auth/callback` is registered as a SPA redirect (web user tokens). For desktop user tokens, also add `http://localhost` under Mobile/Desktop redirects. |
 | **Key Vault access denied**   | Run `az login` and ensure you have `Key Vault Crypto User` (for certs) or `Key Vault Secrets User` (for secrets) |
-| **App token fails**           | Verify Tenant ID, Client ID, and credential name are correct; restart after `.env` changes           |
+| **Desktop sidecar fails**     | Run `pnpm sidecar:build` and ensure `node` is available on your PATH                                 |
+| **App token fails**           | Verify Tenant ID, Client ID, Key Vault URI, and credential name are correct                          |
 | **Scope/resource errors**     | App tokens use resources with `/.default`; user tokens use specific scopes with consent              |
-| **Popups blocked**            | Allow popups for `localhost` in your browser settings                                                |
+| **Popups blocked (web)**      | Allow popups for `localhost` in your browser settings                                                |
 | **Consent errors**            | Check the scopes panel for guidance; you may need admin consent for certain scopes                   |
 
 ---

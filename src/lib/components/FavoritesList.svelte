@@ -9,6 +9,7 @@
   import { Star, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, Play, Eye, Pencil, Trash2, MoreHorizontal, Copy, Pin, PinOff } from "@lucide/svelte";
   import type { FavoriteItem } from "$lib/types";
   import TokenStatusBadge from "./TokenStatusBadge.svelte";
+  import TruncatedText from "./TruncatedText.svelte";
   import { cn, getReadableExpiry, getTokenStatus } from "$lib/utils";
   import { time } from "$lib/stores/time";
   import { toast } from "svelte-sonner";
@@ -308,7 +309,6 @@
       await navigator.clipboard.writeText(value);
       toast.success(`${label} copied`);
     } catch (error) {
-      console.error("Failed to copy value", error);
       toast.error(`Could not copy ${label.toLowerCase()}`);
     }
   }
@@ -316,9 +316,9 @@
 
   <div class="flex h-full flex-col space-y-3">
   {#if enableToolbar}
-    <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/40 p-3">
-      <div class="flex flex-1 flex-wrap items-center gap-2">
-        <div class="relative w-full min-w-[240px] max-w-sm">
+    <div class="flex flex-col gap-3 rounded-lg border bg-muted/40 p-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+      <div class="flex flex-1 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+        <div class="relative w-full sm:min-w-[200px] sm:max-w-sm">
           <Search class="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search name, target, or tags"
@@ -327,13 +327,13 @@
           />
         </div>
 
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
           <Select.Root
             type="single"
             value={typeFilter}
             onValueChange={(value) => (typeFilter = value as typeof typeFilter)}
           >
-            <Select.Trigger class="w-[150px]">
+            <Select.Trigger class="w-full sm:w-[130px]">
               {typeFilter === "all" ? "All types" : typeFilter === "app" ? "App tokens" : "User tokens"}
             </Select.Trigger>
             <Select.Content>
@@ -348,7 +348,7 @@
             value={statusFilter}
             onValueChange={(value) => (statusFilter = value as typeof statusFilter)}
           >
-            <Select.Trigger class="w-[170px]">
+            <Select.Trigger class="w-full sm:w-[140px]">
               {statusFilter === "all"
                 ? "All statuses"
                 : statusFilter === "expired"
@@ -371,7 +371,7 @@
               value={appFilter}
               onValueChange={(value) => (appFilter = value)}
             >
-              <Select.Trigger class="w-[150px]">
+              <Select.Trigger class="w-full sm:w-[130px]">
                 {appFilter === "all" ? "All apps" : uniqueApps.find(a => a.id === appFilter)?.name || "App"}
               </Select.Trigger>
               <Select.Content>
@@ -394,7 +394,7 @@
               value={tagFilter ?? "all"}
               onValueChange={(value) => (tagFilter = value === "all" ? null : value)}
             >
-              <Select.Trigger class="w-[140px]">
+              <Select.Trigger class="w-full sm:w-[120px]">
                 {tagFilter ? `Tag: ${tagFilter}` : "All tags"}
               </Select.Trigger>
               <Select.Content>
@@ -412,7 +412,7 @@
               value={colorFilter ?? "all"}
               onValueChange={(value) => (colorFilter = value === "all" ? null : value)}
             >
-              <Select.Trigger class="w-[140px]">
+              <Select.Trigger class="w-full sm:w-[120px]">
                 {colorFilter ? `Color: ${getColorLabel(colorFilter)}` : "All colors"}
               </Select.Trigger>
               <Select.Content>
@@ -438,16 +438,17 @@
             onclick={handleBulkDelete}
           >
             <Trash2 class="h-4 w-4" />
-            {`Delete ${selectedCount} selected`}
+            <span class="hidden sm:inline">Delete {selectedCount} selected</span>
+            <span class="sm:hidden">{selectedCount}</span>
           </Button>
         {/if}
         {#if isFiltered}
           <Button variant="ghost" size="sm" class="gap-2" onclick={resetFilters} title="Reset filters">
             <Filter class="h-4 w-4" />
-            Reset
+            <span class="hidden sm:inline">Reset</span>
           </Button>
         {/if}
-        <Badge variant="outline" class="text-xs font-normal">
+        <Badge variant="outline" class="text-xs font-normal whitespace-nowrap">
           {filteredRows.length} / {baseRows.length} favorites
         </Badge>
       </div>
@@ -497,7 +498,7 @@
               </button>
             </TableHead>
             <TableHead class="w-[160px]">Status</TableHead>
-            <TableHead class="w-[140px]">
+            <TableHead class="w-[140px] hidden lg:table-cell">
               <button
                 type="button"
                 class="flex items-center gap-1 text-xs font-semibold text-muted-foreground"
@@ -515,7 +516,7 @@
                 {/if}
               </button>
             </TableHead>
-            <TableHead class="w-[160px]">
+            <TableHead class="w-[160px] hidden xl:table-cell">
               <button
                 type="button"
                 class="flex items-center gap-1 text-xs font-semibold text-muted-foreground"
@@ -611,9 +612,10 @@
                         class="w-2.5 h-2.5 rounded-full shrink-0" 
                         style="background-color: {row.favorite.appColor || '#10b981'}"
                       ></div>
-                      <span class="text-xs text-muted-foreground truncate max-w-[80px]" title={row.favorite.appName}>
-                        {row.favorite.appName}
-                      </span>
+                      <TruncatedText 
+                        text={row.favorite.appName} 
+                        class="text-xs text-muted-foreground max-w-[80px]"
+                      />
                     </div>
                   {:else}
                     <span class="text-xs text-muted-foreground italic">Legacy</span>
@@ -670,13 +672,13 @@
                     <p class="text-xs text-muted-foreground">No token data</p>
                   {/if}
                 </TableCell>
-                <TableCell class="align-top">
-                  <div class="text-sm font-medium leading-tight">{row.favorite.useCount || 0} uses</div>
+                <TableCell class="align-top hidden lg:table-cell">
+                  <div class="text-xs font-medium leading-tight">{row.favorite.useCount || 0} uses</div>
                   <div class="text-[11px] text-muted-foreground">Created {row.createdAgo}</div>
                 </TableCell>
-                <TableCell class="align-top">
-                  <div class="text-sm font-medium leading-tight">
-                    {row.lastUsedAt ? row.lastUsedAt.toLocaleString() : "Not used yet"}
+                <TableCell class="align-top hidden xl:table-cell">
+                  <div class="text-xs font-medium leading-tight whitespace-nowrap">
+                    {row.lastUsedAt ? `${row.lastUsedAt.toLocaleDateString()} ${row.lastUsedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : "Not used yet"}
                   </div>
                   <div class="text-[11px] text-muted-foreground">
                     {row.lastUsedAgo ? `Used ${row.lastUsedAgo}` : "—"}

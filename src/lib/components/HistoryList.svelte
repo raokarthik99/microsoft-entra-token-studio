@@ -6,6 +6,7 @@
   import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "$lib/shadcn/components/ui/table";
   import { Clock3, ArrowUpDown, ArrowUp, ArrowDown, Search, Filter, Trash2, Play } from "@lucide/svelte";
   import TokenStatusBadge from "./TokenStatusBadge.svelte";
+  import TruncatedText from "./TruncatedText.svelte";
   import ColorDot from "./color-dot.svelte";
   import DataTableActions from "./history-table/data-table-actions.svelte";
   import { getReadableExpiry, getTokenStatus, cn } from "$lib/utils";
@@ -262,9 +263,9 @@
 
 <div class="flex h-full flex-col space-y-3">
   {#if enableToolbar}
-    <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/40 p-3">
-      <div class="flex flex-1 flex-wrap items-center gap-2">
-        <div class="relative w-full min-w-[220px] max-w-sm">
+    <div class="flex flex-col gap-3 rounded-lg border bg-muted/40 p-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+      <div class="flex flex-1 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+        <div class="relative w-full sm:min-w-[200px] sm:max-w-sm">
           <Search class="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search target, scope, or status"
@@ -273,13 +274,13 @@
           />
         </div>
 
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
           <Select.Root
             type="single"
             value={typeFilter}
             onValueChange={(value) => (typeFilter = value as typeof typeFilter)}
           >
-            <Select.Trigger class="w-[150px]">
+            <Select.Trigger class="w-full sm:w-[130px]">
               {typeFilter === "all" ? "All types" : typeFilter === "app" ? "App tokens" : "User tokens"}
             </Select.Trigger>
             <Select.Content>
@@ -294,7 +295,7 @@
             value={statusFilter}
             onValueChange={(value) => (statusFilter = value as typeof statusFilter)}
           >
-            <Select.Trigger class="w-[170px]">
+            <Select.Trigger class="w-full sm:w-[140px]">
               {statusFilter === "all"
                 ? "All statuses"
                 : statusFilter === "expired"
@@ -317,7 +318,7 @@
               value={appFilter}
               onValueChange={(value) => (appFilter = value)}
             >
-              <Select.Trigger class="w-[150px]">
+              <Select.Trigger class="w-full sm:w-[130px]">
                 {appFilter === "all" ? "All apps" : uniqueApps.find(a => a.id === appFilter)?.name || "App"}
               </Select.Trigger>
               <Select.Content>
@@ -345,16 +346,17 @@
             onclick={handleBulkDelete}
           >
             <Trash2 class="h-4 w-4" />
-            {`Delete ${selectedCount} selected`}
+            <span class="hidden sm:inline">Delete {selectedCount} selected</span>
+            <span class="sm:hidden">{selectedCount}</span>
           </Button>
         {/if}
         {#if isFiltered}
           <Button variant="ghost" size="sm" class="gap-2" onclick={resetFilters} title="Reset filters">
             <Filter class="h-4 w-4" />
-            Reset
+            <span class="hidden sm:inline">Reset</span>
           </Button>
         {/if}
-        <Badge variant="outline" class="text-xs font-normal">
+        <Badge variant="outline" class="text-xs font-normal whitespace-nowrap">
           {filteredRows.length} / {baseRows.length} {limit ? "recent" : "total"}
         </Badge>
       </div>
@@ -447,7 +449,7 @@
                 {/if}
               </button>
             </TableHead>
-            <TableHead class="w-[160px]">
+            <TableHead class="w-[160px] hidden lg:table-cell">
               <button
                 type="button"
                 class="flex items-center gap-1 text-xs font-semibold text-muted-foreground"
@@ -468,7 +470,7 @@
                 {/if}
               </button>
             </TableHead>
-            <TableHead class="w-[160px]">
+            <TableHead class="w-[160px] hidden xl:table-cell">
               <button
                 type="button"
                 class="flex items-center gap-1 text-xs font-semibold text-muted-foreground"
@@ -567,9 +569,10 @@
                   {#if row.item.appName}
                     <div class="flex items-center gap-2">
                       <ColorDot color={row.item.appColor || "#10b981"} size={10} />
-                      <span class="text-xs text-muted-foreground truncate max-w-[80px]" title={row.item.appName}>
-                        {row.item.appName}
-                      </span>
+                      <TruncatedText 
+                        text={row.item.appName} 
+                        class="text-xs text-muted-foreground max-w-[80px]"
+                      />
                     </div>
                   {:else}
                     <span class="text-xs text-muted-foreground italic">Legacy</span>
@@ -597,13 +600,13 @@
                     <p class="text-xs text-muted-foreground">No expiry data</p>
                   {/if}
                 </TableCell>
-                <TableCell class="align-top">
-                  <div class="text-sm font-medium leading-tight">{row.issuedOn.toLocaleString()}</div>
+                <TableCell class="align-top hidden lg:table-cell">
+                  <div class="text-xs font-medium leading-tight whitespace-nowrap">{row.issuedOn.toLocaleDateString()} {row.issuedOn.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                   <div class="text-[11px] text-muted-foreground">Issued {row.issuedAgo}</div>
                 </TableCell>
-                <TableCell class="align-top">
+                <TableCell class="align-top hidden xl:table-cell">
                   {#if row.expiresOn}
-                    <div class="text-sm font-medium leading-tight">{row.expiresOn.toLocaleString()}</div>
+                    <div class="text-xs font-medium leading-tight whitespace-nowrap">{row.expiresOn.toLocaleDateString()} {row.expiresOn.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                     <div class="text-[11px] text-muted-foreground">
                       {row.statusKey === "expired" ? row.readableExpiry : `In ${row.readableExpiry}`}
                     </div>

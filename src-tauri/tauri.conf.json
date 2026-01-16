@@ -1,0 +1,75 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "Entra Token Studio",
+  "version": "0.1.0-alpha.1",
+  "identifier": "com.entra-token-studio",
+  "build": {
+    "frontendDist": "../build",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "pnpm dev",
+    "beforeBuildCommand": "pnpm --filter=entra-token-studio-sidecar build && pnpm build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Entra Token Studio",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 900,
+        "minHeight": 600,
+        "resizable": true,
+        "fullscreen": false,
+        "maximized": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'self' https://login.microsoftonline.com https://*.vault.azure.net https://graph.microsoft.com ipc: tauri:; frame-src https://login.microsoftonline.com"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis",
+      "dmg",
+      "deb",
+      "appimage"
+    ],
+    "resources": {
+      "../sidecar/dist/index.cjs": "sidecar/dist/index.cjs"
+    },
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "10.15"
+    },
+    "windows": {
+      "webviewInstallMode": {
+        "type": "embedBootstrapper",
+        "silent": true
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDYxRDkyNkI3RDQxMkQzRkUKUldUKzB4TFV0eWJaWVkxYjgyWG5UNzdLQ09XNmxncW9SWHV1bXUxWERwR3h2a3FlOHFFUmx3UUcK",
+      "endpoints": [
+        "https://github.com/raokarthik99/microsoft-entra-token-studio/releases/latest/download/latest.json"
+      ]
+    },
+    "shell": {
+      "open": true
+    },
+    "deep-link": {
+      "desktop": {
+        "schemes": [
+          "entra-token-studio"
+        ]
+      }
+    }
+  }
+}

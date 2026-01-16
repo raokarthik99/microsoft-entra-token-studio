@@ -53,25 +53,8 @@ export class AuthService {
       },
       system: {
         loggerOptions: {
-          loggerCallback: (level, message, containsPii) => {
-            if (containsPii) {
-              return;
-            }
-            switch (level) {
-              case LogLevel.Error:
-                console.error(message);
-                return;
-              case LogLevel.Info:
-                // console.info(message);
-                return;
-              case LogLevel.Verbose:
-              default:
-                // No logging for verbose/unknown levels
-                return;
-              case LogLevel.Warning:
-                console.warn(message);
-                return;
-            }
+          loggerCallback: () => {
+            // Logging disabled
           },
         },
       },
@@ -98,7 +81,6 @@ export class AuthService {
         }
       }
     } catch (error: any) {
-      console.error('MSAL initialization error:', error);
       auth.setError(error.message || 'Failed to initialize authentication');
     }
 
@@ -132,7 +114,6 @@ export class AuthService {
     try {
       await this.msalInstance.loginRedirect(loginRequest);
     } catch (err) {
-      console.error('Login failed', err);
       auth.setError('Login failed');
     }
   }
@@ -161,7 +142,6 @@ export class AuthService {
         // User cancelled the popup, don't treat as error
         return null;
       }
-      console.error('Login with prompt failed', error);
       throw error;
     }
   }
@@ -196,7 +176,6 @@ export class AuthService {
       // Clear local auth state
       auth.reset();
     } catch (err) {
-      console.error('Logout failed', err);
       // Even if something fails, ensure local state is cleared
       auth.reset();
     }
@@ -280,7 +259,7 @@ export class AuthService {
       }
     }
 
-    // Standard flow: try silent first (with forceRefresh to get fresh token), fall back to popup
+    // Standard flow: try silent first (with forceRefresh to get fresh token), fall back to popup/redirect
     const request: SilentRequest = {
       scopes,
       account,
@@ -294,7 +273,6 @@ export class AuthService {
       if (error instanceof InteractionRequiredAuthError) {
         return this.msalInstance.acquireTokenPopup(request);
       }
-      console.warn('Silent token acquisition failed', error);
       throw error;
     }
   }
@@ -354,7 +332,6 @@ export class AuthService {
       const blob = await response.blob();
       return URL.createObjectURL(blob);
     } catch (error) {
-      console.error('Failed to fetch profile photo', error);
       return null;
     }
   }

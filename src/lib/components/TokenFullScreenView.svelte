@@ -61,7 +61,6 @@
       toast.success("Token copied to clipboard");
       setTimeout(() => copiedToken = false, 2000);
     } catch (err) {
-      console.error('Failed to copy', err);
       toast.error("Failed to copy token");
     }
   }
@@ -71,7 +70,6 @@
       await navigator.clipboard.writeText(text);
       toast.success("Copied to clipboard");
     } catch (err) {
-      console.error('Failed to copy', err);
       toast.error("Failed to copy to clipboard");
     }
   }
@@ -119,7 +117,6 @@
       await favoritesState.load();
       toast.success(pinMode ? 'Pinned and added to favorites' : 'Added to favorites');
     } catch (err) {
-      console.error('Failed to add favorite', err);
       toast.error('Could not add to favorites');
     } finally {
       favoriteDraft = null;
