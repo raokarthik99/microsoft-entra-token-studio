@@ -16,6 +16,8 @@
   import { toast } from "svelte-sonner";
   import SuggestionsInput from "$lib/components/SuggestionsInput.svelte";
   import KeyVaultErrorDisplay from "$lib/components/KeyVaultErrorDisplay.svelte";
+  import TruncatedText from "$lib/components/TruncatedText.svelte";
+  import FilterableAppSelect from "$lib/components/FilterableAppSelect.svelte";
 
   import { Button } from "$lib/shadcn/components/ui/button";
   import { Input } from "$lib/shadcn/components/ui/input";
@@ -65,6 +67,9 @@
     ExternalLink,
     ShieldAlert,
     X,
+    KeyRound,
+    Shield,
+    Search,
   } from "@lucide/svelte";
   import { auth, authServiceStore } from '$lib/stores/auth';
   import { tauriUser, setTauriUser } from '$lib/states/tauri-user';
@@ -826,61 +831,15 @@
           <Label class="text-sm font-medium text-foreground">Active Client App</Label>
           <p class="text-xs text-muted-foreground">Select the client app to use for generating tokens to access other apps and resources.</p>
         </div>
-        <!-- Interactive App Selector Dropdown -->
-        <DropdownMenu.Root>
-          <DropdownMenu.Trigger>
-            <button 
-              type="button"
-              class="inline-flex items-center gap-3 rounded-lg border bg-gradient-to-r from-primary/5 to-transparent px-3 py-2 hover:bg-muted/50 transition-colors cursor-pointer"
-            >
-              <div 
-                class="w-2.5 h-2.5 rounded-full shrink-0"
-                style="background-color: {appRegistry.activeApp.color || APP_COLORS[0]}"
-              ></div>
-              <div class="flex items-center gap-2">
-                <span class="font-medium text-foreground">{appRegistry.activeApp.name}</span>
-                <span class="text-muted-foreground">·</span>
-                <code class="font-mono text-[10px] text-muted-foreground">{appRegistry.activeApp.clientId.slice(0, 8)}...</code>
-              </div>
-              <div class="flex items-center gap-1.5 text-muted-foreground">
-                <Cloud class="h-3 w-3" />
-                <span class="text-[10px]">{appRegistry.activeApp.keyVault.uri.replace('https://', '').replace('.vault.azure.net', '')}</span>
-              </div>
-              <ChevronDown class="h-3.5 w-3.5 shrink-0 opacity-50" />
-            </button>
-          </DropdownMenu.Trigger>
-          <DropdownMenu.Content align="start" class="w-[220px]">
-            <DropdownMenu.Group>
-              <DropdownMenu.Label class="text-xs text-muted-foreground">Switch app</DropdownMenu.Label>
-              {#each appRegistry.apps as app (app.id)}
-                <DropdownMenu.Item 
-                  class="flex items-center justify-between gap-2 cursor-pointer"
-                  onclick={() => handleSelectApp(app.id)}
-                >
-                  <div class="flex items-center gap-2 min-w-0">
-                    <div 
-                      class="w-2.5 h-2.5 rounded-full shrink-0" 
-                      style="background-color: {app.color || APP_COLORS[0]}"
-                    ></div>
-                    <span class="truncate">{app.name}</span>
-                  </div>
-                  {#if app.id === appRegistry.activeAppId}
-                    <Check class="h-4 w-4 shrink-0 text-primary" />
-                  {/if}
-                </DropdownMenu.Item>
-              {/each}
-            </DropdownMenu.Group>
-            <DropdownMenu.Separator />
-            <DropdownMenu.Item class="cursor-pointer gap-2" onclick={openAppDialog}>
-              <Plus class="h-4 w-4" />
-              Connect client app...
-            </DropdownMenu.Item>
-            <DropdownMenu.Item class="cursor-pointer gap-2" onclick={navigateToApps}>
-              <Settings class="h-4 w-4" />
-              Manage apps
-            </DropdownMenu.Item>
-          </DropdownMenu.Content>
-        </DropdownMenu.Root>
+        <!-- Filterable App Selector -->
+        <FilterableAppSelect
+          width="600px"
+          align="start"
+          variant="default"
+          onSelectApp={handleSelectApp}
+          onAddApp={openAppDialog}
+          onManageApps={navigateToApps}
+        />
       {:else if !appRegistry.hasApps}
         <!-- Compact Empty State -->
         <div class="w-full rounded-lg border border-dashed border-muted-foreground/30 bg-muted/30 px-4 py-3">

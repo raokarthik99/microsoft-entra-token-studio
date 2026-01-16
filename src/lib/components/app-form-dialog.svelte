@@ -986,14 +986,28 @@ import { Checkbox } from 'bits-ui';
       secretName = secretNameValue;
       certName = certNameValue;
 
-      // 1. Prepare Key Vault config
+      // 1. Check for duplicate app configuration (same client ID + credential)
+      const credentialName = credentialType === 'secret' ? secretNameValue : certNameValue;
+      const isDuplicate = appRegistry.isDuplicate(
+        clientIdValue,
+        credentialType,
+        credentialName,
+        editingApp?.id // Exclude current app when editing
+      );
+      
+      if (isDuplicate) {
+        error = 'An app with this Client ID and credential already exists. Please use a different credential or edit the existing app.';
+        return;
+      }
+
+      // 2. Prepare Key Vault config
       const keyVault: KeyVaultConfig = {
         uri: keyVaultUriValue,
         credentialType,
         ...(credentialType === 'secret' ? { secretName: secretNameValue } : { certName: certNameValue }),
       };
 
-      // 2. Validate Key Vault connection
+      // 3. Validate Key Vault connection
       const { validateKeyVault } = await import('$lib/services/tauri-api');
       const result = await validateKeyVault(keyVault);
 

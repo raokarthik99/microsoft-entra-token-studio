@@ -9,6 +9,7 @@
   import { Star, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, Play, Eye, Pencil, Trash2, MoreHorizontal, Copy, Pin, PinOff } from "@lucide/svelte";
   import type { FavoriteItem } from "$lib/types";
   import TokenStatusBadge from "./TokenStatusBadge.svelte";
+  import TruncatedText from "./TruncatedText.svelte";
   import { cn, getReadableExpiry, getTokenStatus } from "$lib/utils";
   import { time } from "$lib/stores/time";
   import { toast } from "svelte-sonner";
@@ -611,9 +612,10 @@
                         class="w-2.5 h-2.5 rounded-full shrink-0" 
                         style="background-color: {row.favorite.appColor || '#10b981'}"
                       ></div>
-                      <span class="text-xs text-muted-foreground truncate max-w-[80px]" title={row.favorite.appName}>
-                        {row.favorite.appName}
-                      </span>
+                      <TruncatedText 
+                        text={row.favorite.appName} 
+                        class="text-xs text-muted-foreground max-w-[80px]"
+                      />
                     </div>
                   {:else}
                     <span class="text-xs text-muted-foreground italic">Legacy</span>
@@ -671,12 +673,12 @@
                   {/if}
                 </TableCell>
                 <TableCell class="align-top hidden lg:table-cell">
-                  <div class="text-sm font-medium leading-tight">{row.favorite.useCount || 0} uses</div>
+                  <div class="text-xs font-medium leading-tight">{row.favorite.useCount || 0} uses</div>
                   <div class="text-[11px] text-muted-foreground">Created {row.createdAgo}</div>
                 </TableCell>
                 <TableCell class="align-top hidden xl:table-cell">
-                  <div class="text-sm font-medium leading-tight">
-                    {row.lastUsedAt ? row.lastUsedAt.toLocaleString() : "Not used yet"}
+                  <div class="text-xs font-medium leading-tight whitespace-nowrap">
+                    {row.lastUsedAt ? `${row.lastUsedAt.toLocaleDateString()} ${row.lastUsedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : "Not used yet"}
                   </div>
                   <div class="text-[11px] text-muted-foreground">
                     {row.lastUsedAgo ? `Used ${row.lastUsedAgo}` : "—"}

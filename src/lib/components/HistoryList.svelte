@@ -6,6 +6,7 @@
   import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "$lib/shadcn/components/ui/table";
   import { Clock3, ArrowUpDown, ArrowUp, ArrowDown, Search, Filter, Trash2, Play } from "@lucide/svelte";
   import TokenStatusBadge from "./TokenStatusBadge.svelte";
+  import TruncatedText from "./TruncatedText.svelte";
   import ColorDot from "./color-dot.svelte";
   import DataTableActions from "./history-table/data-table-actions.svelte";
   import { getReadableExpiry, getTokenStatus, cn } from "$lib/utils";
@@ -568,9 +569,10 @@
                   {#if row.item.appName}
                     <div class="flex items-center gap-2">
                       <ColorDot color={row.item.appColor || "#10b981"} size={10} />
-                      <span class="text-xs text-muted-foreground truncate max-w-[80px]" title={row.item.appName}>
-                        {row.item.appName}
-                      </span>
+                      <TruncatedText 
+                        text={row.item.appName} 
+                        class="text-xs text-muted-foreground max-w-[80px]"
+                      />
                     </div>
                   {:else}
                     <span class="text-xs text-muted-foreground italic">Legacy</span>
@@ -599,12 +601,12 @@
                   {/if}
                 </TableCell>
                 <TableCell class="align-top hidden lg:table-cell">
-                  <div class="text-sm font-medium leading-tight">{row.issuedOn.toLocaleString()}</div>
+                  <div class="text-xs font-medium leading-tight whitespace-nowrap">{row.issuedOn.toLocaleDateString()} {row.issuedOn.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                   <div class="text-[11px] text-muted-foreground">Issued {row.issuedAgo}</div>
                 </TableCell>
                 <TableCell class="align-top hidden xl:table-cell">
                   {#if row.expiresOn}
-                    <div class="text-sm font-medium leading-tight">{row.expiresOn.toLocaleString()}</div>
+                    <div class="text-xs font-medium leading-tight whitespace-nowrap">{row.expiresOn.toLocaleDateString()} {row.expiresOn.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                     <div class="text-[11px] text-muted-foreground">
                       {row.statusKey === "expired" ? row.readableExpiry : `In ${row.readableExpiry}`}
                     </div>
