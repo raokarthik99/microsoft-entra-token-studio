@@ -337,9 +337,11 @@ You may see **"Windows protected your PC"** because the app is not signed with a
 To publish a new version of the desktop app:
 
 ```bash
-# Option A: Create a new release (patch/minor/major)
-# Automatically bumps version, syncs files, commits, tags, and pushes.
-pnpm release:patch   # or :minor / :major
+# Option A: Create a new release
+# Interactive script. Bumps version, syncs files, commits, tags, and pushes.
+pnpm release:patch         # or :minor, :major
+pnpm release 1.0.0-beta.1  # specific version
+pnpm release prerelease    # smart prerelease increment
 
 # Option B: Recreate current tag (re-trigger CI/CD)
 # Deletes local/remote tag for current version and recreates it on HEAD.
