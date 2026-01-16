@@ -57,7 +57,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDYxRDkyNkI3RDQxMkQzRkUKUldUKzB4TFV0eWJaWVkxYjgyWG5UNzdLQ09XNmxncW9SWHV1bXUxWERwR3h2a3FlOHFFUmx3UUcK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDg5Mzc0NEFGQkMzQUFFOEUKUldTT3JqcThyMFEzaVFpUU1vaHd2MTkxYjgwcGEycW8wTWROV3VUeVlaam9CMHY2ZTQ4ckY1cDgK",
       "endpoints": [
         "https://github.com/raokarthik99/microsoft-entra-token-studio/releases/latest/download/latest.json"
       ]
