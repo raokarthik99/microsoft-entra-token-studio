@@ -337,15 +337,13 @@ You may see **"Windows protected your PC"** because the app is not signed with a
 To publish a new version of the desktop app:
 
 ```bash
-# 1. Sync version across all config files
-pnpm version:sync 1.2.3
+# Option A: Create a new release (patch/minor/major)
+# Automatically bumps version, syncs files, commits, tags, and pushes.
+pnpm release:patch   # or :minor / :major
 
-# 2. Commit and tag
-git add -A && git commit -m "chore: release v1.2.3"
-git tag v1.2.3
-
-# 3. Push (triggers the release workflow)
-git push && git push --tags
+# Option B: Recreate current tag (re-trigger CI/CD)
+# Deletes local/remote tag for current version and recreates it on HEAD.
+pnpm release:recreate
 ```
 
 Alternatively, trigger a release manually from **GitHub Actions → Release → Run workflow**.

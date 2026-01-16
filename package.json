@@ -26,7 +26,10 @@
     "sidecar:build:release": "pnpm --filter=entra-token-studio-sidecar build",
     "sidecar:watch": "pnpm --filter=entra-token-studio-sidecar build:watch",
     "version:sync": "node scripts/sync-version.js",
-    "release": "node scripts/sync-version.js"
+    "release:recreate": "node scripts/release.js recreate",
+    "release:patch": "node scripts/release.js patch",
+    "release:minor": "node scripts/release.js minor",
+    "release:major": "node scripts/release.js major"
   },
   "devDependencies": {
     "@internationalized/date": "^3.10.0",
