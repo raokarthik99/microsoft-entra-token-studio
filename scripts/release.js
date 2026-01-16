@@ -12,11 +12,19 @@ const pkgPath = path.resolve(__dirname, '../package.json');
 function run(command, stdio = 'inherit') {
   console.log(`> ${command}`);
   try {
-    return execSync(command, { stdio, encoding: 'utf8' }).trim();
-  } catch (e) {
-    if (stdio !== 'ignore') {
-      console.error(`Command failed: ${command}`);
+    const output = execSync(command, { stdio, encoding: 'utf8' });
+    if (typeof output === 'string') {
+      return output.trim();
     }
+    if (Buffer.isBuffer(output)) {
+      return output.toString('utf8').trim();
+    }
+    return '';
+  } catch (e) {
+    if (stdio === 'ignore') {
+      throw e;
+    }
+    console.error(`Command failed: ${command}`);
     process.exit(1);
   }
 }
@@ -58,16 +66,24 @@ async function main() {
       process.exit(0);
     }
 
+    // 1. Delete local tag if exists
     try {
-      run(`git tag -d ${tagName}`, 'ignore'); // Ignore output if tag doesn't exist
-    } catch {}
+      const tagCheck = run(`git tag -l "${tagName}"`, 'pipe');
+      if (tagCheck.trim() === tagName) {
+        run(`git tag -d ${tagName}`);
+      }
+    } catch (e) {
+      console.warn('   ⚠️ Could not check or delete local tag:', e.message);
+    }
     
+    // 2. Delete remote tag
     try {
-      run(`git push origin :${tagName}`, 'ignore'); // Ignore output if remote tag doesn't exist
+      run(`git push origin :${tagName}`, 'ignore'); 
     } catch {
-       console.log("   (Remote tag might not exist, continuing...)");
+       console.log("   (Remote tag might not exist or already deleted, continuing...)");
     }
 
+    // 3. Create & Push
     run(`git tag ${tagName}`);
     run(`git push origin ${tagName}`);
 
