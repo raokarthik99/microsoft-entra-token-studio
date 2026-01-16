@@ -1,12 +1,16 @@
 <script lang="ts">
   import * as Sidebar from "$lib/shadcn/components/ui/sidebar";
   import { Badge } from "$lib/shadcn/components/ui/badge";
+  import * as Tooltip from "$lib/shadcn/components/ui/tooltip";
   import { History, Home, Zap, ShieldHalf, Star, Cloud, Settings } from "@lucide/svelte";
   import { page } from '$app/stores';
   import logoUrl from "$lib/assets/token-studio-icon.png";
   import PinnedTokensNav from "$lib/components/PinnedTokensNav.svelte";
 
   let { ...restProps } = $props();
+
+  // Version from build-time define (see vite.config.ts)
+  const appVersion = __APP_VERSION__;
 
   const nav = [
     { href: '/', label: 'Playground', description: 'Generate and inspect tokens', icon: Home },
@@ -28,12 +32,22 @@
         <Sidebar.MenuButton size="lg" class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground">
           {#snippet child({ props })}
             <a href="/" {...props}>
-              <div class="flex items-center gap-3">
+              <div class="flex items-center gap-3 w-full">
                 <div class="flex aspect-square size-9 items-center justify-center rounded-full shrink-0 overflow-hidden">
                   <img src={logoUrl} alt="Token Studio logo" class="size-9 rounded-full object-cover" />
                 </div>
-                <div class="flex min-w-0 flex-col">
+                <div class="flex min-w-0 flex-1 items-center gap-2">
                   <span class="block truncate text-sm font-semibold leading-tight">Entra Token Studio</span>
+                  <Tooltip.Root delayDuration={200}>
+                    <Tooltip.Trigger>
+                      <Badge variant="secondary" class="ml-auto shrink truncate text-[10px] px-1.5 py-0 h-4 font-normal">
+                        v{appVersion}
+                      </Badge>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content side="right" class="text-xs">
+                      Version {appVersion}
+                    </Tooltip.Content>
+                  </Tooltip.Root>
                 </div>
               </div>
             </a>

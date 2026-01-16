@@ -400,7 +400,7 @@ import { appRegistry } from '$lib/states/app-registry.svelte';
             <div class="space-y-1">
               <Label>Current Version</Label>
               <p class="text-sm text-muted-foreground">
-                v{updaterState.version || 'Unknown'}
+                v{__APP_VERSION__}
               </p>
             </div>
             <div class="flex items-center gap-2">

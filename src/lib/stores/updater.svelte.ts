@@ -5,7 +5,6 @@ import type { CheckOptions, DownloadEvent, Update } from '@tauri-apps/plugin-upd
 
 type UpdaterApi = {
 	check: (options?: CheckOptions) => Promise<Update | null>;
-	getVersion: () => Promise<string>;
 	relaunch: () => Promise<void>;
 };
 
@@ -48,12 +47,11 @@ async function loadUpdaterApi(): Promise<UpdaterApi | null> {
 
 	if (!updaterApiPromise) {
 		updaterApiPromise = (async () => {
-			const [{ check }, { relaunch }, { getVersion }] = await Promise.all([
+			const [{ check }, { relaunch }] = await Promise.all([
 				import('@tauri-apps/plugin-updater'),
 				import('@tauri-apps/plugin-process'),
-				import('@tauri-apps/api/app'),
 			]);
-			return { check, relaunch, getVersion };
+			return { check, relaunch };
 		})().catch((error) => {
 			console.error('Failed to load updater APIs', error);
 			return null;
@@ -71,7 +69,6 @@ function updaterSupported(): boolean {
 export class UpdateStore {
 	checking = $state(false);
 	updateAvailable = $state(false);
-	version = $state('');
 	newVersion = $state('');
 	downloaded = $state(false);
 	downloading = $state(false);
@@ -81,22 +78,6 @@ export class UpdateStore {
 
 	// Holds the update object from Tauri
 	private update: Update | null = null;
-
-	constructor() {
-		this.init();
-	}
-
-	async init() {
-		if (!updaterSupported()) return;
-		const api = await loadUpdaterApi();
-		if (!api) return;
-
-		try {
-			this.version = await api.getVersion();
-		} catch (e) {
-			console.error('Failed to get app version', e);
-		}
-	}
 
 	async checkForUpdates(manual = false) {
 		if (this.checking || this.downloading) return;
