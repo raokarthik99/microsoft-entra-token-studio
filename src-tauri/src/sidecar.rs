@@ -507,6 +507,15 @@ impl SidecarManager {
             command.env("PATH", new_path);
         }
 
+        // On Windows, prevent the sidecar (node.exe) from spawning a visible console window.
+        // This only applies in release builds to preserve console output for debugging.
+        #[cfg(all(target_os = "windows", not(debug_assertions)))]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+            command.creation_flags(CREATE_NO_WINDOW);
+        }
+
         let child = command
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
