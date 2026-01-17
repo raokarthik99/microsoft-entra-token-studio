@@ -566,26 +566,11 @@ function startCallbackServer(expectedState?: string): Promise<CallbackServerResu
     <p>You're all set!</p>
     <a href="entra-token-studio://auth-complete" class="open-app" id="openApp">Open Entra Token Studio</a>
     <p style="margin-top: 16px; font-size: 13px;">Or close this window manually.</p>
-    <div id="fallback" style="display: none; margin-top: 16px; padding: 12px; background: rgba(148, 163, 184, 0.1); border-radius: 8px; font-size: 13px;">
-      <strong>Dev Mode:</strong> Deep link not available. Switch to the app manually — your token is ready!
-    </div>
     ${footerHtml}
   </div>
   <script>
-    // Try to open the app via deep link
-    // In dev mode, the protocol isn't registered so this may fail
-    const openApp = document.getElementById('openApp');
-    const fallback = document.getElementById('fallback');
-    
-    setTimeout(() => {
-      // Try triggering the deep link
-      openApp.click();
-      
-      // If we're still here after 1 second, deep link didn't work (dev mode)
-      setTimeout(() => {
-        fallback.style.display = 'block';
-      }, 1000);
-    }, 500);
+    // Immediately trigger deep link to open the app (industry standard for OAuth callbacks)
+    window.location.href = 'entra-token-studio://auth-complete';
   </script>
 </body>
 </html>`);
