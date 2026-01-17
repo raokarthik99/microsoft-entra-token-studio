@@ -1,6 +1,6 @@
 [package]
 name = "entra-token-studio"
-version = "1.0.1"
+version = "1.0.2"
 description = "A local developer workbench for Microsoft Entra access tokens"
 authors = ["Karthik Rao"]
 license = "MIT"
