@@ -25,6 +25,19 @@ import { appRegistry } from '$lib/states/app-registry.svelte';
   import { isTauriMode } from '$lib/utils/runtime';
   import { updaterState } from '$lib/stores/updater.svelte';
 
+  /**
+   * Returns the platform-specific name for the OS credential store.
+   * - Windows: "Credential Manager" (backed by DPAPI)
+   * - macOS: "Keychain"
+   * - Linux: "Secret Service" (libsecret / GNOME Keyring / KDE Wallet)
+   */
+  function getCredentialStoreName(): string {
+    const ua = navigator.userAgent;
+    if (/Windows/.test(ua)) return 'Credential Manager';
+    if (/Macintosh|Mac OS/.test(ua)) return 'Keychain';
+    return 'Secret Service'; // Linux: libsecret / GNOME Keyring / KDE Wallet
+  }
+
   function getInitials(name: string) {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   }
@@ -315,7 +328,7 @@ import { appRegistry } from '$lib/states/app-registry.svelte';
               <Badge variant={authStorageStatus.encrypted ? "default" : "secondary"}>
                 {#if authStorageStatus.encrypted}
                   {#if authStorageStatus.keySource === 'keyring'}
-                    Encrypted (OS keychain)
+                    Encrypted ({getCredentialStoreName()})
                   {:else if authStorageStatus.keySource === 'file'}
                     Encrypted (local key file)
                   {:else}
