@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Entra Token Studio",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "identifier": "com.entra-token-studio",
   "build": {
     "frontendDist": "../build",
