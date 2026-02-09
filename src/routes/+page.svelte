@@ -106,7 +106,7 @@
 
 
   const decodedClaims = $derived(result ? parseJwt(result.accessToken) : null);
-  const resultKind = $derived(result ? (result.scopes?.length ? 'User Token' : 'App Token') : '');
+  const resultKind = $derived(result ? (activeTab === 'app-token' ? 'App Token' : 'User Token') : '');
   const issuedAtDate = $derived(decodedClaims?.iat ? new Date(Number((decodedClaims as any).iat) * 1000) : null);
   const audienceClaim = $derived((() => {
     if (!decodedClaims || !(decodedClaims as any).aud) return null;

@@ -3,6 +3,7 @@
   import { Button } from '$lib/shadcn/components/ui/button';
   import { Badge } from '$lib/shadcn/components/ui/badge';
   import * as Collapsible from '$lib/shadcn/components/ui/collapsible';
+  import { openExternalUrl } from '$lib/utils/runtime';
 
   interface KeyVaultErrorData {
     code: string;
@@ -168,7 +169,7 @@
 
   function openActionUrl() {
     if (parsedError?.actionUrl) {
-      window.open(parsedError.actionUrl, '_blank', 'noopener,noreferrer');
+      openExternalUrl(parsedError.actionUrl);
     }
   }
 </script>

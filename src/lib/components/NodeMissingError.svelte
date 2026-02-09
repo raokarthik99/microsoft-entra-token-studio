@@ -3,6 +3,7 @@
   import { Button } from '$lib/shadcn/components/ui/button';
   import * as Collapsible from '$lib/shadcn/components/ui/collapsible';
   import logo from '$lib/assets/token-studio-icon.png';
+  import { openExternalUrl } from '$lib/utils/runtime';
 
   interface Props {
     error: string;
@@ -53,7 +54,7 @@
   });
 
   function openNodeJsDownload() {
-    window.open('https://nodejs.org', '_blank', 'noopener,noreferrer');
+    openExternalUrl('https://nodejs.org');
   }
 </script>
 

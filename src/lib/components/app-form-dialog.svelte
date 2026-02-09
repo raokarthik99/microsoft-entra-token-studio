@@ -14,7 +14,7 @@
   import { toast } from 'svelte-sonner';
   import * as Collapsible from '$lib/shadcn/components/ui/collapsible';
   import FormSheetLayout from '$lib/components/FormSheetLayout.svelte';
-import { isTauriMode } from '$lib/utils/runtime';
+import { isTauriMode, openExternalUrl } from '$lib/utils/runtime';
 import { 
     Loader2, KeyRound, Shield, Cloud, 
     CheckCircle2, Check, XCircle, Info, ExternalLink,
@@ -1609,7 +1609,7 @@ import { Checkbox } from 'bits-ui';
               type="button"
               variant="default" 
               class="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-medium shadow-lg shadow-orange-500/20"
-              onclick={() => window.open(`https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/Authentication/appId/${resolvedClientId}`, '_blank')}
+              onclick={() => openExternalUrl(`https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/Authentication/appId/${resolvedClientId}`)}
             >
               <SquareArrowOutUpRight class="h-4 w-4 mr-2" />
               Open Authentication Settings in Azure Portal
