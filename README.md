@@ -15,13 +15,7 @@
 
   <p>
     <a href="https://github.com/raokarthik99/microsoft-entra-token-studio/actions/workflows/release.yml">
-      <img src="https://img.shields.io/github/actions/workflow/status/raokarthik99/microsoft-entra-token-studio/release.yml?branch=main&label=Release%20CI" alt="Release CI status" />
-    </a>
-    <a href="https://github.com/raokarthik99/microsoft-entra-token-studio/releases/latest">
-      <img src="https://img.shields.io/github/v/release/raokarthik99/microsoft-entra-token-studio?label=Latest%20Release" alt="Latest release" />
-    </a>
-    <a href="https://github.com/raokarthik99/microsoft-entra-token-studio/releases">
-      <img src="https://img.shields.io/github/downloads/raokarthik99/microsoft-entra-token-studio/total?label=Downloads" alt="GitHub downloads" />
+      <img src="https://img.shields.io/github/actions/workflow/status/raokarthik99/microsoft-entra-token-studio/release.yml?label=Release%20CI" alt="Release CI status" />
     </a>
     <a href="LICENSE">
       <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT" />
@@ -29,16 +23,21 @@
   </p>
 
   <p>
-    <strong>Latest Installers:</strong>
-    <a href="https://github.com/raokarthik99/microsoft-entra-token-studio/releases/latest/download/Entra-Token-Studio-macos-aarch64.dmg">macOS (Apple Silicon)</a>
-    &nbsp;·&nbsp;
-    <a href="https://github.com/raokarthik99/microsoft-entra-token-studio/releases/latest/download/Entra-Token-Studio-macos-x64.dmg">macOS (Intel)</a>
-    &nbsp;·&nbsp;
-    <a href="https://github.com/raokarthik99/microsoft-entra-token-studio/releases/latest/download/Entra-Token-Studio-windows.exe">Windows</a>
-    &nbsp;·&nbsp;
-    <a href="https://github.com/raokarthik99/microsoft-entra-token-studio/releases/latest/download/Entra-Token-Studio-linux.AppImage">Linux AppImage</a>
-    &nbsp;·&nbsp;
-    <a href="https://github.com/raokarthik99/microsoft-entra-token-studio/releases/latest/download/Entra-Token-Studio-linux.deb">Linux .deb</a>
+    <a href="https://github.com/raokarthik99/microsoft-entra-token-studio/releases/latest/download/Entra-Token-Studio-macos-aarch64.dmg">
+      <img src="https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple" alt="Download for macOS Apple Silicon" />
+    </a>
+    <a href="https://github.com/raokarthik99/microsoft-entra-token-studio/releases/latest/download/Entra-Token-Studio-macos-x64.dmg">
+      <img src="https://img.shields.io/badge/macOS-Intel-black?logo=apple" alt="Download for macOS Intel" />
+    </a>
+    <a href="https://github.com/raokarthik99/microsoft-entra-token-studio/releases/latest/download/Entra-Token-Studio-windows.exe">
+      <img src="https://img.shields.io/badge/Windows-Installer-0078D6?logo=windows" alt="Download for Windows" />
+    </a>
+    <a href="https://github.com/raokarthik99/microsoft-entra-token-studio/releases/latest/download/Entra-Token-Studio-linux.AppImage">
+      <img src="https://img.shields.io/badge/Linux-AppImage-FCC624?logo=linux&logoColor=black" alt="Download Linux AppImage" />
+    </a>
+    <a href="https://github.com/raokarthik99/microsoft-entra-token-studio/releases/latest/download/Entra-Token-Studio-linux.deb">
+      <img src="https://img.shields.io/badge/Linux-DEB-A81D33?logo=debian" alt="Download Linux DEB" />
+    </a>
   </p>
 
   <p><strong>Local-First</strong> · <strong>Open Source</strong> · <strong>Zero Telemetry</strong></p>
