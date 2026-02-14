@@ -1,17 +1,46 @@
-# Entra Token Studio
-
-Read the [blog post](https://raokarthik99.substack.com/p/microsoft-entra-token-studio-a-local) to understand the philosophy and story behind the project.
-
-**A local developer workbench for generating, inspecting, and testing Microsoft Entra access tokens.**
-
-Built with SvelteKit 2, Svelte 5, TypeScript, shadcn components, MSAL, and Azure SDKs.
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-
 <div align="center">
+  <h1>Entra Token Studio</h1>
+  <p><strong>The local developer workbench for generating, inspecting, and testing Microsoft Entra access tokens.</strong></p>
+  <p>Built with SvelteKit 2, Svelte 5, TypeScript, shadcn components, MSAL, and Azure SDKs.</p>
 
-**Local-First** · **Open Source** · **Zero Telemetry**
+  <p>
+    <a href="#quickstart"><strong>Quick Start</strong></a>
+    &nbsp;·&nbsp;
+    <a href="https://raokarthik99.substack.com/p/microsoft-entra-token-studio-a-local"><strong>Blog Post</strong></a>
+    &nbsp;·&nbsp;
+    <a href="#contributing"><strong>Contributing</strong></a>
+    &nbsp;·&nbsp;
+    <a href="https://github.com/raokarthik99/microsoft-entra-token-studio/releases"><strong>All Releases</strong></a>
+  </p>
 
+  <p>
+    <a href="https://github.com/raokarthik99/microsoft-entra-token-studio/actions/workflows/release.yml">
+      <img src="https://img.shields.io/github/actions/workflow/status/raokarthik99/microsoft-entra-token-studio/release.yml?label=Release%20CI" alt="Release CI status" />
+    </a>
+    <a href="LICENSE">
+      <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT" />
+    </a>
+  </p>
+
+  <p>
+    <a href="https://github.com/raokarthik99/microsoft-entra-token-studio/releases/latest/download/Entra-Token-Studio-macos-aarch64.dmg">
+      <img src="https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple" alt="Download for macOS Apple Silicon" />
+    </a>
+    <a href="https://github.com/raokarthik99/microsoft-entra-token-studio/releases/latest/download/Entra-Token-Studio-macos-x64.dmg">
+      <img src="https://img.shields.io/badge/macOS-Intel-black?logo=apple" alt="Download for macOS Intel" />
+    </a>
+    <a href="https://github.com/raokarthik99/microsoft-entra-token-studio/releases/latest/download/Entra-Token-Studio-windows.exe">
+      <img src="https://img.shields.io/badge/Windows-Installer-0078D6?logo=windows" alt="Download for Windows" />
+    </a>
+    <a href="https://github.com/raokarthik99/microsoft-entra-token-studio/releases/latest/download/Entra-Token-Studio-linux.AppImage">
+      <img src="https://img.shields.io/badge/Linux-AppImage-FCC624?logo=linux&logoColor=black" alt="Download Linux AppImage" />
+    </a>
+    <a href="https://github.com/raokarthik99/microsoft-entra-token-studio/releases/latest/download/Entra-Token-Studio-linux.deb">
+      <img src="https://img.shields.io/badge/Linux-DEB-A81D33?logo=debian" alt="Download Linux DEB" />
+    </a>
+  </p>
+
+  <p><strong>Local-First</strong> · <strong>Open Source</strong> · <strong>Zero Telemetry</strong></p>
 </div>
 
 > 🔒 **Disclaimer:** Entra Token Studio is an independent project and is not affiliated with, endorsed by, or connected to Microsoft Corporation. Use it for local development and education only. Do not paste production tokens into third-party tools, and never deploy this app to a public environment with live credentials.
